@@ -6,6 +6,42 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';
 
+class Transaction {
+  final String id;
+  final String merchantName;
+  final String? category;
+  final DateTime date;
+  final double amount;
+  final bool isOutflow;
+
+  Transaction({
+    required this.id,
+    required this.merchantName,
+    this.category,
+    required this.date,
+    required this.amount,
+    required this.isOutflow,
+  });
+
+  factory Transaction.fromJson(Map<String, dynamic> json) {
+    final amount = json['amount'] is String 
+      ? double.parse(json['amount'].replaceAll('-', ''))
+      : (json['amount'] as num).toDouble();
+    final isOutflow = json['amount'] is String
+      ? json['amount'].startsWith('-')
+      : json['amount'] < 0;
+
+    return Transaction(
+      id: json['id'] as String,
+      merchantName: json['merchant_name'] as String? ?? 'Unknown Merchant',
+      category: json['category'] as String?,
+      date: DateTime.parse(json['date'] as String),
+      amount: amount,
+      isOutflow: isOutflow,
+    );
+  }
+}
+
 enum UserStatus {
   newUser,
   noBankAccount,
@@ -241,10 +277,10 @@ class AuthService {
     );
   }
 
-  /// Retrieves a paginated list of transactions for a specific bank account within a date range.
+  /// Retrieves a paginated list of transactions for a specific bank account or all accounts within a date range.
   ///
   /// [userId]: The unique identifier of the user.
-  /// [bankAccountId]: The unique identifier of the bank account.
+  /// [bankAccountId]: The unique identifier of the bank account. Use 'all' for all accounts.
   /// [startDate]: The start date in ISO 8601 format (e.g., "2024-01-01").
   /// [endDate]: The end date in ISO 8601 format (e.g., "2024-01-31").
   /// [page]: The page number for pagination (default is 1).
@@ -253,22 +289,28 @@ class AuthService {
   /// Returns a map containing the list of transactions and pagination details.
   Future<Map<String, dynamic>> getTransactions({
     required String userId,
-    required String bankAccountId,
+    String bankAccountId = 'all',
     required String startDate,
     required String endDate,
     int page = 1,
     int limit = 50,
   }) async {
+    final Map<String, dynamic> body = {
+      'userId': userId,
+      'startDate': startDate,
+      'endDate': endDate,
+      'page': page,
+      'limit': limit,
+    };
+
+    // Only include bankAccountId in the request if it's not 'all'
+    if (bankAccountId != 'all') {
+      body['bankAccountId'] = bankAccountId;
+    }
+
     return _makeRequest(
       endpoint: '/api/plaid/get_transactions',
-      body: {
-        'userId': userId,
-        'bankAccountId': bankAccountId,
-        'startDate': startDate,
-        'endDate': endDate,
-        'page': page,
-        'limit': limit,
-      },
+      body: body,
       method: 'POST',
       requireAuth: true,
     );
@@ -340,6 +382,38 @@ class AuthService {
     } else {
       return UserStatus.noBankAccount;
     }
+  }
+
+  Future<List<Transaction>> getRecentTransactions(String userId) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/recent-transactions/$userId',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] == true && response['transactions'] is List) {
+        return (response['transactions'] as List)
+            .map((json) => Transaction.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        _logger.e('Unexpected response format: $response');
+        throw Exception('Failed to fetch recent transactions: Unexpected response format');
+      }
+    } catch (e) {
+      _logger.e('Error fetching recent transactions', error: e);
+      throw Exception('Failed to fetch recent transactions: ${e.toString()}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getCurrentBalances() async {
+    return _makeRequest(
+      endpoint: '/api/plaid/current-balances',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
   }
 }
 

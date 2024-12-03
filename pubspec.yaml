@@ -28,6 +28,7 @@ dependencies:
   sentry_flutter: ^8.10.1
   animate_do: ^3.3.4
   confetti: ^0.8.0
+  intl: ^0.20.1
 
 dev_dependencies:
   flutter_test:
@@ -46,6 +47,8 @@ flutter:
     - assets/images/create_password.svg
     - assets/images/create_password.png
     - assets/images/personal_info.svg
+    - assets/images/roth_ira_vs_401k.png
+    - assets/images/avatar.png
     - assets/images/OBJECTS.svg
     - assets/images/OBJECTS-1.svg
     - assets/images/OBJECTS-2.svg
@@ -66,4 +69,6 @@ flutter:
       fonts:
         - asset: assets/fonts/Onest-Regular.ttf
         - asset: assets/fonts/Onest-Bold.ttf
+        - asset: assets/fonts/NunitoSans_SemiBold.ttf
+        - asset: assets/fonts/NunitoSans.ttf
           weight: 700

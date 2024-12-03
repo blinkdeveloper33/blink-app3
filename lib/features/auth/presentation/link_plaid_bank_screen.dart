@@ -1,6 +1,7 @@
 // lib/screens/link_plaid_bank_screen.dart
 
 import 'dart:async';
+import 'package:flutter/foundation.dart' show unawaited;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
@@ -129,6 +130,9 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       if (response['success'] == true) {
         _logger.i('Bank account linked successfully: ${response['message']}');
         _showSuccessDialog();
+
+        // Perform background tasks without blocking the UI
+        unawaited(_performBackgroundTasks(userId));
       } else {
         _showErrorDialog('Failed to link bank account: ${response['message'] ?? 'Unknown error'}');
       }
@@ -137,6 +141,32 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         _showErrorDialog('Failed to link bank account: ${e.toString()}');
       }
       _logger.e('Error exchanging public token', error: e, stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _performBackgroundTasks(String userId) async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+
+    try {
+      // Sync transactions
+      await authService.syncTransactions(userId);
+      _logger.i('Transactions synced successfully');
+
+      // Get transactions (you might want to specify date range and other parameters)
+      final transactions = await authService.getTransactions(
+        userId: userId,
+        bankAccountId: 'all', // or specify a particular account ID
+        startDate: DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+        endDate: DateTime.now().toIso8601String(),
+      );
+      _logger.i('Transactions retrieved successfully: ${transactions.length} transactions');
+
+      // Sync balances
+      await authService.syncBalances(userId);
+      _logger.i('Balances synced successfully');
+    } catch (e) {
+      _logger.e('Error performing background tasks', error: e);
+      // We don't show any error to the user as this is a background task
     }
   }
 
@@ -202,7 +232,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Your bank account has been linked. You can now start using our services.',
+                  'Your bank account has been linked. You can now start using Blink.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white70,
