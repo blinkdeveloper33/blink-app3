@@ -1,0 +1,69 @@
+name: myapp
+description: A financial management and Cash advance app.
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=2.19.0 <3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_svg: ^2.0.16
+  smooth_page_indicator: ^1.2.0+3
+  animated_text_kit: ^4.2.2
+  url_launcher: ^6.3.1
+  plaid_flutter: ^4.1.1
+  http: ^1.2.2
+  logger: ^2.5.0
+  shared_preferences: ^2.3.3
+  flutter_dotenv: ^5.2.1
+  provider: ^6.1.2
+  path_provider: ^2.1.5
+  encrypt_shared_preferences: ^0.8.1  # Added the encrypt_shared_preferences package
+  cached_network_image: ^3.4.1
+  sentry_flutter: ^8.10.1
+  animate_do: ^3.3.4
+  confetti: ^0.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  mockito: ^5.4.4
+  bloc_test: ^9.1.7
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/images/blink_logo.png
+    - assets/images/backarrow.png
+    - assets/images/create_password.svg
+    - assets/images/create_password.png
+    - assets/images/personal_info.svg
+    - assets/images/OBJECTS.svg
+    - assets/images/OBJECTS-1.svg
+    - assets/images/OBJECTS-2.svg
+    - assets/images/google_icon.png
+    - assets/images/apple_icon.png
+    - assets/images/verification.png
+    - assets/animations/success-1--unscreen.gif
+    - assets/images/new_user.png
+    - assets/images/link_bank.png
+    - assets/images/bank_of_america.svg
+    - assets/images/chase.svg
+    - assets/images/wells_fargo.svg
+    - assets/images/citi.svg
+    - .env
+
+  fonts:
+    - family: Onest
+      fonts:
+        - asset: assets/fonts/Onest-Regular.ttf
+        - asset: assets/fonts/Onest-Bold.ttf
+          weight: 700
