@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:myapp/features/auth/presentation/select_verification_method_screen.dart';
+import 'package:myapp/features/auth/presentation/login_screen.dart';
 import 'package:logger/logger.dart';
 import 'package:animate_do/animate_do.dart';
 
@@ -337,7 +338,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   child: Center(
                     child: TextButton(
                       onPressed: () {
-                        // TODO: Implement sign in navigation
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        );
                       },
                       child: const Text(
                         'Already have an account? Log In',

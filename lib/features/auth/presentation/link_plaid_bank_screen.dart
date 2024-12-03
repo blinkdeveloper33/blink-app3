@@ -85,7 +85,11 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         );
       });
 
+      // Initialize Plaid Link
       await PlaidLink.create(configuration: _configuration!);
+
+      // Open Plaid Link flow
+      await PlaidLink.open();
     } catch (e, stackTrace) {
       if (mounted) {
         _showErrorDialog('Failed to initialize Plaid Link');
@@ -122,15 +126,15 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
 
       if (!mounted) return;
 
-      if (response.containsKey('access_token')) {
-        // Optionally, store the access_token if needed
+      if (response['success'] == true) {
+        _logger.i('Bank account linked successfully: ${response['message']}');
         _showSuccessDialog();
       } else {
-        _showErrorDialog('Failed to link bank account');
+        _showErrorDialog('Failed to link bank account: ${response['message'] ?? 'Unknown error'}');
       }
     } catch (e, stackTrace) {
       if (mounted) {
-        _showErrorDialog('Failed to link bank account');
+        _showErrorDialog('Failed to link bank account: ${e.toString()}');
       }
       _logger.e('Error exchanging public token', error: e, stackTrace: stackTrace);
     }
@@ -363,6 +367,41 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     }
   }
 
+  Widget _buildContinueButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isConnecting ? null : _createLinkTokenConfiguration,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2196F3),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 0,
+        ),
+        child: _isConnecting
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  strokeWidth: 2,
+                ),
+              )
+            : const Text(
+                'Connect Bank Account',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -503,44 +542,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _isConnecting
-                              ? null
-                              : (_configuration != null
-                                  ? () => PlaidLink.open()
-                                  : _createLinkTokenConfiguration),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2196F3),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isConnecting
-                              ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text(
-                                  'Connect Bank Account',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                        ),
-                      ),
+                      _buildContinueButton(),
                       const SizedBox(height: 32),
                     ],
                   ),

@@ -6,6 +6,12 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';
 
+enum UserStatus {
+  newUser,
+  noBankAccount,
+  complete
+}
+
 /// A service class responsible for handling authentication and Plaid-related API interactions.
 class AuthService {
   /// Base URL of the backend API.
@@ -170,9 +176,10 @@ class AuthService {
       requireAuth: false,
     );
 
-    // Store the JWT token securely upon successful login.
-    if (response.containsKey('token')) {
+    if (response['success']) {
+      // Store the JWT token securely upon successful login.
       await _storageService.setToken(response['token']);
+      await _storageService.setUserId(response['userId']);
     }
 
     return response;
@@ -309,6 +316,31 @@ class AuthService {
   Future<void> init() async {
     // Implement any initialization logic if necessary
   }
+
+  /// Get the user's status (new user, no bank account, or complete).
+  ///
+  /// Returns the UserStatus enum value.
+  Future<UserStatus> getUserStatus() async {
+    final userId = _storageService.getUserId();
+    if (userId == null) {
+      throw Exception('User ID not found. Please log in again.');
+    }
+
+    final response = await _makeRequest(
+      endpoint: '/api/users/status/$userId',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
+
+    if (response['hasBankAccount'] == true) {
+      return UserStatus.complete;
+    } else if (response['isNewUser'] == true) {
+      return UserStatus.newUser;
+    } else {
+      return UserStatus.noBankAccount;
+    }
+  }
 }
 
 /// Custom exception class for API-related errors.
@@ -348,3 +380,4 @@ class InvalidOtpException implements Exception {
   @override
   String toString() => 'InvalidOtpException: $message';
 }
+
