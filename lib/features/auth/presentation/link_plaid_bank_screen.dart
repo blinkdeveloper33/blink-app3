@@ -24,28 +24,42 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   final String _plaidPrivacyPolicyUrl = 'https://plaid.com/privacy/';
   final Logger _logger = Logger();
 
-  // Stream subscriptions for PlaidLink events
-  StreamSubscription<LinkSuccess>? _streamSuccess;
+  LinkTokenConfiguration? _configuration;
+  StreamSubscription<LinkEvent>? _streamEvent;
   StreamSubscription<LinkExit>? _streamExit;
+  StreamSubscription<LinkSuccess>? _streamSuccess;
+  LinkObject? _successObject;
 
   @override
   void initState() {
     super.initState();
-    // Set up event listeners using streams
-    _streamSuccess = PlaidLink.onSuccess.listen(_onPlaidSuccess);
-    _streamExit = PlaidLink.onExit.listen(_onPlaidExit);
+    _setupPlaidListeners();
   }
 
   @override
   void dispose() {
-    // Cancel stream subscriptions to prevent memory leaks
-    _streamSuccess?.cancel();
+    _streamEvent?.cancel();
     _streamExit?.cancel();
+    _streamSuccess?.cancel();
     super.dispose();
   }
 
-  /// Initializes PlaidLink by obtaining a link token and opening the Plaid Link flow.
-  Future<void> _initializePlaidLink() async {
+  void _setupPlaidListeners() {
+    _streamEvent = PlaidLink.onEvent.listen(_onEvent);
+    _streamExit = PlaidLink.onExit.listen((event) {
+      _onExit(event);
+      if (event.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(event.error?.displayMessage ?? 'Connection failed'),
+          ),
+        );
+      }
+    });
+    _streamSuccess = PlaidLink.onSuccess.listen(_onSuccess);
+  }
+
+  Future<void> _createLinkTokenConfiguration() async {
     if (!mounted) return;
 
     setState(() => _isConnecting = true);
@@ -65,19 +79,16 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       // Create link token using AuthService
       final linkToken = await authService.createLinkToken(userId);
 
-      // Create LinkTokenConfiguration with the received link token
-      final configuration = LinkTokenConfiguration(
-        token: linkToken,
-      );
+      setState(() {
+        _configuration = LinkTokenConfiguration(
+          token: linkToken,
+        );
+      });
 
-      // Initialize PlaidLink using the static create method with the configuration
-      await PlaidLink.create(configuration: configuration);
-
-      // Open the Plaid Link flow using the static open method
-      await PlaidLink.open();
+      await PlaidLink.create(configuration: _configuration!);
     } catch (e, stackTrace) {
       if (mounted) {
-        _showErrorDialog('Failed to connect bank account');
+        _showErrorDialog('Failed to initialize Plaid Link');
       }
       _logger.e('Error initializing PlaidLink', error: e, stackTrace: stackTrace);
     } finally {
@@ -87,11 +98,13 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     }
   }
 
-  /// Callback when Plaid Link successfully connects a bank account.
-  Future<void> _onPlaidSuccess(LinkSuccess success) async {
+  Future<void> _onSuccess(LinkSuccess event) async {
     if (!mounted) return;
 
-    final publicToken = success.publicToken;
+    setState(() => _successObject = event);
+    _logger.i("onSuccess: ${event.publicToken}");
+
+    final publicToken = event.publicToken;
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
@@ -123,20 +136,25 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     }
   }
 
-  /// Callback when Plaid Link is exited, either by user or due to an error.
-  void _onPlaidExit(LinkExit exit) {
+  void _onExit(LinkExit event) {
     if (!mounted) return;
 
-    if (exit.error != null) {
-      _showErrorDialog(
-          'Connection cancelled: ${exit.error?.displayMessage ?? exit.error?.message}');
-      _logger.e('Plaid Link exited with an error', error: exit.error);
+    _logger.i("onExit metadata: ${event.metadata.description()}");
+    if (event.error != null) {
+      final errorCode = event.error?.displayMessage ?? 'Unknown error';
+      final errorDetails = event.error?.description() ?? '';
+
+      _logger.e('Plaid Link Error: $errorCode - $errorDetails');
+      _showErrorDialog('Connection cancelled: $errorCode');
     } else {
       _logger.i('Plaid Link exited without error');
     }
   }
 
-  /// Displays a success dialog upon successful bank account linking.
+  void _onEvent(LinkEvent event) {
+    _logger.i("onEvent: ${event.name}, metadata: ${event.metadata.description()}");
+  }
+
   void _showSuccessDialog() {
     showDialog(
       context: context,
@@ -225,7 +243,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 
-  /// Displays an error dialog with the provided message.
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -265,7 +282,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 
-  /// Builds a security feature row with an icon, title, and description.
   Widget _buildSecurityFeature({
     required IconData icon,
     required String title,
@@ -311,7 +327,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 
-  /// Builds a bank logo widget from an SVG asset.
   Widget _buildBankLogo(String assetPath) {
     double padding = assetPath.contains('wells_fargo') ? 8.0 : 12.0;
     return Container(
@@ -336,7 +351,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 
-  /// Launches the privacy policy URL in an external application.
   Future<void> _launchPrivacyPolicy() async {
     final Uri url = Uri.parse(_plaidPrivacyPolicyUrl);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -492,8 +506,11 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed:
-                              _isConnecting ? null : _initializePlaidLink,
+                          onPressed: _isConnecting
+                              ? null
+                              : (_configuration != null
+                                  ? () => PlaidLink.open()
+                                  : _createLinkTokenConfiguration),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2196F3),
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -536,3 +553,4 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 }
+
