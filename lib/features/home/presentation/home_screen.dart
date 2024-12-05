@@ -12,9 +12,11 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   bool _isDarkMode = true;
-  final currencyFormatter = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+  final currencyFormatter =
+      NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   List<Transaction> _recentTransactions = [];
   bool _isLoading = true;
   Map<String, dynamic> _balances = {};
@@ -65,7 +67,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       print('Error loading recent transactions: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to load recent transactions. Please try again.'),
+          content:
+              Text('Failed to load recent transactions. Please try again.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -189,7 +192,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ? 0.0
         : (rawBalance is int ? rawBalance.toDouble() : rawBalance as double);
 
-    final primaryAccount = (_balances['accounts'] as List<dynamic>?)?.firstWhere(
+    final primaryAccount =
+        (_balances['accounts'] as List<dynamic>?)?.firstWhere(
       (account) => account['isPrimary'] == true,
       orElse: () => {'name': 'Primary Account', 'currentBalance': 0.0},
     );
@@ -201,7 +205,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _isDarkMode ? Colors.black.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
+            color: _isDarkMode
+                ? Colors.black.withOpacity(0.2)
+                : Colors.grey.withOpacity(0.2),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -246,7 +252,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                     ),
                     TextSpan(
-                      text: '${currencyFormatter.format(animatedBalance).split('.')[0].substring(1)}.',
+                      text:
+                          '${currencyFormatter.format(animatedBalance).split('.')[0].substring(1)}.',
                       style: TextStyle(
                         color: _isDarkMode ? Colors.white : Colors.black,
                         fontSize: 32,
@@ -255,7 +262,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                     ),
                     TextSpan(
-                      text: '${currencyFormatter.format(animatedBalance).split('.')[1]}',
+                      text:
+                          '${currencyFormatter.format(animatedBalance).split('.')[1]}',
                       style: TextStyle(
                         color: _isDarkMode ? Colors.white : Colors.black,
                         fontSize: 22,
@@ -638,7 +646,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   )
                 : Column(
                     children: _recentTransactions
-                        .map((transaction) => _buildTransactionItem(transaction))
+                        .map(
+                            (transaction) => _buildTransactionItem(transaction))
                         .toList(),
                   ),
       ],
@@ -687,7 +696,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
                 child: Image.asset(
                   'assets/images/roth_ira_vs_401k.png',
                   width: double.infinity,
@@ -761,4 +771,3 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 }
-
