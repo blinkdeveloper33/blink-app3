@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/auth_service.dart' show AuthService, Transaction;
 import 'package:myapp/services/storage_service.dart';
 import 'dart:async';
+import 'package:myapp/features/account/presentation/account_screen.dart';
+import 'package:logger/logger.dart';
+import 'package:myapp/features/blink_advance/presentation/blink_advance_screen.dart';
+import 'package:myapp/utils/custom_page_route.dart';
+import 'package:flutter/animation.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String userName; // Add userName parameter
+
+  const HomeScreen({super.key, required this.userName}); // Update constructor
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -14,18 +21,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
+  final _logger = Logger(); // Add logger instance
   bool _isDarkMode = true;
   final currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   List<Transaction> _recentTransactions = [];
-  bool _isLoading = true;
+  bool _isLoading = false; //Remove this line
   Map<String, dynamic> _balances = {};
   late AnimationController _animationController;
   late Animation<double> _animation;
+  //bool _isShaking = false; //Remove this line
+  String _userName = '';
 
   @override
   void initState() {
     super.initState();
+    _userName = widget.userName; // Initialize _userName with the passed value
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -33,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen>
     _animation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
+    _animationController.reset(); // Reset before loading data
     _loadData();
   }
 
@@ -43,10 +55,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
     await Future.wait([
       _loadRecentTransactions(),
       _loadCurrentBalances(),
     ]);
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   Future<void> _loadRecentTransactions() async {
@@ -64,14 +82,16 @@ class _HomeScreenState extends State<HomeScreen>
         throw Exception('User ID not found');
       }
     } catch (e) {
-      print('Error loading recent transactions: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('Failed to load recent transactions. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _logger.e('Error loading recent transactions: $e'); // Updated logger call
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Failed to load recent transactions. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -80,22 +100,28 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       final balances = await authService.getCurrentBalances();
-      setState(() {
-        _balances = balances;
-        _isLoading = false;
-      });
-      _animationController.forward();
+      if (mounted) {
+        setState(() {
+          _balances = balances;
+          _isLoading = false;
+        });
+        // Reset and forward animation after state is updated
+        _animationController.reset();
+        _animationController.forward();
+      }
     } catch (e) {
-      print('Error loading current balances: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load current balances. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      setState(() {
-        _isLoading = false;
-      });
+      _logger.e('Error loading current balances: $e'); // Updated logger call
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load current balances. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -120,67 +146,82 @@ class _HomeScreenState extends State<HomeScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _isDarkMode ? Colors.white24 : Colors.grey[300],
-              ),
-              child: Icon(
-                Icons.person,
-                color: _isDarkMode ? Colors.white : Colors.black54,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      '${_getGreeting()}, ',
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white70 : Colors.black54,
-                        fontSize: 16,
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                    Text(
-                      'Alejandro!',
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white : Colors.black,
-                        fontSize: 16,
-                        fontFamily: 'Onest',
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+        GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const AccountScreen()),
+            );
+          },
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _isDarkMode ? Colors.white24 : Colors.grey[300],
                 ),
-                Text(
-                  _getDayContext(),
-                  style: TextStyle(
-                    color: _isDarkMode ? Colors.white70 : Colors.black54,
-                    fontSize: 14,
-                    fontFamily: 'Onest',
+                child: Icon(
+                  Icons.person,
+                  color: _isDarkMode ? Colors.white : Colors.black54,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '${_getGreeting()}, ',
+                        style: TextStyle(
+                          color: _isDarkMode ? Colors.white70 : Colors.black54,
+                          fontSize: 16,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
+                      Text(
+                        _userName, // Use the stored user name here
+                        style: TextStyle(
+                          color: _isDarkMode ? Colors.white : Colors.black,
+                          fontSize: 16,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        IconButton(
-          icon: Icon(
-            _isDarkMode ? Icons.light_mode : Icons.dark_mode,
-            color: _isDarkMode ? Colors.white : Colors.black,
+                  Text(
+                    _getDayContext(),
+                    style: TextStyle(
+                      color: _isDarkMode ? Colors.white70 : Colors.black54,
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          onPressed: () {
+        ),
+        GestureDetector(
+          onTap: () {
             setState(() {
               _isDarkMode = !_isDarkMode;
             });
           },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isDarkMode ? Colors.white24 : Colors.grey[300],
+            ),
+            child: Icon(
+              _isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
+              color: _isDarkMode ? Colors.white : Colors.black54,
+              size: 24,
+            ),
+          ),
         ),
       ],
     );
@@ -306,55 +347,56 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildQuickActions() {
     return AspectRatio(
-      aspectRatio: 1, // This ensures a perfect square
+      aspectRatio: 1,
       child: Row(
         children: [
           // Blink Advance Card - Left half
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+            child: GestureDetector(
+              onTap: _handleBlinkAdvanceTap,
+              child: Hero(
+                tag: 'blinkAdvanceCard',
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.attach_money,
-                      color: Color(0xFF2196F3),
-                      size: 24,
-                    ),
-                  ),
-                  const Spacer(),
-                  const Text(
-                    'Blink\nAdvance',
-                    style: TextStyle(
-                      color: Color(0xFF1A1F36),
-                      fontSize: 24,
-                      fontFamily: 'Onest',
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE3F2FD),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.attach_money,
+                          color: Color(0xFF2196F3),
+                          size: 24,
+                        ),
+                      ),
+                      const Spacer(),
                       const Text(
-                        'Status: ',
+                        'Blink Advance',
+                        style: TextStyle(
+                          color: Color(0xFF1A1F36),
+                          fontSize: 24,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Eligibility for Blink',
                         style: TextStyle(
                           color: Color(0xFF6B7280),
                           fontSize: 14,
@@ -362,43 +404,37 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                       const Text(
-                        'Pending',
+                        'Advance: On Review!',
                         style: TextStyle(
-                          color: Color(0xFF1A1F36),
+                          color: Color(0xFF6B7280),
                           fontSize: 14,
                           fontFamily: 'Onest',
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.hourglass_empty,
-                        size: 14,
-                        color: Colors.amber[700],
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Text(
+                            'Know more',
+                            style: TextStyle(
+                              color: Color(0xFF2196F3),
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward,
+                            size: 16,
+                            color: Color(0xFF2196F3),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const Spacer(),
-                  Row(
-                    children: [
-                      Text(
-                        'Know more',
-                        style: TextStyle(
-                          color: Colors.blue[700],
-                          fontSize: 14,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.arrow_forward,
-                        size: 16,
-                        color: Colors.blue[700],
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -457,7 +493,7 @@ class _HomeScreenState extends State<HomeScreen>
                 // Insights Card
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(32),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A237E),
                       borderRadius: BorderRadius.circular(20),
@@ -504,6 +540,22 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _handleBlinkAdvanceTap() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            BlinkAdvanceScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+        transitionDuration: Duration(milliseconds: 300),
       ),
     );
   }
@@ -743,29 +795,33 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       backgroundColor: _isDarkMode ? const Color(0xFF061535) : Colors.grey[100],
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadData,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  _buildFinancialSummary(),
-                  const SizedBox(height: 24),
-                  _buildQuickActions(),
-                  const SizedBox(height: 32),
-                  _buildRecentTransactions(),
-                  const SizedBox(height: 32),
-                  _buildNewsAndUpdates(),
-                  const SizedBox(height: 32),
-                ],
+        child: Builder(
+          builder: (BuildContext context) {
+            return RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 24),
+                      _buildFinancialSummary(),
+                      const SizedBox(height: 24),
+                      _buildQuickActions(),
+                      const SizedBox(height: 32),
+                      _buildRecentTransactions(),
+                      const SizedBox(height: 32),
+                      _buildNewsAndUpdates(),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

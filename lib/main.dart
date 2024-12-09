@@ -1,5 +1,3 @@
-// lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,6 +6,8 @@ import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/storage_service.dart';
+import 'package:myapp/features/auth/presentation/login_screen.dart';
+import 'package:myapp/features/home/presentation/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +31,8 @@ Future<void> main() async {
     await storageService.init();
     logger.i('StorageService initialized successfully.');
   } catch (e, stackTrace) {
-    logger.e('Error initializing StorageService: $e', error: e, stackTrace: stackTrace);
+    logger.e('Error initializing StorageService: $e',
+        error: e, stackTrace: stackTrace);
     // Optionally, handle the error, e.g., show a fallback screen or exit
   }
 
@@ -41,7 +42,8 @@ Future<void> main() async {
     await authService.init();
     logger.i('AuthService initialized successfully.');
   } catch (e, stackTrace) {
-    logger.e('Error initializing AuthService: $e', error: e, stackTrace: stackTrace);
+    logger.e('Error initializing AuthService: $e',
+        error: e, stackTrace: stackTrace);
     // Optionally, handle the error
   }
 
@@ -90,10 +92,12 @@ class MyApp extends StatelessWidget {
       home: const SplashScreen(),
       // Define routes if needed
       routes: {
-        // '/create_password': (context) => const CreatePasswordScreen(email: 'user@example.com'),
+        '/login': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(
+              userName: '',
+            ),
         // Add other routes here
       },
     );
   }
 }
-

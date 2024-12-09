@@ -1,5 +1,3 @@
-// lib/screens/link_plaid_bank_screen.dart
-
 import 'dart:async';
 import 'package:flutter/foundation.dart' show unawaited;
 import 'package:flutter/gestures.dart';
@@ -11,7 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '/services/auth_service.dart';
 import '/services/storage_service.dart';
-import 'main_app_screen.dart';
+import 'package:myapp/features/home/presentation/home_screen.dart';
 
 class LinkPlaidBankScreen extends StatefulWidget {
   const LinkPlaidBankScreen({super.key});
@@ -67,7 +65,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final storageService = Provider.of<StorageService>(context, listen: false);
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
 
       final userId = storageService.getUserId();
 
@@ -95,7 +94,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       if (mounted) {
         _showErrorDialog('Failed to initialize Plaid Link');
       }
-      _logger.e('Error initializing PlaidLink', error: e, stackTrace: stackTrace);
+      _logger.e('Error initializing PlaidLink',
+          error: e, stackTrace: stackTrace);
     } finally {
       if (mounted) {
         setState(() => _isConnecting = false);
@@ -113,7 +113,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final storageService = Provider.of<StorageService>(context, listen: false);
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
 
       final userId = storageService.getUserId();
 
@@ -123,7 +124,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       }
 
       // Exchange the public token for an access token using AuthService
-      final response = await authService.exchangePublicToken(publicToken, userId);
+      final response =
+          await authService.exchangePublicToken(publicToken, userId);
 
       if (!mounted) return;
 
@@ -134,13 +136,15 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         // Perform background tasks without blocking the UI
         unawaited(_performBackgroundTasks(userId));
       } else {
-        _showErrorDialog('Failed to link bank account: ${response['message'] ?? 'Unknown error'}');
+        _showErrorDialog(
+            'Failed to link bank account: ${response['message'] ?? 'Unknown error'}');
       }
     } catch (e, stackTrace) {
       if (mounted) {
         _showErrorDialog('Failed to link bank account: ${e.toString()}');
       }
-      _logger.e('Error exchanging public token', error: e, stackTrace: stackTrace);
+      _logger.e('Error exchanging public token',
+          error: e, stackTrace: stackTrace);
     }
   }
 
@@ -156,10 +160,12 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       final transactions = await authService.getTransactions(
         userId: userId,
         bankAccountId: 'all', // or specify a particular account ID
-        startDate: DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+        startDate:
+            DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
         endDate: DateTime.now().toIso8601String(),
       );
-      _logger.i('Transactions retrieved successfully: ${transactions.length} transactions');
+      _logger.i(
+          'Transactions retrieved successfully: ${transactions.length} transactions');
 
       // Sync balances
       await authService.syncBalances(userId);
@@ -186,7 +192,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   }
 
   void _onEvent(LinkEvent event) {
-    _logger.i("onEvent: ${event.name}, metadata: ${event.metadata.description()}");
+    _logger
+        .i("onEvent: ${event.name}, metadata: ${event.metadata.description()}");
   }
 
   void _showSuccessDialog() {
@@ -232,7 +239,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Your bank account has been linked. You can now start using Blink.',
+                  'Your bank account has been linked. You can now start using our services.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white70,
@@ -248,7 +255,9 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                       Navigator.of(context).pop();
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (context) => const MainAppScreen(),
+                          builder: (context) => const HomeScreen(
+                            userName: '',
+                          ),
                         ),
                       );
                     },
@@ -431,7 +440,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -556,8 +564,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                           ),
                           children: [
                             const TextSpan(
-                              text:
-                                  'By selecting "Continue" you agree to the ',
+                              text: 'By selecting "Continue" you agree to the ',
                             ),
                             TextSpan(
                               text: 'Plaid privacy policy',
@@ -585,4 +592,3 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 }
-

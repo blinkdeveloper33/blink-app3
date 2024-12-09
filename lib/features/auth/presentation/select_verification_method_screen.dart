@@ -9,9 +9,9 @@ class SelectVerificationMethodScreen extends StatefulWidget {
   final String email;
 
   const SelectVerificationMethodScreen({
-    Key? key,
+    super.key,
     required this.email,
-  }) : super(key: key);
+  });
 
   @override
   State<SelectVerificationMethodScreen> createState() =>
@@ -34,7 +34,8 @@ class _SelectVerificationMethodScreenState
       final response = await authService.registerInitial(widget.email);
 
       if (response['success'] == true) {
-        final storageService = Provider.of<StorageService>(context, listen: false);
+        final storageService =
+            Provider.of<StorageService>(context, listen: false);
         await storageService.setEmail(widget.email);
 
         Navigator.of(context).pushReplacement(
@@ -43,14 +44,16 @@ class _SelectVerificationMethodScreenState
           ),
         );
       } else {
-        final message = response['error'] ?? 'Failed to initiate verification. Please try again.';
+        final message = response['error'] ??
+            'Failed to initiate verification. Please try again.';
         _showErrorDialog(message);
       }
     } on UserAlreadyExistsException catch (e) {
       _logger.e('User already exists', error: e);
       _showErrorDialog(e.message);
     } catch (e, stackTrace) {
-      _logger.e('Error initiating verification', error: e, stackTrace: stackTrace);
+      _logger.e('Error initiating verification',
+          error: e, stackTrace: stackTrace);
       String errorMessage = 'An unexpected error occurred. Please try again.';
       if (e is Exception) {
         errorMessage = e.toString();
@@ -71,7 +74,8 @@ class _SelectVerificationMethodScreenState
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF061535),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
             'Error',
             style: TextStyle(
@@ -171,7 +175,8 @@ class _SelectVerificationMethodScreenState
     required bool isEnabled,
   }) {
     return ListTile(
-      leading: Icon(icon, color: isEnabled ? Colors.white : Colors.white54, size: 28),
+      leading: Icon(icon,
+          color: isEnabled ? Colors.white : Colors.white54, size: 28),
       title: Text(
         title,
         style: TextStyle(
@@ -190,7 +195,9 @@ class _SelectVerificationMethodScreenState
       ),
       trailing: Icon(
         Icons.arrow_forward_ios,
-        color: isEnabled ? Colors.white.withOpacity(0.7) : Colors.white.withOpacity(0.3),
+        color: isEnabled
+            ? Colors.white.withOpacity(0.7)
+            : Colors.white.withOpacity(0.3),
         size: 18,
       ),
       onTap: onTap,
@@ -254,7 +261,8 @@ class _SelectVerificationMethodScreenState
                           color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white),
+                        child:
+                            const Icon(Icons.arrow_back, color: Colors.white),
                       ),
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: 'Go Back',
@@ -289,4 +297,3 @@ class _SelectVerificationMethodScreenState
     );
   }
 }
-

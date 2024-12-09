@@ -13,9 +13,9 @@ class NewUserDataScreen extends StatefulWidget {
   final String email;
 
   const NewUserDataScreen({
-    Key? key,
+    super.key,
     required this.email,
-  }) : super(key: key);
+  });
 
   @override
   State<NewUserDataScreen> createState() => _NewUserDataScreenState();
@@ -36,15 +36,56 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   final Logger _logger = Logger();
 
   final List<String> _states = [
-    'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
-    'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho',
-    'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine',
-    'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
-    'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey',
-    'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
-    'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina',
-    'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia',
-    'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
+    'Alabama',
+    'Alaska',
+    'Arizona',
+    'Arkansas',
+    'California',
+    'Colorado',
+    'Connecticut',
+    'Delaware',
+    'Florida',
+    'Georgia',
+    'Hawaii',
+    'Idaho',
+    'Illinois',
+    'Indiana',
+    'Iowa',
+    'Kansas',
+    'Kentucky',
+    'Louisiana',
+    'Maine',
+    'Maryland',
+    'Massachusetts',
+    'Michigan',
+    'Minnesota',
+    'Mississippi',
+    'Missouri',
+    'Montana',
+    'Nebraska',
+    'Nevada',
+    'New Hampshire',
+    'New Jersey',
+    'New Mexico',
+    'New York',
+    'North Carolina',
+    'North Dakota',
+    'Ohio',
+    'Oklahoma',
+    'Oregon',
+    'Pennsylvania',
+    'Rhode Island',
+    'South Carolina',
+    'South Dakota',
+    'Tennessee',
+    'Texas',
+    'Utah',
+    'Vermont',
+    'Virginia',
+    'Washington',
+    'West Virginia',
+    'Wisconsin',
+    'Wyoming'
   ];
 
   late AnimationController _animationController;
@@ -106,7 +147,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
             fillColor: Colors.white.withOpacity(0.1),
             hintText: hintText,
             hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-            prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: Colors.white70) : null,
+            prefixIcon: prefixIcon != null
+                ? Icon(prefixIcon, color: Colors.white70)
+                : null,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -123,7 +166,8 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
       ],
@@ -200,7 +244,8 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   void _submitForm() async {
     if (_formKey.currentState!.validate()) {
       if (!_acknowledgeAccuracy) {
-        _showSnackBar('Please acknowledge the accuracy of your information.', isError: true);
+        _showSnackBar('Please acknowledge the accuracy of your information.',
+            isError: true);
         return;
       }
 
@@ -241,7 +286,8 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF061535),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text(
             'Error',
             style: TextStyle(
@@ -301,9 +347,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                 _acknowledgeAccuracy = value ?? false;
               });
             },
-            fillColor: MaterialStateProperty.resolveWith<Color>(
-              (Set<MaterialState> states) {
-                if (states.contains(MaterialState.selected)) {
+            fillColor: WidgetStateProperty.resolveWith<Color>(
+              (Set<WidgetState> states) {
+                if (states.contains(WidgetState.selected)) {
                   return const Color(0xFF2196F3);
                 }
                 return Colors.white.withOpacity(0.1);
@@ -374,7 +420,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(5),
-            color: index == _currentStep ? const Color(0xFF2196F3) : Colors.white.withOpacity(0.3),
+            color: index == _currentStep
+                ? const Color(0xFF2196F3)
+                : Colors.white.withOpacity(0.3),
           ),
         ),
       ),
@@ -465,7 +513,8 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: FadeTransition(
               opacity: _fadeInAnimation,
               child: Form(
@@ -483,7 +532,8 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                               color: Colors.white.withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.arrow_back, color: Colors.white),
+                            child: const Icon(Icons.arrow_back,
+                                color: Colors.white),
                           ),
                           onPressed: () => Navigator.of(context).pop(),
                           tooltip: 'Go Back',
@@ -599,4 +649,3 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
     );
   }
 }
-

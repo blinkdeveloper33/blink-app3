@@ -15,9 +15,9 @@ class CreatePasswordScreen extends StatefulWidget {
   final String email;
 
   const CreatePasswordScreen({
-    Key? key,
+    super.key,
     required this.email,
-  }) : super(key: key);
+  });
 
   @override
   State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
@@ -56,7 +56,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
     _animationController.forward();
 
     _passwordController.addListener(_updatePasswordStrength);
-    _confettiController = ConfettiController(duration: const Duration(seconds: 5));
+    _confettiController =
+        ConfettiController(duration: const Duration(seconds: 5));
   }
 
   @override
@@ -120,7 +121,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
       });
 
       final authService = Provider.of<AuthService>(context, listen: false);
-      final storageService = Provider.of<StorageService>(context, listen: false);
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
 
       try {
         _logger.i('Retrieving stored user data.');
@@ -180,13 +182,13 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                 loginResponse['message'] ?? 'Login failed. Please try again.');
           }
         } else {
-          _logger.e(
-              'Registration failed: ${registrationResponse['message']}');
-          _showErrorDialog(
-              registrationResponse['message'] ?? 'Registration failed. Please try again.');
+          _logger.e('Registration failed: ${registrationResponse['message']}');
+          _showErrorDialog(registrationResponse['message'] ??
+              'Registration failed. Please try again.');
         }
       } catch (e, stackTrace) {
-        _logger.e('Error completing registration', error: e, stackTrace: stackTrace);
+        _logger.e('Error completing registration',
+            error: e, stackTrace: stackTrace);
         if (mounted) {
           _showErrorDialog('An unexpected error occurred: ${e.toString()}');
         }
@@ -207,7 +209,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
       barrierDismissible: false,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -224,7 +227,11 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                   numberOfParticles: 20,
                   gravity: 0.05,
                   shouldLoop: false,
-                  colors: const [Colors.blue, Colors.white, Colors.lightBlueAccent],
+                  colors: const [
+                    Colors.blue,
+                    Colors.white,
+                    Colors.lightBlueAccent
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -261,7 +268,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 16),
                   ),
                   child: const Text(
                     'Start Your Journey',
@@ -286,7 +294,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF061535),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
             'Error',
             style: TextStyle(
@@ -448,7 +457,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
             ),
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                _obscureConfirmPassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
                 color: Colors.white.withOpacity(0.7),
               ),
               onPressed: () {
@@ -456,7 +467,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                   _obscureConfirmPassword = !_obscureConfirmPassword;
                 });
               },
-              tooltip: _obscureConfirmPassword ? 'Show Password' : 'Hide Password',
+              tooltip:
+                  _obscureConfirmPassword ? 'Show Password' : 'Hide Password',
             ),
           ),
         ),
@@ -511,9 +523,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                 _acknowledgeAccuracy = value ?? false;
               });
             },
-            fillColor: MaterialStateProperty.resolveWith<Color>(
-              (Set<MaterialState> states) {
-                if (states.contains(MaterialState.selected)) {
+            fillColor: WidgetStateProperty.resolveWith<Color>(
+              (Set<WidgetState> states) {
+                if (states.contains(WidgetState.selected)) {
                   return const Color(0xFF2196F3);
                 }
                 return Colors.white.withOpacity(0.1);
@@ -590,7 +602,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Stack(
               children: [
                 ConfettiWidget(
@@ -601,7 +614,11 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                   numberOfParticles: 50,
                   gravity: 0.05,
                   shouldLoop: false,
-                  colors: const [Colors.blue, Colors.white, Colors.lightBlueAccent],
+                  colors: const [
+                    Colors.blue,
+                    Colors.white,
+                    Colors.lightBlueAccent
+                  ],
                 ),
                 FadeTransition(
                   opacity: _fadeInAnimation,
@@ -620,7 +637,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                                   color: Colors.white.withOpacity(0.1),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.arrow_back, color: Colors.white),
+                                child: const Icon(Icons.arrow_back,
+                                    color: Colors.white),
                               ),
                               onPressed: () => Navigator.of(context).pop(),
                               tooltip: 'Go Back',
@@ -754,4 +772,3 @@ class UnsupportedMethodException implements Exception {
   @override
   String toString() => 'UnsupportedMethodException: $message';
 }
-

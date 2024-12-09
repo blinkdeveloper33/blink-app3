@@ -8,7 +8,6 @@ import 'package:animate_do/animate_do.dart';
 import 'package:myapp/features/home/presentation/home_screen.dart';
 import 'package:myapp/features/auth/presentation/link_plaid_bank_screen.dart';
 
-
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -37,18 +36,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
       try {
         final authService = Provider.of<AuthService>(context, listen: false);
-        final storageService = Provider.of<StorageService>(context, listen: false);
+        final storageService =
+            Provider.of<StorageService>(context, listen: false);
 
-        // First, call the login endpoint
         final loginResponse = await authService.login(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
 
         if (loginResponse['success']) {
-          // Store the token and user ID
-          await storageService.setToken(loginResponse['token']);
-          await storageService.setUserId(loginResponse['userId']);
+          final userId = storageService.getUserId();
+          final fullName = storageService.getFullName();
+
+          if (userId == null) {
+            _showErrorDialog('User ID not found. Please try logging in again.');
+            return;
+          }
 
           // Now that we have the token and user ID, check the user status
           UserStatus userStatus = await authService.getUserStatus();
@@ -69,13 +72,15 @@ class _LoginScreenState extends State<LoginScreen> {
             case UserStatus.complete:
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
+                  builder: (context) =>
+                      HomeScreen(userName: fullName ?? 'User'),
                 ),
               );
               break;
           }
         } else {
-          _showErrorDialog(loginResponse['message'] ?? 'Login failed. Please try again.');
+          _showErrorDialog(
+              loginResponse['message'] ?? 'Login failed. Please try again.');
         }
       } catch (e) {
         _logger.e('Error during login', error: e);
@@ -94,7 +99,8 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF061535),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Text(
             'Error',
             style: TextStyle(
@@ -165,7 +171,8 @@ class _LoginScreenState extends State<LoginScreen> {
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: Colors.red),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             prefixIcon: const Icon(Icons.email_outlined, color: Colors.white70),
             hintText: 'Enter your email',
             hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
@@ -174,7 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
             if (value == null || value.isEmpty) {
               return 'Please enter your email address';
             }
-            final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+            final emailRegex = RegExp(
+                r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
             if (!emailRegex.hasMatch(value)) {
               return 'Please enter a valid email address';
             }
@@ -222,7 +230,8 @@ class _LoginScreenState extends State<LoginScreen> {
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: Colors.red),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
             suffixIcon: IconButton(
               icon: Icon(
@@ -293,7 +302,8 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -405,4 +415,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

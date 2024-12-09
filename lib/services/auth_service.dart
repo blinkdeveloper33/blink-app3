@@ -1,5 +1,3 @@
-// lib/services/auth_service.dart
-
 import 'dart:convert';
 import 'package:myapp/services/storage_service.dart';
 import 'package:http/http.dart' as http;
@@ -24,12 +22,12 @@ class Transaction {
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
-    final amount = json['amount'] is String 
-      ? double.parse(json['amount'].replaceAll('-', ''))
-      : (json['amount'] as num).toDouble();
+    final amount = json['amount'] is String
+        ? double.parse(json['amount'].replaceAll('-', ''))
+        : (json['amount'] as num).toDouble();
     final isOutflow = json['amount'] is String
-      ? json['amount'].startsWith('-')
-      : json['amount'] < 0;
+        ? json['amount'].startsWith('-')
+        : json['amount'] < 0;
 
     return Transaction(
       id: json['id'] as String,
@@ -42,11 +40,7 @@ class Transaction {
   }
 }
 
-enum UserStatus {
-  newUser,
-  noBankAccount,
-  complete
-}
+enum UserStatus { newUser, noBankAccount, complete }
 
 /// A service class responsible for handling authentication and Plaid-related API interactions.
 class AuthService {
@@ -216,6 +210,13 @@ class AuthService {
       // Store the JWT token securely upon successful login.
       await _storageService.setToken(response['token']);
       await _storageService.setUserId(response['userId']);
+
+      // Store the user's full name
+      final fullName = '${response['firstName']} ${response['lastName']}';
+      await _storageService.setFullName(fullName);
+
+      // Fetch and store user profile information
+      await _fetchAndStoreUserProfile();
     }
 
     return response;
@@ -399,7 +400,8 @@ class AuthService {
             .toList();
       } else {
         _logger.e('Unexpected response format: $response');
-        throw Exception('Failed to fetch recent transactions: Unexpected response format');
+        throw Exception(
+            'Failed to fetch recent transactions: Unexpected response format');
       }
     } catch (e) {
       _logger.e('Error fetching recent transactions', error: e);
@@ -414,6 +416,48 @@ class AuthService {
       method: 'GET',
       requireAuth: true,
     );
+  }
+
+  Future<Map<String, dynamic>> createBlinkAdvance({
+    required String userId,
+    required double requestedAmount,
+    required String transferSpeed,
+    required DateTime repayDate,
+    required String bankAccountId,
+  }) async {
+    return _makeRequest(
+      endpoint: '/api/blink-advances/',
+      body: {
+        'requestedAmount': requestedAmount,
+        'transferSpeed': transferSpeed,
+        'repayDate': repayDate.toIso8601String(),
+        'bankAccountId': bankAccountId,
+      },
+      method: 'POST',
+      requireAuth: true,
+    );
+  }
+
+  Future<void> _fetchAndStoreUserProfile() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/profile', // Assuming this endpoint exists
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success']) {
+        final profile = response['profile'];
+        // Store necessary profile information in StorageService
+        _storageService.setFirstName(profile['firstName']);
+        _storageService.setLastName(profile['lastName']);
+        // ... store other relevant profile data
+      }
+    } catch (e) {
+      _logger.e('Error fetching user profile: $e');
+      // Handle error appropriately, e.g., show an error message
+    }
   }
 }
 
@@ -454,4 +498,3 @@ class InvalidOtpException implements Exception {
   @override
   String toString() => 'InvalidOtpException: $message';
 }
-

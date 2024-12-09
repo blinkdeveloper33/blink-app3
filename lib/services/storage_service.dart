@@ -1,5 +1,3 @@
-// lib/services/storage_service.dart
-
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:logger/logger.dart';
@@ -13,6 +11,7 @@ class StorageKeys {
   static const String email = 'email';
   static const String userId = 'userId';
   static const String token = 'token'; // Consistent key usage
+  static const String bankAccountId = 'bankAccountId';
 }
 
 class StorageService {
@@ -173,6 +172,27 @@ class StorageService {
     }
   }
 
+  // Full Name Management
+  Future<void> setFullName(String fullName) async {
+    try {
+      await _prefs.setString(
+          'fullName', fullName); // Use a simple key for full name
+    } catch (e) {
+      _logger.e('Failed to set full name: $e');
+      throw Exception('Failed to set full name');
+    }
+  }
+
+  String? getFullName() {
+    try {
+      return _prefs
+          .getString('fullName'); // Use the same key to retrieve full name
+    } catch (e) {
+      _logger.e('Failed to get full name: $e');
+      return null;
+    }
+  }
+
   // Token Management
 
   Future<void> setToken(String token) async {
@@ -192,6 +212,25 @@ class StorageService {
       return _decrypt(encryptedToken);
     } catch (e) {
       _logger.e('Failed to get token: $e');
+      return null;
+    }
+  }
+
+  // Bank Account ID
+  Future<void> setBankAccountId(String id) async {
+    try {
+      await _prefs.setString(StorageKeys.bankAccountId, id);
+    } catch (e) {
+      _logger.e('Failed to set bank account ID: $e');
+      throw Exception('Failed to set bank account ID');
+    }
+  }
+
+  String? getBankAccountId() {
+    try {
+      return _prefs.getString(StorageKeys.bankAccountId);
+    } catch (e) {
+      _logger.e('Failed to get bank account ID: $e');
       return null;
     }
   }
