@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:myapp/services/storage_service.dart';
-import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/auth_service.dart'
+    show AuthService, Transaction, TransferSpeed;
 import 'package:intl/intl.dart';
 import 'package:myapp/features/home/presentation/home_screen.dart';
 import 'package:myapp/widgets/chat_bubble.dart';
@@ -53,14 +54,15 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   final List<ChatMessage> _messages = [];
   String _userName = '';
   String? _selectedAmount;
-  String? _selectedSpeed;
+  TransferSpeed? _selectedSpeed; // Updated to use TransferSpeed enum
   DateTime? _selectedDate;
   final ScrollController _scrollController = ScrollController();
   int? _animatingMessageIndex;
   bool _isTyping = false;
   final ThemeManager _themeManager = ThemeManager();
   final GlobalKey _confettiKey = GlobalKey();
-  final List<int> _amountOptions = [200, 225, 250, 275, 300];
+  final List<int> _amountOptions =
+      List.generate(21, (index) => 100 + index * 10); // Updated amount options
   late AnimationController _fadeController;
   late AnimationController _inputSectionController;
   late Animation<Offset> _inputSectionAnimation;
@@ -199,14 +201,15 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     });
   }
 
-  void _handleSpeedSelection(String speed, String fee) {
+  void _handleSpeedSelection(TransferSpeed speed) {
+    // Updated to use TransferSpeed enum
     setState(() {
       _selectedSpeed = speed;
     });
 
     _addMessage(ChatMessage(
       text:
-          'I would like to get access to the \$$_selectedAmount Blink Advance $speed for a fee of \$$fee',
+          'I would like to get access to the \$$_selectedAmount Blink Advance ${speed.toString().split('.').last} speed.',
       isUser: true,
       timestamp: DateTime.now(),
     ));
@@ -216,7 +219,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     Future.delayed(Duration(milliseconds: 2000), () {
       _addMessage(ChatMessage(
         text:
-            'Got it! You\'ve selected the $speed option with a fee of \$$fee. Now to finalize, please let me know when you\'re planning to repay your Blink Advance.',
+            'Got it! You\'ve selected the ${speed.toString().split('.').last} speed option. Now to finalize, please let me know when you\'re planning to repay your Blink Advance.',
         isUser: false,
         timestamp: DateTime.now(),
         emoji: AnimatedEmoji(
@@ -234,7 +237,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     final formattedDate = DateFormat('MMMM d, yyyy').format(date);
     _addMessage(ChatMessage(
       text:
-          'I will repay the $_selectedSpeed Blink Advance plus the fee on $formattedDate.',
+          'I will repay the ${_selectedSpeed?.toString().split('.').last ?? ''} Blink Advance plus the fee on $formattedDate.',
       isUser: true,
       timestamp: DateTime.now(),
     ));
@@ -243,8 +246,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       _addMessage(ChatMessage(
         text: 'Great! Let\'s confirm your Blink Advance details:\n\n'
             '• Amount: \$$_selectedAmount\n'
-            '• Speed: $_selectedSpeed\n'
-            '• Fee: \$${_selectedSpeed ?? '0'}\n' // Handle potential null value
+            '• Speed: ${_selectedSpeed?.toString().split('.').last ?? ''}\n' // Handle potential null value
+            '• Fee: \$${_selectedSpeed == TransferSpeed.instant ? '9.50' : '4.50'}\n' // Handle fee based on speed
             '• Repayment Date: $formattedDate\n\n'
             'Is this correct? Please confirm to complete or let me know if you need to make any changes.',
         isUser: false,
@@ -283,11 +286,17 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   }
 
   Future<void> _createBlinkAdvance() async {
-    if (_selectedAmount == null ||
-        _selectedSpeed == null ||
-        _selectedDate == null ||
-        _bankAccountId == null) {
-      _showErrorMessage('Missing required information for Blink Advance.');
+    final List<String> missingFields = [];
+
+    if (_selectedAmount == null) missingFields.add('Amount');
+    if (_selectedSpeed == null) missingFields.add('Transfer Speed');
+    if (_selectedDate == null) missingFields.add('Repayment Date');
+    if (_bankAccountId == null) missingFields.add('Bank Account');
+
+    if (missingFields.isNotEmpty) {
+      _showErrorMessage(
+        'Missing required information: ${missingFields.join(', ')}. Please complete all fields.',
+      );
       return;
     }
 
@@ -352,6 +361,18 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       timestamp: DateTime.now(),
       emoji: AnimatedEmoji(AnimatedEmojis.sad, size: 24),
     ));
+
+    // Also show a snackbar for immediate visibility
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   @override
@@ -603,7 +624,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         children: [
           Expanded(
             child: ElevatedButton(
-              onPressed: () => _handleSpeedSelection('Instantly', '9.50'),
+              onPressed: () => _handleSpeedSelection(TransferSpeed.instant),
               style: ElevatedButton.styleFrom(
                 foregroundColor: Colors.white,
                 backgroundColor: kPrimaryColor,
@@ -639,7 +660,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           SizedBox(width: 16),
           Expanded(
             child: ElevatedButton(
-              onPressed: () => _handleSpeedSelection('Normal', '4.50'),
+              onPressed: () => _handleSpeedSelection(TransferSpeed.normal),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.grey[200],
                 padding: EdgeInsets.symmetric(vertical: 16),
@@ -695,7 +716,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             context: context,
             initialDate: DateTime.now().add(Duration(days: 1)),
             firstDate: DateTime.now().add(Duration(days: 1)),
-            lastDate: DateTime.now().add(Duration(days: 31)),
+            lastDate:
+                DateTime.now().add(Duration(days: 31)), // Updated date picker
             builder: (context, child) {
               return Theme(
                 data: Theme.of(context).copyWith(

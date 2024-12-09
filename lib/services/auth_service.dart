@@ -42,6 +42,11 @@ class Transaction {
 
 enum UserStatus { newUser, noBankAccount, complete }
 
+enum TransferSpeed {
+  instant,
+  normal,
+}
+
 /// A service class responsible for handling authentication and Plaid-related API interactions.
 class AuthService {
   /// Base URL of the backend API.
@@ -421,15 +426,17 @@ class AuthService {
   Future<Map<String, dynamic>> createBlinkAdvance({
     required String userId,
     required double requestedAmount,
-    required String transferSpeed,
+    required TransferSpeed transferSpeed,
     required DateTime repayDate,
     required String bankAccountId,
   }) async {
     return _makeRequest(
       endpoint: '/api/blink-advances/',
       body: {
+        'userId': userId,
         'requestedAmount': requestedAmount,
-        'transferSpeed': transferSpeed,
+        'transferSpeed':
+            transferSpeed == TransferSpeed.instant ? 'instant' : 'normal',
         'repayDate': repayDate.toIso8601String(),
         'bankAccountId': bankAccountId,
       },

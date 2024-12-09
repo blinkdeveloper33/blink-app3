@@ -493,7 +493,7 @@ class _HomeScreenState extends State<HomeScreen>
                 // Insights Card
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A237E),
                       borderRadius: BorderRadius.circular(20),
