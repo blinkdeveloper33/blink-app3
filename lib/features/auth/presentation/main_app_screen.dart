@@ -14,7 +14,7 @@ class MainAppScreen extends StatelessWidget {
       ),
       body: const Center(
         child: Text(
-          'Welcome to the Main App!',
+          'Welcome to the Main!',
           style: TextStyle(
             color: Colors.white,
             fontSize: 24,
