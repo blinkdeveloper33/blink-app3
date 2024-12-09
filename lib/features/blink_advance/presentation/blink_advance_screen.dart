@@ -297,9 +297,16 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     final authService = Provider.of<AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
     final userId = storageService.getUserId();
+    final bankAccountId = storageService.getBankAccountId();
 
     if (userId == null) {
       _showErrorMessage('User ID not found. Please log in again.');
+      return;
+    }
+
+    if (bankAccountId == null) {
+      _showErrorMessage(
+          'Bank account ID not found. Please link your bank account again.');
       return;
     }
 
@@ -309,7 +316,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         requestedAmount: double.parse(_selectedAmount!),
         transferSpeed: _selectedSpeed!,
         repayDate: _selectedDate!,
-        bankAccountId: _bankAccountId!, // Use the stored bank account ID
+        bankAccountId: bankAccountId,
       );
 
       if (response['success'] == true) {
@@ -368,8 +375,17 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     }
   }
 
+  List<Map<String, dynamic>>? _getDetailedBankAccounts() {
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    return storageService.getDetailedBankAccounts();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    final bankAccountName =
+        storageService.getBankAccountName() ?? 'Your Bank Account';
+
     return AnimatedBackground(
       child: ConfettiOverlay(
         key: _confettiKey,
@@ -394,7 +410,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                   ),
                 ),
                 Text(
-                  'Your Financial Assistant',
+                  'Advance for $bankAccountName',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withOpacity(0.8),
@@ -514,7 +530,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_selectedAmount == null && _messages.isNotEmpty) ...[
+          if (_selectedAmount == null && _messages.length >= 1) ...[
             _buildHelpButton('Need help choosing an amount?'),
             SizedBox(height: 8),
             _buildAmountButtons(),

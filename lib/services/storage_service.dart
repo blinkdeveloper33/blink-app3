@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:logger/logger.dart';
@@ -263,6 +264,49 @@ class StorageService {
     } catch (e) {
       _logger.e('Failed to clear all data: $e');
       throw Exception('Failed to clear all data');
+    }
+  }
+
+  Future<void> setDetailedBankAccounts(
+      List<Map<String, dynamic>> accounts) async {
+    try {
+      final jsonString = json.encode(accounts);
+      await _prefs.setString('detailedBankAccounts', jsonString);
+      _logger.i('Detailed bank accounts stored successfully');
+    } catch (e) {
+      _logger.e('Failed to store detailed bank accounts: $e');
+      throw Exception('Failed to store detailed bank accounts');
+    }
+  }
+
+  List<Map<String, dynamic>>? getDetailedBankAccounts() {
+    try {
+      final jsonString = _prefs.getString('detailedBankAccounts');
+      if (jsonString != null) {
+        return List<Map<String, dynamic>>.from(json.decode(jsonString));
+      }
+      return null;
+    } catch (e) {
+      _logger.e('Failed to get detailed bank accounts: $e');
+      return null;
+    }
+  }
+
+  Future<void> setPrimaryAccountName(String name) async {
+    try {
+      await _prefs.setString('primaryAccountName', name);
+    } catch (e) {
+      _logger.e('Failed to set primary account name: $e');
+      throw Exception('Failed to set primary account name');
+    }
+  }
+
+  String? getPrimaryAccountName() {
+    try {
+      return _prefs.getString('primaryAccountName');
+    } catch (e) {
+      _logger.e('Failed to get primary account name: $e');
+      return null;
     }
   }
 }

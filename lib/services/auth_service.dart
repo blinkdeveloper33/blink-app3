@@ -47,29 +47,16 @@ enum TransferSpeed {
   normal,
 }
 
-/// A service class responsible for handling authentication and Plaid-related API interactions.
 class AuthService {
-  /// Base URL of the backend API.
-  final String _baseUrl = dotenv.env['BACKEND_URL'] ??
-      'https://your-backend-url.com'; // Update to your actual backend URL
-
-  /// Logger instance for logging information and errors.
+  final String _baseUrl =
+      dotenv.env['BACKEND_URL'] ?? 'https://your-backend-url.com';
   final Logger _logger;
-
-  /// Reference to the StorageService for token management.
   final StorageService _storageService;
 
-  /// Constructor for AuthService. Initializes StorageService and allows injecting a custom Logger.
   AuthService({Logger? logger, required StorageService storageService})
       : _logger = logger ?? Logger(),
         _storageService = storageService;
 
-  /// Helper method to make API requests.
-  ///
-  /// [endpoint]: The API endpoint (e.g., '/api/users/login').
-  /// [body]: The JSON body to send with the request.
-  /// [method]: HTTP method ('POST' or 'GET').
-  /// [requireAuth]: Whether the request requires an Authorization header.
   Future<Map<String, dynamic>> _makeRequest({
     required String endpoint,
     required Map<String, dynamic> body,
@@ -78,7 +65,6 @@ class AuthService {
   }) async {
     final headers = {'Content-Type': 'application/json'};
 
-    // If the endpoint requires authentication, retrieve and include the JWT token.
     if (requireAuth) {
       final token = _storageService.getToken();
       if (token == null) {
@@ -93,12 +79,14 @@ class AuthService {
 
       late http.Response response;
 
-      // Make the appropriate HTTP request based on the method.
       if (method.toUpperCase() == 'POST') {
         response =
             await http.post(url, headers: headers, body: jsonEncode(body));
       } else if (method.toUpperCase() == 'GET') {
         response = await http.get(url, headers: headers);
+      } else if (method.toUpperCase() == 'PATCH') {
+        response =
+            await http.patch(url, headers: headers, body: jsonEncode(body));
       } else {
         throw UnsupportedMethodException('Unsupported HTTP method: $method');
       }
@@ -106,11 +94,9 @@ class AuthService {
       _logger.i(
           'Response from $endpoint: ${response.statusCode} - ${response.body}');
 
-      // Parse and return the JSON response for successful requests.
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return jsonDecode(response.body);
       } else {
-        // Attempt to parse the error message from the response.
         final error = jsonDecode(response.body);
         throw ApiException(
           message: error['error'] ?? 'Unknown error',
@@ -126,34 +112,22 @@ class AuthService {
     }
   }
 
-  /// Initiates user registration by sending an OTP to the provided email.
-  ///
-  /// [email]: The user's email address.
   Future<Map<String, dynamic>> registerInitial(String email) async {
     return _makeRequest(
       endpoint: '/api/users/register-initial',
       body: {'email': email},
       method: 'POST',
-      requireAuth: false,
     );
   }
 
-  /// Verifies the OTP sent to the user's email.
-  ///
-  /// [email]: The user's email address.
-  /// [otp]: The OTP code received by the user.
   Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
     return _makeRequest(
       endpoint: '/api/users/verify-otp',
       body: {'email': email, 'otp': otp},
       method: 'POST',
-      requireAuth: false,
     );
   }
 
-  /// Resends the OTP to the user's email.
-  ///
-  /// [email]: The user's email address.
   Future<Map<String, dynamic>> sendOtp(String email) async {
     return _makeRequest(
       endpoint: '/api/users/resend-otp',
@@ -163,14 +137,6 @@ class AuthService {
     );
   }
 
-  /// Completes user registration by submitting password and personal information.
-  ///
-  /// [email]: The user's email address.
-  /// [password]: The user's chosen password.
-  /// [firstName]: The user's first name.
-  /// [lastName]: The user's last name.
-  /// [state]: The user's state of residence.
-  /// [zipcode]: The user's ZIP code.
   Future<Map<String, dynamic>> completeRegistration({
     required String email,
     required String password,
@@ -190,16 +156,9 @@ class AuthService {
         'zipcode': zipcode,
       },
       method: 'POST',
-      requireAuth: false,
     );
   }
 
-  /// Logs in the user by validating their email and password.
-  ///
-  /// [email]: The user's email address.
-  /// [password]: The user's password.
-  ///
-  /// Returns a map containing the JWT token and user information on success.
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
@@ -208,11 +167,9 @@ class AuthService {
       endpoint: '/api/users/login',
       body: {'email': email, 'password': password},
       method: 'POST',
-      requireAuth: false,
     );
 
     if (response['success']) {
-      // Store the JWT token securely upon successful login.
       await _storageService.setToken(response['token']);
       await _storageService.setUserId(response['userId']);
       if (response['bankAccountName'] != null) {
@@ -220,29 +177,20 @@ class AuthService {
       }
       _logger.i('Login successful. Token and userId stored.');
 
-      // Store the user's full name
       final fullName = '${response['firstName']} ${response['lastName']}';
       await _storageService.setFullName(fullName);
       _logger.i('User full name stored: $fullName');
 
-      // Fetch and store user profile information
       await _fetchAndStoreUserProfile();
     }
 
     return response;
   }
 
-  /// Logs out the user by clearing the JWT token from StorageService.
   Future<void> logout() async {
     await _storageService.clearAll();
-    // Optionally, implement a backend logout endpoint and call it here.
   }
 
-  /// Creates a Plaid Link token to initialize the Plaid Link flow.
-  ///
-  /// [userId]: The unique identifier of the user.
-  ///
-  /// Returns the `link_token` string on success.
   Future<String> createLinkToken(String userId) async {
     final response = await _makeRequest(
       endpoint: '/api/plaid/create_link_token',
@@ -258,12 +206,6 @@ class AuthService {
     }
   }
 
-  /// Exchanges a Plaid public token for an access token and associates it with the user.
-  ///
-  /// [publicToken]: The public token obtained from the Plaid Link flow.
-  /// [userId]: The unique identifier of the user.
-  ///
-  /// Returns a map containing information about the connected bank accounts.
   Future<Map<String, dynamic>> exchangePublicToken(
       String publicToken, String userId) async {
     return _makeRequest(
@@ -274,11 +216,6 @@ class AuthService {
     );
   }
 
-  /// Synchronizes transactions for the specified user by fetching the latest data from Plaid.
-  ///
-  /// [userId]: The unique identifier of the user.
-  ///
-  /// Returns a map containing statistics about the synchronization process.
   Future<Map<String, dynamic>> syncTransactions(String userId) async {
     return _makeRequest(
       endpoint: '/api/plaid/sync',
@@ -288,16 +225,6 @@ class AuthService {
     );
   }
 
-  /// Retrieves a paginated list of transactions for a specific bank account or all accounts within a date range.
-  ///
-  /// [userId]: The unique identifier of the user.
-  /// [bankAccountId]: The unique identifier of the bank account. Use 'all' for all accounts.
-  /// [startDate]: The start date in ISO 8601 format (e.g., "2024-01-01").
-  /// [endDate]: The end date in ISO 8601 format (e.g., "2024-01-31").
-  /// [page]: The page number for pagination (default is 1).
-  /// [limit]: The number of transactions per page (default is 50, maximum is 100).
-  ///
-  /// Returns a map containing the list of transactions and pagination details.
   Future<Map<String, dynamic>> getTransactions({
     required String userId,
     String bankAccountId = 'all',
@@ -314,7 +241,6 @@ class AuthService {
       'limit': limit,
     };
 
-    // Only include bankAccountId in the request if it's not 'all'
     if (bankAccountId != 'all') {
       body['bankAccountId'] = bankAccountId;
     }
@@ -327,11 +253,6 @@ class AuthService {
     );
   }
 
-  /// Synchronizes account balances for all linked bank accounts of the user.
-  ///
-  /// [userId]: The unique identifier of the user.
-  ///
-  /// Returns a map containing the synchronization status.
   Future<Map<String, dynamic>> syncBalances(String userId) async {
     return _makeRequest(
       endpoint: '/api/plaid/sync_balances',
@@ -341,38 +262,6 @@ class AuthService {
     );
   }
 
-  /// Generates a Plaid Sandbox public token for testing purposes.
-  ///
-  /// [institutionId]: (Optional) The ID of the institution to connect with. Defaults to 'ins_109508'.
-  /// [initialProducts]: (Optional) List of initial products to enable. Defaults to ['transactions'].
-  /// [webhook]: (Optional) The webhook URL to receive Plaid events.
-  ///
-  /// Returns a map containing the `public_token` and `request_id`.
-  Future<Map<String, dynamic>> generateSandboxPublicToken({
-    String? institutionId,
-    List<String>? initialProducts,
-    String? webhook,
-  }) async {
-    return _makeRequest(
-      endpoint: '/api/plaid/sandbox/public_token/create',
-      body: {
-        if (institutionId != null) 'institution_id': institutionId,
-        if (initialProducts != null) 'initial_products': initialProducts,
-        if (webhook != null) 'webhook': webhook,
-      },
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  /// Initialize method if needed for future use.
-  Future<void> init() async {
-    // Implement any initialization logic if necessary
-  }
-
-  /// Get the user's status (new user, no bank account, or complete).
-  ///
-  /// Returns the UserStatus enum value.
   Future<UserStatus> getUserStatus() async {
     final userId = _storageService.getUserId();
     if (userId == null) {
@@ -436,7 +325,7 @@ class AuthService {
     required String bankAccountId,
   }) async {
     return _makeRequest(
-      endpoint: '/api/blink-advances/',
+      endpoint: '/api/blink-advances',
       body: {
         'userId': userId,
         'requestedAmount': requestedAmount,
@@ -454,7 +343,7 @@ class AuthService {
     try {
       _logger.i('Fetching user profile...');
       final response = await _makeRequest(
-        endpoint: '/api/users/profile', // Assuming this endpoint exists
+        endpoint: '/api/users/profile',
         body: {},
         method: 'GET',
         requireAuth: true,
@@ -464,7 +353,6 @@ class AuthService {
         final profile = response['data'];
         _logger.i('User profile fetched successfully');
 
-        // Store necessary profile information in StorageService
         await _storageService.setFirstName(profile['first_name']);
         await _storageService.setLastName(profile['last_name']);
         if (profile['bank_account_name'] != null) {
@@ -513,9 +401,98 @@ class AuthService {
       return [];
     }
   }
+
+  Future<List<Map<String, dynamic>>> getDetailedBankAccounts() async {
+    try {
+      _logger.i('Fetching detailed user bank accounts...');
+      final response = await _makeRequest(
+        endpoint: '/api/users/bank-accounts/detailed',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success']) {
+        _logger.i('Detailed bank accounts fetched successfully');
+        return List<Map<String, dynamic>>.from(
+            response['bankAccounts'].map((account) {
+          return {
+            ...account,
+            'accountName': account['account_name'],
+          };
+        }));
+      } else {
+        _logger
+            .e('Failed to fetch detailed bank accounts: ${response['error']}');
+        return [];
+      }
+    } catch (e) {
+      _logger.e('Error fetching detailed bank accounts: $e');
+      return [];
+    }
+  }
+
+  Future<String?> getPrimaryAccountName(String userId) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/bank-accounts',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] &&
+          response['bankAccounts'] is List &&
+          response['bankAccounts'].isNotEmpty) {
+        final primaryAccount = response['bankAccounts'].firstWhere(
+          (account) => account['isPrimary'] == true,
+          orElse: () => response['bankAccounts'].first,
+        );
+        return primaryAccount['account_name'];
+      } else {
+        _logger.w('Primary account name not found');
+        return null;
+      }
+    } catch (e) {
+      _logger.e('Error fetching primary account name: $e');
+      return null;
+    }
+  }
+
+  Future<void> init() async {
+    // Implement any initialization logic if necessary
+  }
+
+  Future<List<Map<String, dynamic>>> getBlinkAdvances(String userId) async {
+    final response = await _makeRequest(
+      endpoint: '/api/blink-advances',
+      body: {'userId': userId},
+      method: 'GET',
+      requireAuth: true,
+    );
+    return List<Map<String, dynamic>>.from(response['blinkAdvances']);
+  }
+
+  Future<Map<String, dynamic>> getBlinkAdvanceById(String id) async {
+    return _makeRequest(
+      endpoint: '/api/blink-advances/$id',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> updateBlinkAdvanceStatus(
+      String id, String status) async {
+    return _makeRequest(
+      endpoint: '/api/blink-advances/$id/status',
+      body: {'status': status},
+      method: 'PATCH',
+      requireAuth: true,
+    );
+  }
 }
 
-/// Custom exception class for API-related errors.
 class ApiException implements Exception {
   final String message;
   final int statusCode;
@@ -526,7 +503,6 @@ class ApiException implements Exception {
   String toString() => 'ApiException: $message (Status Code: $statusCode)';
 }
 
-/// Custom exception class for unsupported HTTP methods.
 class UnsupportedMethodException implements Exception {
   final String message;
   UnsupportedMethodException(this.message);
@@ -535,7 +511,6 @@ class UnsupportedMethodException implements Exception {
   String toString() => 'UnsupportedMethodException: $message';
 }
 
-/// Custom exception class for scenarios where the user already exists.
 class UserAlreadyExistsException implements Exception {
   final String message;
   UserAlreadyExistsException(this.message);
@@ -544,7 +519,6 @@ class UserAlreadyExistsException implements Exception {
   String toString() => 'UserAlreadyExistsException: $message';
 }
 
-/// Custom exception class for invalid OTP scenarios.
 class InvalidOtpException implements Exception {
   final String message;
   InvalidOtpException(this.message);

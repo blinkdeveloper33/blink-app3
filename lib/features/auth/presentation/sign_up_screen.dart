@@ -1,5 +1,3 @@
-// lib/features/auth/presentation/sign_up_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:myapp/features/auth/presentation/select_verification_method_screen.dart';
 import 'package:myapp/features/auth/presentation/login_screen.dart';
@@ -27,7 +25,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isSubmitting = true);
       final email = _emailController.text.trim();
-      
+
       Future.delayed(const Duration(milliseconds: 1500), () {
         setState(() => _isSubmitting = false);
         Navigator.of(context).pushReplacement(
@@ -150,7 +148,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: Colors.red),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             prefixIcon: const Icon(Icons.email_outlined, color: Colors.white70),
             hintText: 'Enter your email',
             hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
@@ -159,7 +158,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             if (value == null || value.isEmpty) {
               return 'Please enter your email address';
             }
-            final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+            final emailRegex = RegExp(
+                r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
             if (!emailRegex.hasMatch(value)) {
               return 'Please enter a valid email address';
             }
@@ -244,7 +244,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -296,15 +297,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           iconPath: 'assets/images/google_icon.png',
                           onPressed: _handleGoogleSignIn,
                           isHovered: _isGoogleHovered,
-                          onHover: (value) => setState(() => _isGoogleHovered = value),
+                          onHover: (value) =>
+                              setState(() => _isGoogleHovered = value),
                         ),
                         const SizedBox(height: 16),
                         _buildSocialButton(
                           text: 'Continue with Apple',
-                          iconPath: 'assets/images/apple_icon.png', // You'll need to add this asset
+                          iconPath:
+                              'assets/images/apple_icon.png', // You'll need to add this asset
                           onPressed: _handleAppleSignIn,
                           isHovered: _isAppleHovered,
-                          onHover: (value) => setState(() => _isAppleHovered = value),
+                          onHover: (value) =>
+                              setState(() => _isAppleHovered = value),
                         ),
                       ],
                     ),
@@ -364,4 +368,3 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 }
-

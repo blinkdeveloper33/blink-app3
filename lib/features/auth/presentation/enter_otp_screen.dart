@@ -1,5 +1,3 @@
-// lib/features/auth/presentation/enter_otp_screen.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -109,14 +107,16 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
           ),
         );
       } else {
-        final message = response['message'] ?? 'OTP verification failed. Please try again.';
+        final message =
+            response['message'] ?? 'OTP verification failed. Please try again.';
         _showErrorDialog(message);
       }
     } on InvalidOtpException catch (e) {
       _logger.e('Invalid OTP', error: e);
       _showErrorDialog(e.message);
     } catch (e, stackTrace) {
-      _logger.e('Error during OTP verification', error: e, stackTrace: stackTrace);
+      _logger.e('Error during OTP verification',
+          error: e, stackTrace: stackTrace);
       _showErrorDialog('An unexpected error occurred. Please try again.');
     } finally {
       if (mounted) {
@@ -144,7 +144,8 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
         _focusNodes[0].requestFocus();
         _showSnackBar('A new verification code has been sent to your email.');
       } else {
-        final message = response['message'] ?? 'Failed to resend OTP. Please try again.';
+        final message =
+            response['message'] ?? 'Failed to resend OTP. Please try again.';
         _showErrorDialog(message);
       }
     } catch (e, stackTrace) {
@@ -165,7 +166,8 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF061535),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
             'Error',
             style: TextStyle(
@@ -308,9 +310,8 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: (_completeCode.length == 6 && !_isVerifying)
-            ? _verifyOtp
-            : null,
+        onPressed:
+            (_completeCode.length == 6 && !_isVerifying) ? _verifyOtp : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2196F3),
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -353,15 +354,14 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
           ),
         ),
         TextButton(
-          onPressed: (_timeLeft == 0 && !_isResending)
-              ? _resendOtp
-              : null,
+          onPressed: (_timeLeft == 0 && !_isResending) ? _resendOtp : null,
           child: _isResending
               ? const SizedBox(
                   height: 16,
                   width: 16,
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2196F3)),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF2196F3)),
                     strokeWidth: 2,
                   ),
                 )
@@ -386,7 +386,8 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -400,7 +401,8 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
                           color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white),
+                        child:
+                            const Icon(Icons.arrow_back, color: Colors.white),
                       ),
                       onPressed: () => Navigator.of(context).pop(),
                       tooltip: 'Go Back',

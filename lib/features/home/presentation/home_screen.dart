@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _animation;
   String _userName = '';
   String _bankAccountId = '';
-  String? _primaryAccountName; // Added this line
+  String? _primaryAccountName;
 
   @override
   void initState() {
@@ -49,7 +49,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
     _animationController.reset();
     _loadData();
-    _loadBankAccountName(); // Added this line
+    _loadBankAccountName();
+    _fetchAndStoreDetailedBankAccounts();
   }
 
   @override
@@ -108,8 +109,7 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() {
           _balances = balances;
           _isLoading = false;
-          _primaryAccountName =
-              balances['primaryAccountName'] as String?; // Added this line
+          _primaryAccountName = balances['primaryAccountName'] as String?;
         });
         _animationController.reset();
         _animationController.forward();
@@ -131,12 +131,45 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadBankAccountName() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
-    final bankAccountName = await storageService.getBankAccountName();
+
+    final userId = storageService.getUserId();
+    if (userId != null) {
+      final primaryAccountName =
+          await authService.getPrimaryAccountName(userId);
+      if (primaryAccountName != null) {
+        await storageService.setPrimaryAccountName(primaryAccountName);
+      }
+    }
+
     if (mounted) {
       setState(() {
-        _primaryAccountName = bankAccountName;
+        _primaryAccountName =
+            storageService.getPrimaryAccountName() ?? 'Primary Account';
       });
+    }
+  }
+
+  Future<void> _fetchAndStoreDetailedBankAccounts() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final storageService = Provider.of<StorageService>(context, listen: false);
+
+    try {
+      final detailedBankAccounts = await authService.getDetailedBankAccounts();
+      await storageService.setDetailedBankAccounts(detailedBankAccounts);
+      _logger.i('Detailed bank accounts fetched and stored successfully');
+    } catch (e) {
+      _logger.e('Error fetching detailed bank accounts: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Failed to fetch bank account details. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -248,12 +281,6 @@ class _HomeScreenState extends State<HomeScreen>
         ? 0.0
         : (rawBalance is int ? rawBalance.toDouble() : rawBalance as double);
 
-    final primaryAccount =
-        (_balances['accounts'] as List<dynamic>?)?.firstWhere(
-      (account) => account['isPrimary'] == true,
-      orElse: () => {'name': 'Primary Account', 'currentBalance': 0.0},
-    );
-
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -345,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               const SizedBox(width: 8),
               Text(
-                _primaryAccountName ?? 'Not Available', // Updated this line
+                _primaryAccountName ?? 'Not Available',
                 style: TextStyle(
                   color: _isDarkMode ? Colors.white : Colors.black,
                   fontSize: 14,

@@ -1,5 +1,3 @@
-// lib/features/auth/presentation/create_password_screen.dart
-
 import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
@@ -15,9 +13,9 @@ class CreatePasswordScreen extends StatefulWidget {
   final String email;
 
   const CreatePasswordScreen({
-    super.key,
+    Key? key,
     required this.email,
-  });
+  }) : super(key: key);
 
   @override
   State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
@@ -175,7 +173,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
             }
 
             _logger.i('Showing success pop-up.');
-            _showSuccessPopup(firstName);
+            _showSuccessPopup(firstName!); // Passing firstName to the popup
           } else {
             _logger.e('Login failed: ${loginResponse['message']}');
             _showErrorDialog(
@@ -523,9 +521,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                 _acknowledgeAccuracy = value ?? false;
               });
             },
-            fillColor: WidgetStateProperty.resolveWith<Color>(
-              (Set<WidgetState> states) {
-                if (states.contains(WidgetState.selected)) {
+            fillColor: MaterialStateProperty.resolveWith<Color>(
+              (Set<MaterialState> states) {
+                if (states.contains(MaterialState.selected)) {
                   return const Color(0xFF2196F3);
                 }
                 return Colors.white.withOpacity(0.1);

@@ -9,9 +9,9 @@ class SelectVerificationMethodScreen extends StatefulWidget {
   final String email;
 
   const SelectVerificationMethodScreen({
-    super.key,
+    Key? key,
     required this.email,
-  });
+  }) : super(key: key);
 
   @override
   State<SelectVerificationMethodScreen> createState() =>

@@ -53,6 +53,11 @@ class _LoginScreenState extends State<LoginScreen> {
             return;
           }
 
+          // Fetch detailed bank accounts
+          final detailedBankAccounts =
+              await authService.getDetailedBankAccounts();
+          await storageService.setDetailedBankAccounts(detailedBankAccounts);
+
           // Now that we have the token and user ID, check the user status
           UserStatus userStatus = await authService.getUserStatus();
 

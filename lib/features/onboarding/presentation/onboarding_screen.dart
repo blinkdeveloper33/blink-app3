@@ -1,5 +1,3 @@
-// lib/features/onboarding/presentation/onboarding_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
@@ -48,8 +46,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             const SignUpScreen(),
-        transitionsBuilder:
-            (context, animation, secondaryAnimation, child) {
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
             child: child,
@@ -132,16 +129,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             _navigateToSignUp();
                           } else {
                             _pageController.nextPage(
-                              duration:
-                                  const Duration(milliseconds: 500),
+                              duration: const Duration(milliseconds: 500),
                               curve: Curves.easeInOut,
                             );
                           }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2196F3),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -193,8 +188,7 @@ class OnboardingPageWidget extends StatelessWidget {
       builder: (context, constraints) {
         return SingleChildScrollView(
           child: ConstrainedBox(
-            constraints:
-                BoxConstraints(minHeight: constraints.maxHeight),
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: IntrinsicHeight(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(

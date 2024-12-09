@@ -27,12 +27,28 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   StreamSubscription<LinkExit>? _streamExit;
   StreamSubscription<LinkSuccess>? _streamSuccess;
 
-  String _userName = ''; // Updated to initialize _userName as an empty string
+  String _userName = '';
 
   @override
   void initState() {
     super.initState();
+    _loadUserName();
     _setupPlaidListeners();
+    _initializePlaidLink();
+  }
+
+  Future<void> _initializePlaidLink() async {
+    setState(() => _isConnecting = true);
+    try {
+      await _createLinkTokenConfiguration();
+      setState(() => _isConnecting = false);
+    } catch (e) {
+      _logger.e('Error initializing PlaidLink', error: e);
+      setState(() => _isConnecting = false);
+      if (mounted) {
+        _showErrorDialog('Failed to initialize Plaid Link');
+      }
+    }
   }
 
   @override
@@ -59,48 +75,18 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   }
 
   Future<void> _createLinkTokenConfiguration() async {
-    if (!mounted) return;
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final storageService = Provider.of<StorageService>(context, listen: false);
 
-    setState(() => _isConnecting = true);
-
-    try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final storageService =
-          Provider.of<StorageService>(context, listen: false);
-
-      final userId = storageService.getUserId();
-
-      if (userId == null) {
-        _showErrorDialog('User ID missing. Please log in again.');
-        setState(() => _isConnecting = false);
-        return;
-      }
-
-      // Create link token using AuthService
-      final linkToken = await authService.createLinkToken(userId);
-
-      setState(() {
-        _configuration = LinkTokenConfiguration(
-          token: linkToken,
-        );
-      });
-
-      // Initialize Plaid Link
-      await PlaidLink.create(configuration: _configuration!);
-
-      // Open Plaid Link flow
-      await PlaidLink.open();
-    } catch (e, stackTrace) {
-      if (mounted) {
-        _showErrorDialog('Failed to initialize Plaid Link');
-      }
-      _logger.e('Error initializing PlaidLink',
-          error: e, stackTrace: stackTrace);
-    } finally {
-      if (mounted) {
-        setState(() => _isConnecting = false);
-      }
+    final userId = storageService.getUserId();
+    if (userId == null) {
+      throw Exception('User ID missing. Please log in again.');
     }
+
+    final linkToken = await authService.createLinkToken(userId);
+    _configuration = LinkTokenConfiguration(token: linkToken);
+
+    await PlaidLink.create(configuration: _configuration!);
   }
 
   Future<void> _onSuccess(LinkSuccess event) async {
@@ -111,7 +97,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     final publicToken = event.publicToken;
 
     try {
-      if (!mounted) return; // Added mounted check
+      if (!mounted) return;
       final authService = Provider.of<AuthService>(context, listen: false);
       final storageService =
           Provider.of<StorageService>(context, listen: false);
@@ -119,8 +105,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       final userId = storageService.getUserId();
       final firstName = storageService.getFirstName() ?? '';
       final lastName = storageService.getLastName() ?? '';
-      _userName =
-          '$firstName $lastName'.trim(); // Updated to get first and last name
+      _userName = '$firstName $lastName'.trim();
 
       if (userId == null) {
         _showErrorDialog('User ID missing. Please log in again.');
@@ -137,8 +122,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         _logger.i('Bank account linked successfully: ${response['message']}');
 
         // Store the bank account ID
-        final bankAccountId =
-            response['bankAccountId'] as String?; // Change to nullable String
+        final bankAccountId = response['bankAccountId'] as String?;
         if (bankAccountId != null) {
           await storageService.setBankAccountId(bankAccountId);
           _logger.i('Bank account ID stored: $bankAccountId');
@@ -153,9 +137,15 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
           _logger.w('Bank account name not received from the server');
         }
 
+        // Fetch and store detailed bank accounts
+        final detailedBankAccounts =
+            await authService.getDetailedBankAccounts();
         if (mounted) {
-          _showSuccessDialog(
-              bankAccountId); // Pass the potentially null bankAccountId
+          await storageService.setDetailedBankAccounts(detailedBankAccounts);
+        }
+
+        if (mounted) {
+          _showSuccessDialog(bankAccountId);
         }
 
         // Perform background tasks without blocking the UI
@@ -176,8 +166,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   }
 
   Future<void> _performBackgroundTasks(String userId) async {
-    // if (!mounted) return; // Removed as context is not used here.
-
     final authService = Provider.of<AuthService>(context, listen: false);
 
     try {
@@ -188,7 +176,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       // Get transactions (you might want to specify date range and other parameters)
       final transactions = await authService.getTransactions(
         userId: userId,
-        bankAccountId: 'all', // or specify a particular account ID
+        bankAccountId: 'all',
         startDate:
             DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
         endDate: DateTime.now().toIso8601String(),
@@ -201,7 +189,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
       _logger.i('Balances synced successfully');
     } catch (e) {
       _logger.e('Error performing background tasks', error: e);
-      // We don't show any error to the user as this is a background task
     }
   }
 
@@ -226,7 +213,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   }
 
   void _showSuccessDialog(String? bankAccountId) {
-    // Changed parameter to nullable String
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -250,7 +236,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Ensure the GIF asset exists in the specified path
                 Image.asset(
                   'assets/animations/success-1--unscreen.gif',
                   height: 150,
@@ -287,8 +272,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                         MaterialPageRoute(
                           builder: (context) => HomeScreen(
                               userName: _userName,
-                              bankAccountId:
-                                  bankAccountId ?? ''), // Fixed syntax error
+                              bankAccountId: bankAccountId ?? ''),
                         ),
                       );
                     },
@@ -441,7 +425,7 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _isConnecting ? null : _createLinkTokenConfiguration,
+        onPressed: _isConnecting ? null : () => PlaidLink.open(),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2196F3),
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -471,153 +455,152 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     );
   }
 
+  Future<void> _loadUserName() async {
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    final fullName = storageService.getFullName() ?? '';
+    setState(() {
+      _userName = fullName;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF061535),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 40),
+                Center(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 40),
-                      Center(
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Link Your Bank Account\nVia Plaid',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontFamily: 'Onest',
-                                fontWeight: FontWeight.bold,
-                                height: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Securely Connect to Your Bank to Enable Cash',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 16,
-                                fontFamily: 'Onest',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      Center(
-                        child: Image.asset(
-                          'assets/images/link_bank.png',
-                          height: MediaQuery.of(context).size.height * 0.3,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      _buildSecurityFeature(
-                        icon: Icons.lock_outline,
-                        title: 'Bank-level Security',
-                        description: '256-bit encryption to protect your data',
-                      ),
-                      const SizedBox(height: 16),
-                      _buildSecurityFeature(
-                        icon: Icons.visibility_off_outlined,
-                        title: 'Privacy First',
-                        description: 'We never store your login credentials',
-                      ),
-                      const SizedBox(height: 16),
-                      _buildSecurityFeature(
-                        icon: Icons.verified_user_outlined,
-                        title: 'Verified by Plaid',
-                        description: 'Trusted by millions of users worldwide',
-                      ),
-                      const SizedBox(height: 40),
-                      Center(
-                        child: RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 16,
-                              fontFamily: 'Onest',
-                              height: 1.5,
-                            ),
-                            children: [
-                              const TextSpan(text: 'We use '),
-                              TextSpan(
-                                text: 'Plaid',
-                                style: const TextStyle(
-                                  color: Color(0xFF2196F3),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const TextSpan(
-                                text:
-                                    ' to securely link your bank\naccount. Your credentials are never stored.',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      Center(
-                        child: Wrap(
-                          spacing: 20,
-                          runSpacing: 20,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            _buildBankLogo('assets/images/bank_of_america.svg'),
-                            _buildBankLogo('assets/images/chase.svg'),
-                            _buildBankLogo('assets/images/wells_fargo.svg'),
-                            _buildBankLogo('assets/images/citi.svg'),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      RichText(
+                      const Text(
+                        'Link Your Bank Account\nVia Plaid',
                         textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 14,
-                            fontFamily: 'Onest',
-                          ),
-                          children: [
-                            const TextSpan(
-                              text: 'By selecting "Continue" you agree to the ',
-                            ),
-                            TextSpan(
-                              text: 'Plaid privacy policy',
-                              style: const TextStyle(
-                                color: Color(0xFF2196F3),
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = _launchPrivacyPolicy,
-                            ),
-                          ],
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      _buildContinueButton(),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Securely Connect to Your Bank to Enable Cash',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 16,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 40),
+                Center(
+                  child: Image.asset(
+                    'assets/images/link_bank.png',
+                    height: MediaQuery.of(context).size.height * 0.3,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 40),
+                _buildSecurityFeature(
+                  icon: Icons.lock_outline,
+                  title: 'Bank-level Security',
+                  description: '256-bit encryption to protect your data',
+                ),
+                const SizedBox(height: 16),
+                _buildSecurityFeature(
+                  icon: Icons.visibility_off_outlined,
+                  title: 'Privacy First',
+                  description: 'We never store your login credentials',
+                ),
+                const SizedBox(height: 16),
+                _buildSecurityFeature(
+                  icon: Icons.verified_user_outlined,
+                  title: 'Verified by Plaid',
+                  description: 'Trusted by millions of users worldwide',
+                ),
+                const SizedBox(height: 40),
+                Center(
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 16,
+                        fontFamily: 'Onest',
+                        height: 1.5,
+                      ),
+                      children: [
+                        const TextSpan(text: 'We use '),
+                        TextSpan(
+                          text: 'Plaid',
+                          style: const TextStyle(
+                            color: Color(0xFF2196F3),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const TextSpan(
+                          text:
+                              ' to securely link your bank\naccount. Your credentials are never stored.',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 40),
+                Center(
+                  child: Wrap(
+                    spacing: 20,
+                    runSpacing: 20,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      _buildBankLogo('assets/images/bank_of_america.svg'),
+                      _buildBankLogo('assets/images/chase.svg'),
+                      _buildBankLogo('assets/images/wells_fargo.svg'),
+                      _buildBankLogo('assets/images/citi.svg'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 40),
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                    children: [
+                      const TextSpan(
+                        text: 'By selecting "Continue" you agree to the ',
+                      ),
+                      TextSpan(
+                        text: 'Plaid privacy policy',
+                        style: const TextStyle(
+                          color: Color(0xFF2196F3),
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = _launchPrivacyPolicy,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildContinueButton(),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
         ),
       ),
     );

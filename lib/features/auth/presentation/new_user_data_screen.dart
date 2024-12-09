@@ -1,5 +1,3 @@
-// lib/features/auth/presentation/new_user_data_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:myapp/features/auth/presentation/create_password_screen.dart';
@@ -13,9 +11,9 @@ class NewUserDataScreen extends StatefulWidget {
   final String email;
 
   const NewUserDataScreen({
-    super.key,
+    Key? key,
     required this.email,
-  });
+  }) : super(key: key);
 
   @override
   State<NewUserDataScreen> createState() => _NewUserDataScreenState();
@@ -347,9 +345,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                 _acknowledgeAccuracy = value ?? false;
               });
             },
-            fillColor: WidgetStateProperty.resolveWith<Color>(
-              (Set<WidgetState> states) {
-                if (states.contains(WidgetState.selected)) {
+            fillColor: MaterialStateProperty.resolveWith<Color>(
+              (Set<MaterialState> states) {
+                if (states.contains(MaterialState.selected)) {
                   return const Color(0xFF2196F3);
                 }
                 return Colors.white.withOpacity(0.1);
