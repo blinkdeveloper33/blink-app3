@@ -11,9 +11,11 @@ import 'package:myapp/utils/custom_page_route.dart';
 import 'package:flutter/animation.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String userName; // Add userName parameter
+  final String userName;
+  final String bankAccountId;
 
-  const HomeScreen({super.key, required this.userName}); // Update constructor
+  const HomeScreen(
+      {super.key, required this.userName, required this.bankAccountId});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -21,22 +23,23 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  final _logger = Logger(); // Add logger instance
+  final _logger = Logger();
   bool _isDarkMode = true;
   final currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   List<Transaction> _recentTransactions = [];
-  bool _isLoading = false; //Remove this line
   Map<String, dynamic> _balances = {};
   late AnimationController _animationController;
   late Animation<double> _animation;
-  //bool _isShaking = false; //Remove this line
   String _userName = '';
+  String _bankAccountId = '';
+  String? _primaryAccountName; // Added this line
 
   @override
   void initState() {
     super.initState();
-    _userName = widget.userName; // Initialize _userName with the passed value
+    _userName = widget.userName;
+    _bankAccountId = widget.bankAccountId;
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -44,8 +47,9 @@ class _HomeScreenState extends State<HomeScreen>
     _animation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-    _animationController.reset(); // Reset before loading data
+    _animationController.reset();
     _loadData();
+    _loadBankAccountName(); // Added this line
   }
 
   @override
@@ -82,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen>
         throw Exception('User ID not found');
       }
     } catch (e) {
-      _logger.e('Error loading recent transactions: $e'); // Updated logger call
+      _logger.e('Error loading recent transactions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -104,13 +108,14 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() {
           _balances = balances;
           _isLoading = false;
+          _primaryAccountName =
+              balances['primaryAccountName'] as String?; // Added this line
         });
-        // Reset and forward animation after state is updated
         _animationController.reset();
         _animationController.forward();
       }
     } catch (e) {
-      _logger.e('Error loading current balances: $e'); // Updated logger call
+      _logger.e('Error loading current balances: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -122,6 +127,16 @@ class _HomeScreenState extends State<HomeScreen>
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadBankAccountName() async {
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    final bankAccountName = await storageService.getBankAccountName();
+    if (mounted) {
+      setState(() {
+        _primaryAccountName = bankAccountName;
+      });
     }
   }
 
@@ -181,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                       Text(
-                        _userName, // Use the stored user name here
+                        _userName,
                         style: TextStyle(
                           color: _isDarkMode ? Colors.white : Colors.black,
                           fontSize: 16,
@@ -330,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               const SizedBox(width: 8),
               Text(
-                primaryAccount?['name'] ?? 'Not Available',
+                _primaryAccountName ?? 'Not Available', // Updated this line
                 style: TextStyle(
                   color: _isDarkMode ? Colors.white : Colors.black,
                   fontSize: 14,
@@ -350,7 +365,6 @@ class _HomeScreenState extends State<HomeScreen>
       aspectRatio: 1,
       child: Row(
         children: [
-          // Blink Advance Card - Left half
           Expanded(
             child: GestureDetector(
               onTap: _handleBlinkAdvanceTap,
@@ -439,11 +453,9 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(width: 16),
-          // Right column with two smaller cards
           Expanded(
             child: Column(
               children: [
-                // Repayment Card
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -490,10 +502,9 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Insights Card
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(32),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A237E),
                       borderRadius: BorderRadius.circular(20),
@@ -548,7 +559,7 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            BlinkAdvanceScreen(),
+            BlinkAdvanceScreen(bankAccountId: _bankAccountId),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
@@ -684,7 +695,7 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         const SizedBox(height: 16),
         _isLoading
-            ? Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator())
             : _recentTransactions.isEmpty
                 ? Center(
                     child: Text(
@@ -789,6 +800,8 @@ class _HomeScreenState extends State<HomeScreen>
       ],
     );
   }
+
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {

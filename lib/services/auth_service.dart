@@ -215,10 +215,15 @@ class AuthService {
       // Store the JWT token securely upon successful login.
       await _storageService.setToken(response['token']);
       await _storageService.setUserId(response['userId']);
+      if (response['bankAccountName'] != null) {
+        await _storageService.setBankAccountName(response['bankAccountName']);
+      }
+      _logger.i('Login successful. Token and userId stored.');
 
       // Store the user's full name
       final fullName = '${response['firstName']} ${response['lastName']}';
       await _storageService.setFullName(fullName);
+      _logger.i('User full name stored: $fullName');
 
       // Fetch and store user profile information
       await _fetchAndStoreUserProfile();
@@ -447,6 +452,7 @@ class AuthService {
 
   Future<void> _fetchAndStoreUserProfile() async {
     try {
+      _logger.i('Fetching user profile...');
       final response = await _makeRequest(
         endpoint: '/api/users/profile', // Assuming this endpoint exists
         body: {},
@@ -455,15 +461,56 @@ class AuthService {
       );
 
       if (response['success']) {
-        final profile = response['profile'];
+        final profile = response['data'];
+        _logger.i('User profile fetched successfully');
+
         // Store necessary profile information in StorageService
-        _storageService.setFirstName(profile['firstName']);
-        _storageService.setLastName(profile['lastName']);
-        // ... store other relevant profile data
+        await _storageService.setFirstName(profile['first_name']);
+        await _storageService.setLastName(profile['last_name']);
+        if (profile['bank_account_name'] != null) {
+          await _storageService
+              .setBankAccountName(profile['bank_account_name']);
+          _logger
+              .i('Bank account name stored: ${profile['bank_account_name']}');
+        } else {
+          _logger.w('Bank account name not present in user profile');
+        }
+        _logger.i('First name and last name stored');
+
+        if (profile['bank_account_id'] != null) {
+          await _storageService.setBankAccountId(profile['bank_account_id']);
+          _logger.i('Bank account ID stored: ${profile['bank_account_id']}');
+        } else {
+          _logger.w('Bank account ID not present in user profile');
+        }
+      } else {
+        _logger.e('Failed to fetch user profile: ${response['error']}');
       }
     } catch (e) {
       _logger.e('Error fetching user profile: $e');
-      // Handle error appropriately, e.g., show an error message
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserBankAccounts() async {
+    try {
+      _logger.i('Fetching user bank accounts...');
+      final response = await _makeRequest(
+        endpoint: '/api/users/bank-accounts',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success']) {
+        _logger.i('Bank accounts fetched successfully');
+        return List<Map<String, dynamic>>.from(response['bankAccounts']);
+      } else {
+        _logger.e('Failed to fetch bank accounts: ${response['error']}');
+        return [];
+      }
+    } catch (e) {
+      _logger.e('Error fetching bank accounts: $e');
+      return [];
     }
   }
 }

@@ -72,8 +72,10 @@ class _LoginScreenState extends State<LoginScreen> {
             case UserStatus.complete:
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(
-                  builder: (context) =>
-                      HomeScreen(userName: fullName ?? 'User'),
+                  builder: (context) => HomeScreen(
+                    userName: fullName ?? 'User',
+                    bankAccountId: '',
+                  ),
                 ),
               );
               break;

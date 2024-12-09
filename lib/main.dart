@@ -95,6 +95,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(
               userName: '',
+              bankAccountId: '',
             ),
         // Add other routes here
       },

@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:myapp/services/storage_service.dart';
 import 'package:myapp/services/auth_service.dart'
-    show AuthService, Transaction, TransferSpeed;
+    show AuthService, TransferSpeed;
 import 'package:intl/intl.dart';
 import 'package:myapp/features/home/presentation/home_screen.dart';
-import 'package:myapp/widgets/chat_bubble.dart';
-import 'package:animated_emoji/animated_emoji.dart';
 import 'dart:math' show pi, sin;
 import 'package:myapp/utils/theme_manager.dart';
 import 'package:myapp/widgets/confetti_overlay.dart';
-import 'package:myapp/widgets/animated_background.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:animated_emoji/animated_emoji.dart';
 
 const Color kPrimaryColor = Color(0xFF0E6BA8);
 const Color kSecondaryColor = Color(0xFF1A237E);
@@ -22,10 +20,7 @@ const Color kTextColorDark = Colors.black87;
 class AnimatedBackground extends StatelessWidget {
   final Widget child;
 
-  const AnimatedBackground({
-    Key? key,
-    required this.child,
-  }) : super(key: key);
+  const AnimatedBackground({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +38,9 @@ class AnimatedBackground extends StatelessWidget {
 }
 
 class BlinkAdvanceScreen extends StatefulWidget {
-  const BlinkAdvanceScreen({super.key});
+  final String bankAccountId;
+
+  const BlinkAdvanceScreen({super.key, required this.bankAccountId});
 
   @override
   State<BlinkAdvanceScreen> createState() => _BlinkAdvanceScreenState();
@@ -66,11 +63,12 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   late AnimationController _fadeController;
   late AnimationController _inputSectionController;
   late Animation<Offset> _inputSectionAnimation;
-  String? _bankAccountId; // Add this line to store the bank account ID
+  String? _bankAccountId = ''; // Updated to String? _bankAccountId = '';
 
   @override
   void initState() {
     super.initState();
+    _bankAccountId = widget.bankAccountId; // Initialize _bankAccountId
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -116,7 +114,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
 
   Future<void> _loadBankAccountId() async {
     final storageService = Provider.of<StorageService>(context, listen: false);
-    final bankAccountId = await storageService.getBankAccountId();
+    final bankAccountId = storageService.getBankAccountId();
     setState(() {
       _bankAccountId = bankAccountId;
     });
@@ -222,10 +220,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             'Got it! You\'ve selected the ${speed.toString().split('.').last} speed option. Now to finalize, please let me know when you\'re planning to repay your Blink Advance.',
         isUser: false,
         timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(
-          AnimatedEmojis.moneyWithWings,
-          size: 24,
-        ),
+        emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
       ));
     });
   }
@@ -291,7 +286,6 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     if (_selectedAmount == null) missingFields.add('Amount');
     if (_selectedSpeed == null) missingFields.add('Transfer Speed');
     if (_selectedDate == null) missingFields.add('Repayment Date');
-    if (_bankAccountId == null) missingFields.add('Bank Account');
 
     if (missingFields.isNotEmpty) {
       _showErrorMessage(
@@ -315,7 +309,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         requestedAmount: double.parse(_selectedAmount!),
         transferSpeed: _selectedSpeed!,
         repayDate: _selectedDate!,
-        bankAccountId: _bankAccountId!,
+        bankAccountId: _bankAccountId!, // Use the stored bank account ID
       );
 
       if (response['success'] == true) {
@@ -346,8 +340,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
               builder: (context) => HomeScreen(
-                    userName: '',
-                  )),
+                  userName: _userName, bankAccountId: _bankAccountId ?? '')),
         );
       }
     });
@@ -516,30 +509,31 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   }
 
   Widget _buildInputSection() {
-    if (_messages.isEmpty) {
+    if (_messages.isNotEmpty) {
+      // Update: Changed condition to _messages.isNotEmpty
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_selectedAmount == null && _messages.isNotEmpty) ...[
+            _buildHelpButton('Need help choosing an amount?'),
+            SizedBox(height: 8),
+            _buildAmountButtons(),
+          ] else if (_selectedSpeed == null && _messages.length >= 3) ...[
+            _buildHelpButton('What\'s the difference between speeds?'),
+            SizedBox(height: 8),
+            _buildSpeedSelector(),
+          ] else if (_selectedDate == null && _messages.length >= 5) ...[
+            _buildHelpButton('How do I choose a repayment date?'),
+            SizedBox(height: 8),
+            _buildDateSelector(),
+          ] else if (_messages.length >= 7) ...[
+            _buildConfirmationButtons(),
+          ],
+        ],
+      );
+    } else {
       return SizedBox.shrink();
     }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_selectedAmount == null && _messages.length >= 1) ...[
-          _buildHelpButton('Need help choosing an amount?'),
-          SizedBox(height: 8),
-          _buildAmountButtons(),
-        ] else if (_selectedSpeed == null && _messages.length >= 3) ...[
-          _buildHelpButton('What\'s the difference between speeds?'),
-          SizedBox(height: 8),
-          _buildSpeedSelector(),
-        ] else if (_selectedDate == null && _messages.length >= 5) ...[
-          _buildHelpButton('How do I choose a repayment date?'),
-          SizedBox(height: 8),
-          _buildDateSelector(),
-        ] else if (_messages.length >= 7) ...[
-          _buildConfirmationButtons(),
-        ],
-      ],
-    );
   }
 
   Widget _buildAmountButtons() {
@@ -626,8 +620,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             child: ElevatedButton(
               onPressed: () => _handleSpeedSelection(TransferSpeed.instant),
               style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
                 backgroundColor: kPrimaryColor,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
@@ -812,8 +806,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             child: ElevatedButton(
               onPressed: () => _handleConfirmation(true),
               style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
                 backgroundColor: kPrimaryColor,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),

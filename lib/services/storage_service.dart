@@ -12,6 +12,7 @@ class StorageKeys {
   static const String userId = 'userId';
   static const String token = 'token'; // Consistent key usage
   static const String bankAccountId = 'bankAccountId';
+  static const String bankAccountName = 'bankAccountName';
 }
 
 class StorageService {
@@ -231,6 +232,25 @@ class StorageService {
       return _prefs.getString(StorageKeys.bankAccountId);
     } catch (e) {
       _logger.e('Failed to get bank account ID: $e');
+      return null;
+    }
+  }
+
+  // Bank Account Name
+  Future<void> setBankAccountName(String name) async {
+    try {
+      await _prefs.setString(StorageKeys.bankAccountName, name);
+    } catch (e) {
+      _logger.e('Failed to set bank account name: $e');
+      throw Exception('Failed to set bank account name');
+    }
+  }
+
+  String? getBankAccountName() {
+    try {
+      return _prefs.getString(StorageKeys.bankAccountName);
+    } catch (e) {
+      _logger.e('Failed to get bank account name: $e');
       return null;
     }
   }

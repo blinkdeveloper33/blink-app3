@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show unawaited;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
@@ -27,7 +26,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   StreamSubscription<LinkEvent>? _streamEvent;
   StreamSubscription<LinkExit>? _streamExit;
   StreamSubscription<LinkSuccess>? _streamSuccess;
-  LinkObject? _successObject;
+
+  String _userName = ''; // Updated to initialize _userName as an empty string
 
   @override
   void initState() {
@@ -106,17 +106,21 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   Future<void> _onSuccess(LinkSuccess event) async {
     if (!mounted) return;
 
-    setState(() => _successObject = event);
     _logger.i("onSuccess: ${event.publicToken}");
 
     final publicToken = event.publicToken;
 
     try {
+      if (!mounted) return; // Added mounted check
       final authService = Provider.of<AuthService>(context, listen: false);
       final storageService =
           Provider.of<StorageService>(context, listen: false);
 
       final userId = storageService.getUserId();
+      final firstName = storageService.getFirstName() ?? '';
+      final lastName = storageService.getLastName() ?? '';
+      _userName =
+          '$firstName $lastName'.trim(); // Updated to get first and last name
 
       if (userId == null) {
         _showErrorDialog('User ID missing. Please log in again.');
@@ -131,13 +135,36 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
 
       if (response['success'] == true) {
         _logger.i('Bank account linked successfully: ${response['message']}');
-        _showSuccessDialog();
+
+        // Store the bank account ID
+        final bankAccountId =
+            response['bankAccountId'] as String?; // Change to nullable String
+        if (bankAccountId != null) {
+          await storageService.setBankAccountId(bankAccountId);
+          _logger.i('Bank account ID stored: $bankAccountId');
+        } else {
+          _logger.w('Bank account ID not received from the server');
+        }
+
+        if (response['bankAccountName'] != null) {
+          await storageService.setBankAccountName(response['bankAccountName']);
+          _logger.i('Bank account name stored: ${response['bankAccountName']}');
+        } else {
+          _logger.w('Bank account name not received from the server');
+        }
+
+        if (mounted) {
+          _showSuccessDialog(
+              bankAccountId); // Pass the potentially null bankAccountId
+        }
 
         // Perform background tasks without blocking the UI
-        unawaited(_performBackgroundTasks(userId));
+        _performBackgroundTasks(userId);
       } else {
-        _showErrorDialog(
-            'Failed to link bank account: ${response['message'] ?? 'Unknown error'}');
+        if (mounted) {
+          _showErrorDialog(
+              'Failed to link bank account: ${response['message'] ?? 'Unknown error'}');
+        }
       }
     } catch (e, stackTrace) {
       if (mounted) {
@@ -149,6 +176,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   }
 
   Future<void> _performBackgroundTasks(String userId) async {
+    // if (!mounted) return; // Removed as context is not used here.
+
     final authService = Provider.of<AuthService>(context, listen: false);
 
     try {
@@ -196,7 +225,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         .i("onEvent: ${event.name}, metadata: ${event.metadata.description()}");
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog(String? bankAccountId) {
+    // Changed parameter to nullable String
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -255,9 +285,10 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                       Navigator.of(context).pop();
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (context) => const HomeScreen(
-                            userName: '',
-                          ),
+                          builder: (context) => HomeScreen(
+                              userName: _userName,
+                              bankAccountId:
+                                  bankAccountId ?? ''), // Fixed syntax error
                         ),
                       );
                     },
