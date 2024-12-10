@@ -5,6 +5,7 @@ import 'package:myapp/services/storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';
+import 'package:intl/intl.dart'; // Added for date formatting
 
 class Transaction {
   final String id;
@@ -393,9 +394,11 @@ class AuthService {
       body: {
         'userId': userId,
         'requestedAmount': requestedAmount,
-        'transferSpeed':
-            transferSpeed == TransferSpeed.instant ? 'instant' : 'normal',
-        'repayDate': repayDate.toIso8601String(),
+        'transferSpeed': transferSpeed == TransferSpeed.instant
+            ? 'Instant'
+            : 'Normal', // **Corrected Transfer Speed**
+        'repayDate': DateFormat('yyyy-MM-dd')
+            .format(repayDate), // **Corrected Repayment Date Format**
         'bankAccountId': bankAccountId,
       },
       method: 'POST',

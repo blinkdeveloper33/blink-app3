@@ -103,6 +103,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   void dispose() {
     _fadeController.dispose();
     _inputSectionController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -851,6 +852,20 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             timestamp: DateTime.now(),
           ));
           // Add logic to provide help based on the question
+          // For example, show a modal with help information
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('Help'),
+              content: Text(_getHelpContent(text)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close'),
+                ),
+              ],
+            ),
+          );
         },
         style: TextButton.styleFrom(
           padding: EdgeInsets.symmetric(vertical: 12),
@@ -869,6 +884,19 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         ),
       ),
     );
+  }
+
+  String _getHelpContent(String question) {
+    switch (question) {
+      case 'Need help choosing an amount?':
+        return 'You can select any amount between \$100 and \$300. Choose an amount that best suits your financial needs.';
+      case 'What\'s the difference between speeds?':
+        return '• **Instant Speed:** Funds are transferred immediately with a fee of \$9.50.\n\n• **Normal Speed:** Funds are transferred within 1-3 business days with a fee of \$4.50.';
+      case 'How do I choose a repayment date?':
+        return 'Select a date when you plan to repay your Blink Advance. Make sure it aligns with your financial schedule to ensure timely repayment.';
+      default:
+        return 'How can I assist you further?';
+    }
   }
 }
 
