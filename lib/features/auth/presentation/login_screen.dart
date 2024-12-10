@@ -91,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } catch (e) {
         _logger.e('Error during login', error: e);
-        _showErrorDialog('An unexpected error occurred. Please try again.');
+        _showErrorDialog('Login failed. Please try again.');
       } finally {
         if (mounted) {
           setState(() => _isSubmitting = false);
