@@ -19,12 +19,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  final _logger = Logger();
+  final Logger _logger = Logger();
   bool _isDarkMode = true;
-  final currencyFormatter =
+  final NumberFormat currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   List<Transaction> _recentTransactions = [];
-  Map<String, dynamic> _balances = {};
+  double _currentBalance = 0.0; // Dedicated variable for current balance
   late AnimationController _animationController;
   late Animation<double> _animation;
   String _userName = '';
@@ -35,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    // Initialize AnimationController for balance animation
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -43,6 +44,8 @@ class _HomeScreenState extends State<HomeScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.reset();
+
+    // Load initial data
     _loadData();
     _fetchAndStoreDetailedBankAccounts();
   }
@@ -53,29 +56,95 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  /// Loads user info, recent transactions, and current balances
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
     await Future.wait([
+      _loadUserInfo(),
       _loadRecentTransactions(),
       _loadCurrentBalances(),
-      _loadUserInfo(),
     ]);
     setState(() {
       _isLoading = false;
     });
   }
 
+  /// Fetches and stores detailed bank accounts, setting primaryAccountName
+  Future<void> _fetchAndStoreDetailedBankAccounts() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final storageService = Provider.of<StorageService>(context, listen: false);
+
+    try {
+      final detailedBankAccounts = await authService.getDetailedBankAccounts();
+      if (detailedBankAccounts.isEmpty) {
+        _logger.w('No detailed bank accounts found for the user.');
+        return;
+      }
+
+      await storageService.setDetailedBankAccounts(detailedBankAccounts);
+      _logger.i('Detailed bank accounts fetched and stored successfully');
+
+      // Log the detailed bank accounts
+      _logger.i('Detailed Bank Accounts: $detailedBankAccounts');
+
+      // Extract the first bank account as primary
+      final primaryBankAccount = detailedBankAccounts.first;
+
+      // Safely extract and set bankAccountId
+      final bankAccountId = primaryBankAccount['bankAccountId'] as String?;
+      if (bankAccountId != null && bankAccountId.isNotEmpty) {
+        await storageService.setBankAccountId(bankAccountId);
+        setState(() {
+          _bankAccountId = bankAccountId;
+        });
+        _logger.i('Bank account ID updated: $bankAccountId');
+      } else {
+        _logger.w('Bank account ID is missing in bank account details.');
+      }
+
+      // Safely extract and set primaryAccountName
+      final primaryAccountName = primaryBankAccount['accountName'] as String?;
+      if (primaryAccountName != null && primaryAccountName.isNotEmpty) {
+        await storageService.setPrimaryAccountName(primaryAccountName);
+        setState(() {
+          _primaryAccountName = primaryAccountName;
+        });
+        _logger.i('Primary account name set: $primaryAccountName');
+      } else {
+        _logger.w('Primary account name is missing in bank account details.');
+      }
+
+      // Trigger balance animation only if needed
+      _animationController.reset();
+      _animationController.forward();
+    } catch (e) {
+      _logger.e('Error fetching detailed bank accounts: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                'Failed to fetch bank account details. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Loads user information from StorageService
   Future<void> _loadUserInfo() async {
     final storageService = Provider.of<StorageService>(context, listen: false);
     setState(() {
       _userName = storageService.getFullName() ?? 'User';
       _bankAccountId = storageService.getBankAccountId() ?? '';
+      _primaryAccountName = storageService.getPrimaryAccountName();
     });
     _logger.i('User Info - Name: $_userName, Bank Account ID: $_bankAccountId');
   }
 
+  /// Fetches recent transactions
   Future<void> _loadRecentTransactions() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
@@ -96,8 +165,8 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('Failed to load recent transactions. Please try again.'),
+            content: const Text(
+                'Failed to load recent transactions. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -105,80 +174,65 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Fetches current balances
   Future<void> _loadCurrentBalances() async {
     final authService = Provider.of<AuthService>(context, listen: false);
 
     try {
       final balances = await authService.getCurrentBalances();
-      if (mounted) {
+      _logger.i('Balances Response: $balances'); // Log entire response
+
+      if (balances.isNotEmpty &&
+          balances['accounts'] != null &&
+          balances['accounts'] is List) {
+        final accounts = List<Map<String, dynamic>>.from(balances['accounts']);
+        if (accounts.isNotEmpty) {
+          final firstAccount = accounts.first;
+          final dynamic rawBalance = firstAccount['currentBalance'];
+          double currentBalance = 0.0;
+
+          if (rawBalance is int) {
+            currentBalance = rawBalance.toDouble();
+          } else if (rawBalance is double) {
+            currentBalance = rawBalance;
+          } else if (rawBalance is String) {
+            currentBalance = double.tryParse(rawBalance) ?? 0.0;
+            if (currentBalance == 0.0) {
+              _logger
+                  .w('Failed to parse currentBalance from String: $rawBalance');
+            }
+          } else {
+            _logger.w(
+                'Unexpected type for currentBalance: ${rawBalance.runtimeType}');
+          }
+
+          _logger.i('Extracted Current Balance: $currentBalance');
+
+          setState(() {
+            _currentBalance = currentBalance;
+          });
+          _logger.i('Loaded current balance: $_currentBalance');
+          _animationController.reset();
+          _animationController.forward();
+        } else {
+          _logger.w('No accounts found in balances.');
+          setState(() {
+            _currentBalance = 0.0;
+          });
+        }
+      } else {
+        _logger.w('No accounts information found in balances.');
         setState(() {
-          _balances = balances;
-          _isLoading = false;
-          // Removed setting _primaryAccountName here to prevent overwrite
+          _currentBalance = 0.0;
         });
-        _logger.i('Loaded current balances: $_balances');
-        _animationController.reset();
-        _animationController.forward();
       }
     } catch (e) {
       _logger.e('Error loading current balances: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load current balances. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _fetchAndStoreDetailedBankAccounts() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final storageService = Provider.of<StorageService>(context, listen: false);
-
-    try {
-      final detailedBankAccounts = await authService.getDetailedBankAccounts();
-      await storageService.setDetailedBankAccounts(detailedBankAccounts);
-      _logger.i('Detailed bank accounts fetched and stored successfully');
-
-      // Log the detailed bank accounts
-      _logger.i('Detailed Bank Accounts: $detailedBankAccounts');
-
-      // Set the bankAccountId and primaryAccountName from the first bank account if available
-      if (detailedBankAccounts.isNotEmpty) {
-        final primaryBankAccount = detailedBankAccounts.first;
-        final bankAccountId = primaryBankAccount['bankAccountId'] as String;
-        await storageService.setBankAccountId(bankAccountId);
-        setState(() {
-          _bankAccountId = bankAccountId;
-        });
-        _logger.i('Bank account ID updated: $bankAccountId');
-
-        // Set the primary account name
-        final primaryAccountName = primaryBankAccount['accountName'] as String?;
-        if (primaryAccountName != null && primaryAccountName.isNotEmpty) {
-          await storageService.setPrimaryAccountName(primaryAccountName);
-          setState(() {
-            _primaryAccountName = primaryAccountName;
-          });
-          _logger.i('Primary account name set: $primaryAccountName');
-        } else {
-          _logger.w('Primary account name is missing in bank account details.');
-        }
-      } else {
-        _logger.w('No bank accounts found for the user.');
-      }
-    } catch (e) {
-      _logger.e('Error fetching detailed bank accounts: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('Failed to fetch bank account details. Please try again.'),
+            content: const Text(
+                'Failed to load current balances. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -186,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Determines the appropriate greeting based on the current time
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) {
@@ -197,12 +252,14 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Provides context about the current day
   String _getDayContext() {
     final now = DateTime.now();
     final dayName = DateFormat('EEEE').format(now);
     return "How's your $dayName going so far?";
   }
 
+  /// Builds the header section with user info and theme toggle
   Widget _buildHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -269,10 +326,9 @@ class _HomeScreenState extends State<HomeScreen>
           onTap: () {
             setState(() {
               _isDarkMode = !_isDarkMode;
-              // Toggle ThemeManager's theme as well if implemented
-              // If not using ThemeManager, you can implement theme toggling here
-              // For example:
-              // Theme.of(context).brightness = _isDarkMode ? Brightness.dark : Brightness.light;
+              // If using a centralized ThemeManager, toggle it here
+              // Example:
+              // Provider.of<ThemeManager>(context, listen: false).toggleTheme();
             });
           },
           child: Container(
@@ -292,12 +348,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Builds the financial summary section displaying current balance and primary account
   Widget _buildFinancialSummary() {
-    final dynamic rawBalance = _balances['totalBalance'];
-    final double totalBalance = rawBalance == null
-        ? 0.0
-        : (rawBalance is int ? rawBalance.toDouble() : rawBalance as double);
-
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -338,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen>
           AnimatedBuilder(
             animation: _animation,
             builder: (context, child) {
-              final animatedBalance = totalBalance * _animation.value;
+              final animatedBalance = _currentBalance * _animation.value;
               return RichText(
                 text: TextSpan(
                   children: [
@@ -405,11 +457,13 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Builds quick action cards (Blink Advance, Repayment, Insights)
   Widget _buildQuickActions() {
     return AspectRatio(
       aspectRatio: 1,
       child: Row(
         children: [
+          // Blink Advance Card
           Expanded(
             child: GestureDetector(
               onTap: _handleBlinkAdvanceTap,
@@ -498,9 +552,11 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(width: 16),
+          // Repayment and Insights Cards
           Expanded(
             child: Column(
               children: [
+                // Repayment Card
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -513,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen>
                       children: [
                         Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
                           ),
@@ -547,6 +603,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
+                // Insights Card
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -600,9 +657,12 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Builds individual transaction items
   Widget _buildTransactionItem(Transaction transaction) {
-    final formattedAmount = currencyFormatter.format(transaction.amount.abs());
-    final formattedDate = DateFormat('dd MMM, yyyy').format(transaction.date);
+    final String formattedAmount =
+        currencyFormatter.format(transaction.amount.abs());
+    final String formattedDate =
+        DateFormat('dd MMM, yyyy').format(transaction.date);
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -615,6 +675,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       child: Row(
         children: [
+          // Transaction Icon based on category
           Container(
             width: 40,
             height: 40,
@@ -628,6 +689,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(width: 12),
+          // Transaction Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -662,6 +724,7 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
+          // Transaction Amount
           Text(
             transaction.isOutflow ? '-$formattedAmount' : '+$formattedAmount',
             style: TextStyle(
@@ -676,9 +739,11 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Builds the recent transactions section
   Widget _buildRecentTransactions() {
     return Column(
       children: [
+        // Header with title and 'See all' button
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -692,7 +757,9 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                // TODO: Implement navigation to all transactions
+              },
               child: Text(
                 'See all',
                 style: TextStyle(
@@ -706,6 +773,7 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
         const SizedBox(height: 16),
+        // Transactions List or Loading Indicator
         _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _recentTransactions.isEmpty
@@ -729,9 +797,11 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Builds the news and updates section
   Widget _buildNewsAndUpdates() {
     return Column(
       children: [
+        // Header with title and 'See all' button
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -745,7 +815,9 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                // TODO: Implement navigation to all news
+              },
               child: Text(
                 'See all',
                 style: TextStyle(
@@ -759,6 +831,7 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
         const SizedBox(height: 16),
+        // News Card
         Container(
           decoration: BoxDecoration(
             color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.white,
@@ -770,6 +843,7 @@ class _HomeScreenState extends State<HomeScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // News Image
               ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(16)),
@@ -780,6 +854,7 @@ class _HomeScreenState extends State<HomeScreen>
                   fit: BoxFit.cover,
                 ),
               ),
+              // News Details
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -813,6 +888,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Handles tap on Blink Advance card
   void _handleBlinkAdvanceTap() {
     if (_bankAccountId.isNotEmpty) {
       Navigator.of(context).push(
@@ -823,7 +899,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content:
               Text('Bank account ID not found. Please link your bank account.'),
           backgroundColor: Colors.red,
@@ -832,6 +908,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Returns appropriate icon based on transaction category
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
       case 'groceries':
@@ -857,33 +934,29 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor:
             _isDarkMode ? const Color(0xFF061535) : Colors.grey[100],
         body: SafeArea(
-          child: Builder(
-            builder: (BuildContext context) {
-              return RefreshIndicator(
-                onRefresh: _loadData,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeader(),
-                        const SizedBox(height: 24),
-                        _buildFinancialSummary(),
-                        const SizedBox(height: 24),
-                        _buildQuickActions(),
-                        const SizedBox(height: 32),
-                        _buildRecentTransactions(),
-                        const SizedBox(height: 32),
-                        _buildNewsAndUpdates(),
-                        const SizedBox(height: 32),
-                      ],
-                    ),
-                  ),
+          child: RefreshIndicator(
+            onRefresh: _loadData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 24),
+                    _buildFinancialSummary(),
+                    const SizedBox(height: 24),
+                    _buildQuickActions(),
+                    const SizedBox(height: 32),
+                    _buildRecentTransactions(),
+                    const SizedBox(height: 32),
+                    _buildNewsAndUpdates(),
+                    const SizedBox(height: 32),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),
