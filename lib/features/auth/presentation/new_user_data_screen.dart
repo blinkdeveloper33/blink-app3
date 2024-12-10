@@ -11,9 +11,9 @@ class NewUserDataScreen extends StatefulWidget {
   final String email;
 
   const NewUserDataScreen({
-    Key? key,
+    super.key,
     required this.email,
-  }) : super(key: key);
+  });
 
   @override
   State<NewUserDataScreen> createState() => _NewUserDataScreenState();
@@ -345,9 +345,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                 _acknowledgeAccuracy = value ?? false;
               });
             },
-            fillColor: MaterialStateProperty.resolveWith<Color>(
-              (Set<MaterialState> states) {
-                if (states.contains(MaterialState.selected)) {
+            fillColor: WidgetStateProperty.resolveWith<Color>(
+              (Set<WidgetState> states) {
+                if (states.contains(WidgetState.selected)) {
                   return const Color(0xFF2196F3);
                 }
                 return Colors.white.withOpacity(0.1);

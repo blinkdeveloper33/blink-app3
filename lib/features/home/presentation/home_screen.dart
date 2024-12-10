@@ -1,21 +1,17 @@
+// lib/features/home/presentation/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-import 'package:myapp/services/auth_service.dart' show AuthService, Transaction;
+import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/storage_service.dart';
-import 'dart:async';
-import 'package:myapp/features/account/presentation/account_screen.dart';
+import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
+import 'package:myapp/features/account/presentation/account_screen.dart';
 import 'package:myapp/features/blink_advance/presentation/blink_advance_screen.dart';
-import 'package:myapp/utils/custom_page_route.dart';
-import 'package:flutter/animation.dart';
+import 'package:myapp/widgets/confetti_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String userName;
-  final String bankAccountId;
-
-  const HomeScreen(
-      {super.key, required this.userName, required this.bankAccountId});
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -34,12 +30,11 @@ class _HomeScreenState extends State<HomeScreen>
   String _userName = '';
   String _bankAccountId = '';
   String? _primaryAccountName;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _userName = widget.userName;
-    _bankAccountId = widget.bankAccountId;
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -49,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
     _animationController.reset();
     _loadData();
-    _loadBankAccountName();
     _fetchAndStoreDetailedBankAccounts();
   }
 
@@ -66,10 +60,20 @@ class _HomeScreenState extends State<HomeScreen>
     await Future.wait([
       _loadRecentTransactions(),
       _loadCurrentBalances(),
+      _loadUserInfo(),
     ]);
     setState(() {
       _isLoading = false;
     });
+  }
+
+  Future<void> _loadUserInfo() async {
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    setState(() {
+      _userName = storageService.getFullName() ?? 'User';
+      _bankAccountId = storageService.getBankAccountId() ?? '';
+    });
+    _logger.i('User Info - Name: $_userName, Bank Account ID: $_bankAccountId');
   }
 
   Future<void> _loadRecentTransactions() async {
@@ -83,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() {
           _recentTransactions = transactions;
         });
+        _logger.i('Loaded recent transactions: $_recentTransactions');
       } else {
         throw Exception('User ID not found');
       }
@@ -109,8 +114,9 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() {
           _balances = balances;
           _isLoading = false;
-          _primaryAccountName = balances['primaryAccountName'] as String?;
+          // Removed setting _primaryAccountName here to prevent overwrite
         });
+        _logger.i('Loaded current balances: $_balances');
         _animationController.reset();
         _animationController.forward();
       }
@@ -130,27 +136,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _loadBankAccountName() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final storageService = Provider.of<StorageService>(context, listen: false);
-
-    final userId = storageService.getUserId();
-    if (userId != null) {
-      final primaryAccountName =
-          await authService.getPrimaryAccountName(userId);
-      if (primaryAccountName != null) {
-        await storageService.setPrimaryAccountName(primaryAccountName);
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _primaryAccountName =
-            storageService.getPrimaryAccountName() ?? 'Primary Account';
-      });
-    }
-  }
-
   Future<void> _fetchAndStoreDetailedBankAccounts() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
@@ -159,6 +144,34 @@ class _HomeScreenState extends State<HomeScreen>
       final detailedBankAccounts = await authService.getDetailedBankAccounts();
       await storageService.setDetailedBankAccounts(detailedBankAccounts);
       _logger.i('Detailed bank accounts fetched and stored successfully');
+
+      // Log the detailed bank accounts
+      _logger.i('Detailed Bank Accounts: $detailedBankAccounts');
+
+      // Set the bankAccountId and primaryAccountName from the first bank account if available
+      if (detailedBankAccounts.isNotEmpty) {
+        final primaryBankAccount = detailedBankAccounts.first;
+        final bankAccountId = primaryBankAccount['bankAccountId'] as String;
+        await storageService.setBankAccountId(bankAccountId);
+        setState(() {
+          _bankAccountId = bankAccountId;
+        });
+        _logger.i('Bank account ID updated: $bankAccountId');
+
+        // Set the primary account name
+        final primaryAccountName = primaryBankAccount['accountName'] as String?;
+        if (primaryAccountName != null && primaryAccountName.isNotEmpty) {
+          await storageService.setPrimaryAccountName(primaryAccountName);
+          setState(() {
+            _primaryAccountName = primaryAccountName;
+          });
+          _logger.i('Primary account name set: $primaryAccountName');
+        } else {
+          _logger.w('Primary account name is missing in bank account details.');
+        }
+      } else {
+        _logger.w('No bank accounts found for the user.');
+      }
     } catch (e) {
       _logger.e('Error fetching detailed bank accounts: $e');
       if (mounted) {
@@ -256,6 +269,10 @@ class _HomeScreenState extends State<HomeScreen>
           onTap: () {
             setState(() {
               _isDarkMode = !_isDarkMode;
+              // Toggle ThemeManager's theme as well if implemented
+              // If not using ThemeManager, you can implement theme toggling here
+              // For example:
+              // Theme.of(context).brightness = _isDarkMode ? Brightness.dark : Brightness.light;
             });
           },
           child: Container(
@@ -345,8 +362,9 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                     TextSpan(
-                      text:
-                          '${currencyFormatter.format(animatedBalance).split('.')[1]}',
+                      text: currencyFormatter
+                          .format(animatedBalance)
+                          .split('.')[1],
                       style: TextStyle(
                         color: _isDarkMode ? Colors.white : Colors.black,
                         fontSize: 22,
@@ -582,39 +600,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _handleBlinkAdvanceTap() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            BlinkAdvanceScreen(bankAccountId: _bankAccountId),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
-        },
-        transitionDuration: Duration(milliseconds: 300),
-      ),
-    );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'groceries':
-        return Icons.shopping_cart;
-      case 'transportation':
-        return Icons.directions_car;
-      case 'finance':
-        return Icons.account_balance;
-      case 'dining':
-        return Icons.restaurant;
-      case 'utilities':
-        return Icons.power;
-      default:
-        return Icons.attach_money;
-    }
-  }
-
   Widget _buildTransactionItem(Transaction transaction) {
     final formattedAmount = currencyFormatter.format(transaction.amount.abs());
     final formattedDate = DateFormat('dd MMM, yyyy').format(transaction.date);
@@ -811,7 +796,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to g...',
+                      'Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals...',
                       style: TextStyle(
                         color: _isDarkMode ? Colors.white70 : Colors.black54,
                         fontSize: 14,
@@ -828,40 +813,78 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  bool _isLoading = false;
+  void _handleBlinkAdvanceTap() {
+    if (_bankAccountId.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) =>
+              BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Bank account ID not found. Please link your bank account.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'groceries':
+        return Icons.shopping_cart;
+      case 'transportation':
+        return Icons.directions_car;
+      case 'finance':
+        return Icons.account_balance;
+      case 'dining':
+        return Icons.restaurant;
+      case 'utilities':
+        return Icons.power;
+      default:
+        return Icons.attach_money;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _isDarkMode ? const Color(0xFF061535) : Colors.grey[100],
-      body: SafeArea(
-        child: Builder(
-          builder: (BuildContext context) {
-            return RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(),
-                      const SizedBox(height: 24),
-                      _buildFinancialSummary(),
-                      const SizedBox(height: 24),
-                      _buildQuickActions(),
-                      const SizedBox(height: 32),
-                      _buildRecentTransactions(),
-                      const SizedBox(height: 32),
-                      _buildNewsAndUpdates(),
-                      const SizedBox(height: 32),
-                    ],
+    // Wrap Scaffold with ConfettiOverlay to enable confetti animations
+    return ConfettiOverlay(
+      child: Scaffold(
+        backgroundColor:
+            _isDarkMode ? const Color(0xFF061535) : Colors.grey[100],
+        body: SafeArea(
+          child: Builder(
+            builder: (BuildContext context) {
+              return RefreshIndicator(
+                onRefresh: _loadData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(),
+                        const SizedBox(height: 24),
+                        _buildFinancialSummary(),
+                        const SizedBox(height: 24),
+                        _buildQuickActions(),
+                        const SizedBox(height: 32),
+                        _buildRecentTransactions(),
+                        const SizedBox(height: 32),
+                        _buildNewsAndUpdates(),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

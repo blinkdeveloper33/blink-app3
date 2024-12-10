@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -80,6 +82,7 @@ class MyApp extends StatelessWidget {
       scaffoldBackgroundColor: const Color(0xFF061535),
       fontFamily: 'Onest',
       // Define other theme properties as needed
+      // For example, you can define text themes, button themes, etc.
     );
   }
 
@@ -93,12 +96,11 @@ class MyApp extends StatelessWidget {
       // Define routes if needed
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/home': (context) => const HomeScreen(
-              userName: '',
-              bankAccountId: '',
-            ),
+        '/home': (context) =>
+            const HomeScreen(), // Removed userName and bankAccountId
         // Add other routes here
       },
+      // Optionally, define onGenerateRoute for dynamic routing
     );
   }
 }

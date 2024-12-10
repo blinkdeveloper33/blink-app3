@@ -1,3 +1,5 @@
+// lib/services/storage_service.dart
+
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
@@ -69,6 +71,7 @@ class StorageService {
   Future<void> setFirstName(String firstName) async {
     try {
       await _prefs.setString(StorageKeys.firstName, firstName);
+      _logger.i('First name set: $firstName');
     } catch (e) {
       _logger.e('Failed to set first name: $e');
       throw Exception('Failed to set first name');
@@ -87,6 +90,7 @@ class StorageService {
   Future<void> setLastName(String lastName) async {
     try {
       await _prefs.setString(StorageKeys.lastName, lastName);
+      _logger.i('Last name set: $lastName');
     } catch (e) {
       _logger.e('Failed to set last name: $e');
       throw Exception('Failed to set last name');
@@ -102,9 +106,32 @@ class StorageService {
     }
   }
 
+  // Full Name Management
+  Future<void> setFullName(String fullName) async {
+    try {
+      await _prefs.setString(
+          'fullName', fullName); // Use a simple key for full name
+      _logger.i('Full name set to: $fullName');
+    } catch (e) {
+      _logger.e('Failed to set full name: $e');
+      throw Exception('Failed to set full name');
+    }
+  }
+
+  String? getFullName() {
+    try {
+      return _prefs
+          .getString('fullName'); // Use the same key to retrieve full name
+    } catch (e) {
+      _logger.e('Failed to get full name: $e');
+      return null;
+    }
+  }
+
   Future<void> setState(String state) async {
     try {
       await _prefs.setString(StorageKeys.state, state);
+      _logger.i('State set: $state');
     } catch (e) {
       _logger.e('Failed to set state: $e');
       throw Exception('Failed to set state');
@@ -123,6 +150,7 @@ class StorageService {
   Future<void> setZipcode(String zipcode) async {
     try {
       await _prefs.setString(StorageKeys.zipcode, zipcode);
+      _logger.i('Zipcode set: $zipcode');
     } catch (e) {
       _logger.e('Failed to set zipcode: $e');
       throw Exception('Failed to set zipcode');
@@ -141,6 +169,7 @@ class StorageService {
   Future<void> setEmail(String email) async {
     try {
       await _prefs.setString(StorageKeys.email, email);
+      _logger.i('Email set: $email');
     } catch (e) {
       _logger.e('Failed to set email: $e');
       throw Exception('Failed to set email');
@@ -159,6 +188,7 @@ class StorageService {
   Future<void> setUserId(String userId) async {
     try {
       await _prefs.setString(StorageKeys.userId, userId);
+      _logger.i('User ID set: $userId');
     } catch (e) {
       _logger.e('Failed to set user ID: $e');
       throw Exception('Failed to set user ID');
@@ -174,33 +204,13 @@ class StorageService {
     }
   }
 
-  // Full Name Management
-  Future<void> setFullName(String fullName) async {
-    try {
-      await _prefs.setString(
-          'fullName', fullName); // Use a simple key for full name
-    } catch (e) {
-      _logger.e('Failed to set full name: $e');
-      throw Exception('Failed to set full name');
-    }
-  }
-
-  String? getFullName() {
-    try {
-      return _prefs
-          .getString('fullName'); // Use the same key to retrieve full name
-    } catch (e) {
-      _logger.e('Failed to get full name: $e');
-      return null;
-    }
-  }
-
   // Token Management
 
   Future<void> setToken(String token) async {
     try {
       final encryptedToken = _encrypt(token);
       await _prefs.setString(StorageKeys.token, encryptedToken);
+      _logger.i('Token set and encrypted.');
     } catch (e) {
       _logger.e('Failed to set token: $e');
       throw Exception('Failed to set token');
@@ -211,7 +221,9 @@ class StorageService {
     try {
       final encryptedToken = _prefs.getString(StorageKeys.token);
       if (encryptedToken == null) return null;
-      return _decrypt(encryptedToken);
+      final decryptedToken = _decrypt(encryptedToken);
+      _logger.i('Token retrieved and decrypted.');
+      return decryptedToken;
     } catch (e) {
       _logger.e('Failed to get token: $e');
       return null;
@@ -222,6 +234,7 @@ class StorageService {
   Future<void> setBankAccountId(String id) async {
     try {
       await _prefs.setString(StorageKeys.bankAccountId, id);
+      _logger.i('Bank account ID set: $id');
     } catch (e) {
       _logger.e('Failed to set bank account ID: $e');
       throw Exception('Failed to set bank account ID');
@@ -241,6 +254,7 @@ class StorageService {
   Future<void> setBankAccountName(String name) async {
     try {
       await _prefs.setString(StorageKeys.bankAccountName, name);
+      _logger.i('Bank account name set: $name');
     } catch (e) {
       _logger.e('Failed to set bank account name: $e');
       throw Exception('Failed to set bank account name');
@@ -295,6 +309,7 @@ class StorageService {
   Future<void> setPrimaryAccountName(String name) async {
     try {
       await _prefs.setString('primaryAccountName', name);
+      _logger.i('Primary account name set: $name');
     } catch (e) {
       _logger.e('Failed to set primary account name: $e');
       throw Exception('Failed to set primary account name');

@@ -1,3 +1,5 @@
+// lib/features/auth/presentation/login_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:myapp/features/auth/presentation/sign_up_screen.dart';
 import 'package:myapp/services/auth_service.dart';
@@ -46,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (loginResponse['success']) {
           final userId = storageService.getUserId();
-          final fullName = storageService.getFullName();
+          storageService.getFullName();
 
           if (userId == null) {
             _showErrorDialog('User ID not found. Please try logging in again.');
@@ -77,10 +79,8 @@ class _LoginScreenState extends State<LoginScreen> {
             case UserStatus.complete:
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(
-                  builder: (context) => HomeScreen(
-                    userName: fullName ?? 'User',
-                    bankAccountId: '',
-                  ),
+                  builder: (context) =>
+                      const HomeScreen(), // Removed parameters
                 ),
               );
               break;
@@ -304,6 +304,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<StorageService>(context, listen: false);
+
     return Scaffold(
       backgroundColor: const Color(0xFF061535),
       body: SafeArea(

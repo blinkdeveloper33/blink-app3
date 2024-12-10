@@ -6,14 +6,14 @@ class AnimatedProgressIndicator extends StatelessWidget {
   final double size;
 
   const AnimatedProgressIndicator({
-    Key? key,
+    super.key,
     required this.progress,
     this.size = 120,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: size,
       height: size,
       child: Stack(

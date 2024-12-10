@@ -1,3 +1,5 @@
+// lib/features/blink_advance/presentation/blink_advance_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:myapp/services/storage_service.dart';
@@ -68,7 +70,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   @override
   void initState() {
     super.initState();
-    _bankAccountId = widget.bankAccountId; // Initialize _bankAccountId
+    _bankAccountId =
+        widget.bankAccountId; // Initialize with constructor parameter
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -94,7 +97,6 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         _inputSectionController.forward();
       }
     });
-    _loadBankAccountId(); // Add this line to load the bank account ID
   }
 
   @override
@@ -109,14 +111,6 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     final firstName = storageService.getFirstName() ?? 'User';
     setState(() {
       _userName = firstName;
-    });
-  }
-
-  Future<void> _loadBankAccountId() async {
-    final storageService = Provider.of<StorageService>(context, listen: false);
-    final bankAccountId = storageService.getBankAccountId();
-    setState(() {
-      _bankAccountId = bankAccountId;
     });
   }
 
@@ -179,7 +173,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     Future.delayed(Duration(milliseconds: 2000), () {
       _addMessage(ChatMessage(
         text:
-            'Great Choice! We are preparing your \$$amount Blink Advance.  Let me know if you need anything else!',
+            'Great Choice! We are preparing your \$$amount Blink Advance. Let me know if you need anything else!',
         isUser: false,
         timestamp: DateTime.now(),
         emoji: AnimatedEmoji(AnimatedEmojis.partyPopper, size: 24),
@@ -241,8 +235,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       _addMessage(ChatMessage(
         text: 'Great! Let\'s confirm your Blink Advance details:\n\n'
             '• Amount: \$$_selectedAmount\n'
-            '• Speed: ${_selectedSpeed?.toString().split('.').last ?? ''}\n' // Handle potential null value
-            '• Fee: \$${_selectedSpeed == TransferSpeed.instant ? '9.50' : '4.50'}\n' // Handle fee based on speed
+            '• Speed: ${_selectedSpeed?.toString().split('.').last ?? ''}\n'
+            '• Fee: \$${_selectedSpeed == TransferSpeed.instant ? '9.50' : '4.50'}\n'
             '• Repayment Date: $formattedDate\n\n'
             'Is this correct? Please confirm to complete or let me know if you need to make any changes.',
         isUser: false,
@@ -297,14 +291,14 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     final authService = Provider.of<AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
     final userId = storageService.getUserId();
-    final bankAccountId = storageService.getBankAccountId();
+    final bankAccountId = _bankAccountId; // Use the local variable
 
     if (userId == null) {
       _showErrorMessage('User ID not found. Please log in again.');
       return;
     }
 
-    if (bankAccountId == null) {
+    if (bankAccountId == null || bankAccountId.isEmpty) {
       _showErrorMessage(
           'Bank account ID not found. Please link your bank account again.');
       return;
@@ -345,9 +339,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     Future.delayed(Duration(seconds: 2), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-              builder: (context) => HomeScreen(
-                  userName: _userName, bankAccountId: _bankAccountId ?? '')),
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       }
     });
@@ -373,11 +365,6 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         ),
       );
     }
-  }
-
-  List<Map<String, dynamic>>? _getDetailedBankAccounts() {
-    final storageService = Provider.of<StorageService>(context, listen: false);
-    return storageService.getDetailedBankAccounts();
   }
 
   @override
@@ -530,7 +517,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_selectedAmount == null && _messages.length >= 1) ...[
+          if (_selectedAmount == null && _messages.isNotEmpty) ...[
             _buildHelpButton('Need help choosing an amount?'),
             SizedBox(height: 8),
             _buildAmountButtons(),
@@ -727,7 +714,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             initialDate: DateTime.now().add(Duration(days: 1)),
             firstDate: DateTime.now().add(Duration(days: 1)),
             lastDate:
-                DateTime.now().add(Duration(days: 31)), // Updated date picker
+                DateTime.now().add(Duration(days: 365)), // Extended date picker
             builder: (context, child) {
               return Theme(
                 data: Theme.of(context).copyWith(
@@ -1035,11 +1022,8 @@ class CustomChatBubble extends StatelessWidget {
                 fit: BoxFit.cover,
               ),
             ),
-    )
-        .animate(target: isAnimating ? 1 : 0)
-        .shake(duration: 400.ms, rotation: 0.1)
-        .scale(
-            begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0), duration: 200.ms);
+    ).animate().shake(duration: 400.ms, rotation: 0.1).scale(
+        begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0), duration: 200.ms);
   }
 }
 

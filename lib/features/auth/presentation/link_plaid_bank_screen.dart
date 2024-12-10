@@ -1,3 +1,5 @@
+// lib/features/auth/presentation/link_plaid_bank_screen.dart
+
 import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -26,8 +28,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   StreamSubscription<LinkEvent>? _streamEvent;
   StreamSubscription<LinkExit>? _streamExit;
   StreamSubscription<LinkSuccess>? _streamSuccess;
-
-  String _userName = '';
 
   @override
   void initState() {
@@ -103,9 +103,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
           Provider.of<StorageService>(context, listen: false);
 
       final userId = storageService.getUserId();
-      final firstName = storageService.getFirstName() ?? '';
-      final lastName = storageService.getLastName() ?? '';
-      _userName = '$firstName $lastName'.trim();
 
       if (userId == null) {
         _showErrorDialog('User ID missing. Please log in again.');
@@ -270,9 +267,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                       Navigator.of(context).pop();
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (context) => HomeScreen(
-                              userName: _userName,
-                              bankAccountId: bankAccountId ?? ''),
+                          builder: (context) =>
+                              const HomeScreen(), // Removed parameters
                         ),
                       );
                     },
@@ -456,11 +452,8 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   }
 
   Future<void> _loadUserName() async {
-    final storageService = Provider.of<StorageService>(context, listen: false);
-    final fullName = storageService.getFullName() ?? '';
-    setState(() {
-      _userName = fullName;
-    });
+    Provider.of<StorageService>(context, listen: false);
+    setState(() {});
   }
 
   @override
@@ -540,7 +533,9 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
                         height: 1.5,
                       ),
                       children: [
-                        const TextSpan(text: 'We use '),
+                        const TextSpan(
+                          text: 'We use ',
+                        ),
                         TextSpan(
                           text: 'Plaid',
                           style: const TextStyle(

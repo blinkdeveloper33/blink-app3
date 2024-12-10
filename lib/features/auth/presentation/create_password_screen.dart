@@ -13,9 +13,9 @@ class CreatePasswordScreen extends StatefulWidget {
   final String email;
 
   const CreatePasswordScreen({
-    Key? key,
+    super.key,
     required this.email,
-  }) : super(key: key);
+  });
 
   @override
   State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
@@ -173,7 +173,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
             }
 
             _logger.i('Showing success pop-up.');
-            _showSuccessPopup(firstName!); // Passing firstName to the popup
+            _showSuccessPopup(firstName); // Passing firstName to the popup
           } else {
             _logger.e('Login failed: ${loginResponse['message']}');
             _showErrorDialog(
@@ -521,9 +521,9 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                 _acknowledgeAccuracy = value ?? false;
               });
             },
-            fillColor: MaterialStateProperty.resolveWith<Color>(
-              (Set<MaterialState> states) {
-                if (states.contains(MaterialState.selected)) {
+            fillColor: WidgetStateProperty.resolveWith<Color>(
+              (Set<WidgetState> states) {
+                if (states.contains(WidgetState.selected)) {
                   return const Color(0xFF2196F3);
                 }
                 return Colors.white.withOpacity(0.1);

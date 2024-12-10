@@ -1,3 +1,5 @@
+// lib/widgets/confetti_overlay.dart
+
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:math';
@@ -10,7 +12,10 @@ class ConfettiOverlay extends StatefulWidget {
   @override
   _ConfettiOverlayState createState() => _ConfettiOverlayState();
 
-  static of(BuildContext buildContext) {}
+  /// Provides access to the ConfettiOverlay's state from child widgets
+  static _ConfettiOverlayState? of(BuildContext context) {
+    return context.findAncestorStateOfType<_ConfettiOverlayState>();
+  }
 }
 
 class _ConfettiOverlayState extends State<ConfettiOverlay> {
@@ -20,7 +25,7 @@ class _ConfettiOverlayState extends State<ConfettiOverlay> {
   void initState() {
     super.initState();
     _controllerCenter =
-        ConfettiController(duration: const Duration(seconds: 5));
+        ConfettiController(duration: const Duration(seconds: 2));
   }
 
   @override
@@ -29,6 +34,7 @@ class _ConfettiOverlayState extends State<ConfettiOverlay> {
     super.dispose();
   }
 
+  /// Triggers the confetti animation
   void showConfetti() {
     _controllerCenter.play();
   }
@@ -58,6 +64,7 @@ class _ConfettiOverlayState extends State<ConfettiOverlay> {
     );
   }
 
+  /// Creates a star-shaped confetti particle
   Path drawStar(Size size) {
     double degToRad(double deg) => deg * (pi / 180.0);
 

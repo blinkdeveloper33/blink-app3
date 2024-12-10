@@ -1,3 +1,5 @@
+// lib/services/auth_service.dart
+
 import 'dart:convert';
 import 'package:myapp/services/storage_service.dart';
 import 'package:http/http.dart' as http;
@@ -57,6 +59,10 @@ class AuthService {
       : _logger = logger ?? Logger(),
         _storageService = storageService;
 
+  /// -------------------------
+  /// General Helper Methods
+  /// -------------------------
+
   Future<Map<String, dynamic>> _makeRequest({
     required String endpoint,
     required Map<String, dynamic> body,
@@ -111,6 +117,10 @@ class AuthService {
       );
     }
   }
+
+  /// -------------------------
+  /// User Registration & Authentication
+  /// -------------------------
 
   Future<Map<String, dynamic>> registerInitial(String email) async {
     return _makeRequest(
@@ -177,11 +187,31 @@ class AuthService {
       }
       _logger.i('Login successful. Token and userId stored.');
 
-      final fullName = '${response['firstName']} ${response['lastName']}';
-      await _storageService.setFullName(fullName);
-      _logger.i('User full name stored: $fullName');
+      // Check if firstName and lastName are present in the login response
+      final firstName = response['firstName'] as String?;
+      final lastName = response['lastName'] as String?;
+      if (firstName != null && lastName != null) {
+        final fullName = '$firstName $lastName';
+        await _storageService.setFullName(fullName);
+        _logger.i('User full name stored: $fullName');
+      } else {
+        _logger.w('firstName or lastName missing in login response.');
+      }
 
       await _fetchAndStoreUserProfile();
+
+      // **Fetch and store bankAccountId after login**
+      final bankAccounts = await getUserBankAccounts();
+      if (bankAccounts.isNotEmpty) {
+        // Store the first bank account's ID
+        final primaryBankAccount = bankAccounts.first;
+        await _storageService
+            .setBankAccountId(primaryBankAccount['bankAccountId']);
+        _logger.i(
+            'Bank account ID stored: ${primaryBankAccount['bankAccountId']}');
+      } else {
+        _logger.w('No bank accounts found for the user.');
+      }
     }
 
     return response;
@@ -189,7 +219,222 @@ class AuthService {
 
   Future<void> logout() async {
     await _storageService.clearAll();
+    _logger.i('User logged out and all data cleared.');
   }
+
+  /// -------------------------
+  /// User Profile Management
+  /// -------------------------
+
+  Future<void> _fetchAndStoreUserProfile() async {
+    try {
+      _logger.i('Fetching user profile...');
+      final response = await _makeRequest(
+        endpoint: '/api/users/profile',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success']) {
+        final profile = response['data'];
+        _logger.i('User profile fetched successfully');
+
+        final firstName = profile['first_name'] as String? ?? '';
+        final lastName = profile['last_name'] as String? ?? '';
+
+        await _storageService.setFirstName(firstName);
+        await _storageService.setLastName(lastName);
+
+        if (profile['bank_account_name'] != null) {
+          await _storageService
+              .setBankAccountName(profile['bank_account_name']);
+          _logger
+              .i('Bank account name stored: ${profile['bank_account_name']}');
+        } else {
+          _logger.w('Bank account name not present in user profile');
+        }
+        _logger.i('First name and last name stored');
+
+        // Update fullName based on fetched firstName and lastName
+        final fullName = '$firstName $lastName';
+        await _storageService.setFullName(fullName);
+        _logger.i('User full name updated: $fullName');
+
+        // Note: bank_account_id is not present in this response
+        _logger.w('bank_account_id not found in user profile');
+      } else {
+        _logger.e('Failed to fetch user profile: ${response['error']}');
+      }
+    } catch (e) {
+      _logger.e('Error fetching user profile: $e');
+    }
+  }
+
+  /// -------------------------
+  /// User Status & Bank Accounts
+  /// -------------------------
+
+  Future<UserStatus> getUserStatus() async {
+    final userId = _storageService.getUserId();
+    if (userId == null) {
+      throw Exception('User ID not found. Please log in again.');
+    }
+
+    final response = await _makeRequest(
+      endpoint: '/api/users/status/$userId',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
+
+    if (response['hasBankAccount'] == true) {
+      return UserStatus.complete;
+    } else if (response['isNewUser'] == true) {
+      return UserStatus.newUser;
+    } else {
+      return UserStatus.noBankAccount;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserBankAccounts() async {
+    try {
+      _logger.i('Fetching user bank accounts...');
+      final response = await _makeRequest(
+        endpoint: '/api/users/bank-accounts/detailed',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success']) {
+        _logger.i('Bank accounts fetched successfully');
+        _logger.i('Bank accounts data: ${response['bankAccounts']}');
+        return List<Map<String, dynamic>>.from(response['bankAccounts']);
+      } else {
+        _logger.e('Failed to fetch bank accounts: ${response['error']}');
+        return [];
+      }
+    } catch (e) {
+      _logger.e('Error fetching bank accounts: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDetailedBankAccounts() async {
+    try {
+      _logger.i('Fetching detailed user bank accounts...');
+      final response = await _makeRequest(
+        endpoint: '/api/users/bank-accounts/detailed',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success']) {
+        _logger.i('Detailed bank accounts fetched successfully');
+        _logger.i('Detailed Bank Accounts: ${response['bankAccounts']}');
+        return List<Map<String, dynamic>>.from(
+            response['bankAccounts'].map((account) {
+          return {
+            ...account,
+            'accountName': account['accountName'],
+          };
+        }));
+      } else {
+        _logger
+            .e('Failed to fetch detailed bank accounts: ${response['error']}');
+        return [];
+      }
+    } catch (e) {
+      _logger.e('Error fetching detailed bank accounts: $e');
+      return [];
+    }
+  }
+
+  Future<String?> getPrimaryAccountName(String userId) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/bank-accounts/detailed',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] &&
+          response['bankAccounts'] is List &&
+          response['bankAccounts'].isNotEmpty) {
+        // Assuming the first account is the primary account
+        final primaryAccount = response['bankAccounts'].first;
+        return primaryAccount['accountName'];
+      } else {
+        _logger.w('Primary account name not found');
+        return null;
+      }
+    } catch (e) {
+      _logger.e('Error fetching primary account name: $e');
+      return null;
+    }
+  }
+
+  /// -------------------------
+  /// BlinkAdvance Endpoints
+  /// -------------------------
+
+  Future<Map<String, dynamic>> createBlinkAdvance({
+    required String userId,
+    required double requestedAmount,
+    required TransferSpeed transferSpeed,
+    required DateTime repayDate,
+    required String bankAccountId,
+  }) async {
+    return _makeRequest(
+      endpoint: '/api/blink-advances',
+      body: {
+        'userId': userId,
+        'requestedAmount': requestedAmount,
+        'transferSpeed':
+            transferSpeed == TransferSpeed.instant ? 'instant' : 'normal',
+        'repayDate': repayDate.toIso8601String(),
+        'bankAccountId': bankAccountId,
+      },
+      method: 'POST',
+      requireAuth: true,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getBlinkAdvances(String userId) async {
+    final response = await _makeRequest(
+      endpoint: '/api/blink-advances',
+      body: {'userId': userId},
+      method: 'GET',
+      requireAuth: true,
+    );
+    return List<Map<String, dynamic>>.from(response['blinkAdvances']);
+  }
+
+  Future<Map<String, dynamic>> getBlinkAdvanceById(String id) async {
+    return _makeRequest(
+      endpoint: '/api/blink-advances/$id',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> updateBlinkAdvanceStatus(
+      String id, String status) async {
+    return _makeRequest(
+      endpoint: '/api/blink-advances/$id/status',
+      body: {'status': status},
+      method: 'PATCH',
+      requireAuth: true,
+    );
+  }
+
+  /// -------------------------
+  /// Plaid Integration
+  /// -------------------------
 
   Future<String> createLinkToken(String userId) async {
     final response = await _makeRequest(
@@ -262,28 +507,6 @@ class AuthService {
     );
   }
 
-  Future<UserStatus> getUserStatus() async {
-    final userId = _storageService.getUserId();
-    if (userId == null) {
-      throw Exception('User ID not found. Please log in again.');
-    }
-
-    final response = await _makeRequest(
-      endpoint: '/api/users/status/$userId',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
-
-    if (response['hasBankAccount'] == true) {
-      return UserStatus.complete;
-    } else if (response['isNewUser'] == true) {
-      return UserStatus.newUser;
-    } else {
-      return UserStatus.noBankAccount;
-    }
-  }
-
   Future<List<Transaction>> getRecentTransactions(String userId) async {
     try {
       final response = await _makeRequest(
@@ -317,181 +540,19 @@ class AuthService {
     );
   }
 
-  Future<Map<String, dynamic>> createBlinkAdvance({
-    required String userId,
-    required double requestedAmount,
-    required TransferSpeed transferSpeed,
-    required DateTime repayDate,
-    required String bankAccountId,
-  }) async {
-    return _makeRequest(
-      endpoint: '/api/blink-advances',
-      body: {
-        'userId': userId,
-        'requestedAmount': requestedAmount,
-        'transferSpeed':
-            transferSpeed == TransferSpeed.instant ? 'instant' : 'normal',
-        'repayDate': repayDate.toIso8601String(),
-        'bankAccountId': bankAccountId,
-      },
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  Future<void> _fetchAndStoreUserProfile() async {
-    try {
-      _logger.i('Fetching user profile...');
-      final response = await _makeRequest(
-        endpoint: '/api/users/profile',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success']) {
-        final profile = response['data'];
-        _logger.i('User profile fetched successfully');
-
-        await _storageService.setFirstName(profile['first_name']);
-        await _storageService.setLastName(profile['last_name']);
-        if (profile['bank_account_name'] != null) {
-          await _storageService
-              .setBankAccountName(profile['bank_account_name']);
-          _logger
-              .i('Bank account name stored: ${profile['bank_account_name']}');
-        } else {
-          _logger.w('Bank account name not present in user profile');
-        }
-        _logger.i('First name and last name stored');
-
-        if (profile['bank_account_id'] != null) {
-          await _storageService.setBankAccountId(profile['bank_account_id']);
-          _logger.i('Bank account ID stored: ${profile['bank_account_id']}');
-        } else {
-          _logger.w('Bank account ID not present in user profile');
-        }
-      } else {
-        _logger.e('Failed to fetch user profile: ${response['error']}');
-      }
-    } catch (e) {
-      _logger.e('Error fetching user profile: $e');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getUserBankAccounts() async {
-    try {
-      _logger.i('Fetching user bank accounts...');
-      final response = await _makeRequest(
-        endpoint: '/api/users/bank-accounts',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success']) {
-        _logger.i('Bank accounts fetched successfully');
-        return List<Map<String, dynamic>>.from(response['bankAccounts']);
-      } else {
-        _logger.e('Failed to fetch bank accounts: ${response['error']}');
-        return [];
-      }
-    } catch (e) {
-      _logger.e('Error fetching bank accounts: $e');
-      return [];
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getDetailedBankAccounts() async {
-    try {
-      _logger.i('Fetching detailed user bank accounts...');
-      final response = await _makeRequest(
-        endpoint: '/api/users/bank-accounts/detailed',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success']) {
-        _logger.i('Detailed bank accounts fetched successfully');
-        return List<Map<String, dynamic>>.from(
-            response['bankAccounts'].map((account) {
-          return {
-            ...account,
-            'accountName': account['account_name'],
-          };
-        }));
-      } else {
-        _logger
-            .e('Failed to fetch detailed bank accounts: ${response['error']}');
-        return [];
-      }
-    } catch (e) {
-      _logger.e('Error fetching detailed bank accounts: $e');
-      return [];
-    }
-  }
-
-  Future<String?> getPrimaryAccountName(String userId) async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/bank-accounts',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success'] &&
-          response['bankAccounts'] is List &&
-          response['bankAccounts'].isNotEmpty) {
-        final primaryAccount = response['bankAccounts'].firstWhere(
-          (account) => account['isPrimary'] == true,
-          orElse: () => response['bankAccounts'].first,
-        );
-        return primaryAccount['account_name'];
-      } else {
-        _logger.w('Primary account name not found');
-        return null;
-      }
-    } catch (e) {
-      _logger.e('Error fetching primary account name: $e');
-      return null;
-    }
-  }
+  /// -------------------------
+  /// Initialization
+  /// -------------------------
 
   Future<void> init() async {
     // Implement any initialization logic if necessary
-  }
-
-  Future<List<Map<String, dynamic>>> getBlinkAdvances(String userId) async {
-    final response = await _makeRequest(
-      endpoint: '/api/blink-advances',
-      body: {'userId': userId},
-      method: 'GET',
-      requireAuth: true,
-    );
-    return List<Map<String, dynamic>>.from(response['blinkAdvances']);
-  }
-
-  Future<Map<String, dynamic>> getBlinkAdvanceById(String id) async {
-    return _makeRequest(
-      endpoint: '/api/blink-advances/$id',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> updateBlinkAdvanceStatus(
-      String id, String status) async {
-    return _makeRequest(
-      endpoint: '/api/blink-advances/$id/status',
-      body: {'status': status},
-      method: 'PATCH',
-      requireAuth: true,
-    );
+    _logger.i('AuthService initialized.');
   }
 }
+
+/// -------------------------
+/// Exception Classes
+/// -------------------------
 
 class ApiException implements Exception {
   final String message;

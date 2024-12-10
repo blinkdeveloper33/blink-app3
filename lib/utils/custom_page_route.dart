@@ -4,8 +4,8 @@ class FadePageRoute<T> extends PageRoute<T> {
   FadePageRoute({
     required this.builder,
     this.duration = const Duration(milliseconds: 300),
-    RouteSettings? settings,
-  }) : super(settings: settings);
+    super.settings,
+  });
 
   final WidgetBuilder builder;
   final Duration duration;

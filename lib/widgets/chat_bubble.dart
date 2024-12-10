@@ -1,3 +1,5 @@
+// lib/widgets/chat_bubble.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -99,7 +101,9 @@ class CustomChatBubble extends StatelessWidget {
             child: Text(
               DateFormat('MMM d, h:mm a').format(timestamp),
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: isUser
+                    ? Colors.white.withOpacity(0.7)
+                    : Colors.black87.withOpacity(0.7),
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
