@@ -61,7 +61,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   final ThemeManager _themeManager = ThemeManager();
   final GlobalKey _confettiKey = GlobalKey();
   final List<int> _amountOptions =
-      List.generate(21, (index) => 100 + index * 10); // Updated amount options
+      List.generate(7, (index) => 150 + index * 25); // Updated amount options
   late AnimationController _fadeController;
   late AnimationController _inputSectionController;
   late Animation<Offset> _inputSectionAnimation;
@@ -122,6 +122,29 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       isUser: false,
       timestamp: DateTime.now(),
       emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
+      richText: RichText(
+        text: TextSpan(
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: 16,
+            height: 1.4,
+            fontWeight: FontWeight.w500,
+          ),
+          children: [
+            TextSpan(text: 'Hello '),
+            TextSpan(
+              text: _userName,
+              style: TextStyle(
+                color: Color(0xFF007FFF), // Azure blue
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextSpan(
+                text:
+                    '! I\'m here to help you with your Blink Advance. How much do you need today?'),
+          ],
+        ),
+      ),
     ));
   }
 
@@ -442,7 +465,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                         }
                         final message = _messages[index];
                         return CustomChatBubble(
-                          message: message.text,
+                          message: message,
                           isUser: message.isUser,
                           timestamp: message.timestamp,
                           isAnimating: _animatingMessageIndex == index &&
@@ -696,6 +719,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   }
 
   Widget _buildDateSelector() {
+    final DateTime now = DateTime.now();
+    final DateTime lastSelectableDate = now.add(Duration(days: 31));
+
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -712,10 +738,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         onPressed: () async {
           final DateTime? picked = await showDatePicker(
             context: context,
-            initialDate: DateTime.now().add(Duration(days: 1)),
-            firstDate: DateTime.now().add(Duration(days: 1)),
-            lastDate:
-                DateTime.now().add(Duration(days: 365)), // Extended date picker
+            initialDate: now,
+            firstDate: now,
+            lastDate: lastSelectableDate,
             builder: (context, child) {
               return Theme(
                 data: Theme.of(context).copyWith(
@@ -889,7 +914,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   String _getHelpContent(String question) {
     switch (question) {
       case 'Need help choosing an amount?':
-        return 'You can select any amount between \$100 and \$300. Choose an amount that best suits your financial needs.';
+        return 'You can select any amount between \$150 and \$300. Choose an amount that best suits your financial needs.';
       case 'What\'s the difference between speeds?':
         return '• **Instant Speed:** Funds are transferred immediately with a fee of \$9.50.\n\n• **Normal Speed:** Funds are transferred within 1-3 business days with a fee of \$4.50.';
       case 'How do I choose a repayment date?':
@@ -905,17 +930,19 @@ class ChatMessage {
   final bool isUser;
   final DateTime timestamp;
   final AnimatedEmoji? emoji;
+  final RichText? richText;
 
   ChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
     this.emoji,
+    this.richText,
   });
 }
 
-class CustomChatBubble extends StatelessWidget {
-  final String message;
+class CustomChatBubble extends StatefulWidget {
+  final ChatMessage message;
   final bool isUser;
   final DateTime timestamp;
   final bool isAnimating;
@@ -931,44 +958,75 @@ class CustomChatBubble extends StatelessWidget {
   });
 
   @override
+  State<CustomChatBubble> createState() => _CustomChatBubbleState();
+}
+
+class _CustomChatBubbleState extends State<CustomChatBubble>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _shakeAnimation =
+        Tween<double>(begin: 0.0, end: 0.1).animate(_shakeController);
+  }
+
+  @override
+  void dispose() {
+    _shakeController.dispose();
+    super.dispose();
+  }
+
+  void shake() {
+    _shakeController.forward().then((_) => _shakeController.reverse());
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         crossAxisAlignment:
-            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            widget.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment:
-                isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                widget.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              if (!isUser) ...[
+              if (!widget.isUser) ...[
                 _buildAvatar(),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
               ],
               Flexible(
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: isUser
+                      colors: widget.isUser
                           ? [kSecondaryColor, kPrimaryColor]
                           : [Colors.grey[200]!, Colors.grey[100]!],
                     ),
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
-                      bottomLeft: Radius.circular(isUser ? 20 : 4),
-                      bottomRight: Radius.circular(isUser ? 4 : 20),
+                      topLeft: const Radius.circular(20),
+                      topRight: const Radius.circular(20),
+                      bottomLeft: Radius.circular(widget.isUser ? 20 : 4),
+                      bottomRight: Radius.circular(widget.isUser ? 4 : 20),
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.1),
                         blurRadius: 8,
-                        offset: Offset(0, 2),
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
@@ -976,26 +1034,29 @@ class CustomChatBubble extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Flexible(
-                        child: Text(
-                          message,
-                          style: TextStyle(
-                            color: isUser ? Colors.white : Colors.black87,
-                            fontSize: 16,
-                            height: 1.4,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        child: widget.message.richText ??
+                            Text(
+                              widget.message.text,
+                              style: TextStyle(
+                                color: widget.isUser
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontSize: 16,
+                                height: 1.4,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                       ),
-                      if (emoji != null) ...[
-                        SizedBox(width: 8),
-                        emoji!,
+                      if (widget.emoji != null) ...[
+                        const SizedBox(width: 8),
+                        widget.emoji!,
                       ],
                     ],
                   ),
                 ),
               ),
-              if (isUser) ...[
-                SizedBox(width: 8),
+              if (widget.isUser) ...[
+                const SizedBox(width: 8),
                 _buildAvatar(),
               ],
             ],
@@ -1003,11 +1064,11 @@ class CustomChatBubble extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(
               top: 4,
-              left: isUser ? 0 : 48,
-              right: isUser ? 48 : 0,
+              left: widget.isUser ? 0 : 48,
+              right: widget.isUser ? 48 : 0,
             ),
             child: Text(
-              DateFormat('MMM d, h:mm a').format(timestamp),
+              DateFormat('MMM d, h:mm a').format(widget.timestamp),
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 12,
@@ -1021,37 +1082,46 @@ class CustomChatBubble extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            isUser ? Colors.grey[300]! : Colors.white,
-            isUser ? Colors.grey[400]! : Colors.white.withOpacity(0.8),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: isUser
-          ? Icon(Icons.person, color: Colors.grey[600], size: 20)
-          : ClipOval(
-              child: Image.asset(
-                'assets/images/blinky-avatar.png',
-                fit: BoxFit.cover,
+    return AnimatedBuilder(
+      animation: _shakeAnimation,
+      builder: (context, child) {
+        return Transform.rotate(
+          angle: _shakeAnimation.value,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  widget.isUser ? Colors.grey[300]! : Colors.white,
+                  widget.isUser
+                      ? Colors.grey[400]!
+                      : Colors.white.withOpacity(0.8),
+                ],
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-    ).animate().shake(duration: 400.ms, rotation: 0.1).scale(
-        begin: Offset(0.8, 0.8), end: Offset(1.0, 1.0), duration: 200.ms);
+            child: widget.isUser
+                ? Icon(Icons.person, color: Colors.grey[600], size: 20)
+                : ClipOval(
+                    child: Image.asset(
+                      'assets/images/blinky-avatar.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
   }
 }
 

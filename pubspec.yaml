@@ -58,6 +58,9 @@ flutter:
     - assets/images/create_password.png
     - assets/images/personal_info.svg
     - assets/images/roth_ira_vs_401k.png
+    - assets/images/budgeting_basics.png
+    - assets/images/credit_scores.png
+    - assets/images/investing_beginners.png
     - assets/images/avatar.png
     - assets/images/OBJECTS.svg
     - assets/images/OBJECTS-1.svg

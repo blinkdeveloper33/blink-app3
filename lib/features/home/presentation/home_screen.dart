@@ -32,6 +32,33 @@ class _HomeScreenState extends State<HomeScreen>
   String? _primaryAccountName;
   bool _isLoading = false;
 
+  final List<Map<String, String>> _newsItems = [
+    {
+      'title': 'Roth IRA vs. 401(k): What\'s the Difference?',
+      'description':
+          'Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals...',
+      'imageUrl': 'assets/images/roth_ira_vs_401k.png',
+    },
+    {
+      'title': 'The Basics of Budgeting: A Step-by-Step Guide',
+      'description':
+          'Creating and sticking to a budget is a fundamental step in managing your finances. This guide walks you through the process of setting up a budget that works for your lifestyle and financial goals...',
+      'imageUrl': 'assets/images/budgeting_basics.png',
+    },
+    {
+      'title': 'Understanding Credit Scores: What You Need to Know',
+      'description':
+          'Your credit score plays a crucial role in your financial life. Learn what factors influence your credit score, how to check it, and steps you can take to improve it over time...',
+      'imageUrl': 'assets/images/credit_scores.png',
+    },
+    {
+      'title': 'Investing for Beginners: Getting Started in the Stock Market',
+      'description':
+          'Thinking about investing in stocks? This article covers the basics of stock market investing, including how to open a brokerage account, understanding stock types, and strategies for beginners...',
+      'imageUrl': 'assets/images/investing_beginners.png',
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -831,60 +858,79 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
         const SizedBox(height: 16),
-        // News Card
-        Container(
-          decoration: BoxDecoration(
-            color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _isDarkMode ? Colors.white24 : Colors.black12,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // News Image
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Image.asset(
-                  'assets/images/roth_ira_vs_401k.png',
-                  width: double.infinity,
-                  height: 200,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              // News Details
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Roth IRA vs. 401(k): What\'s the Difference?',
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white : Colors.black,
-                        fontSize: 18,
-                        fontFamily: 'Onest',
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals...',
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white70 : Colors.black54,
-                        fontSize: 14,
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        // Horizontal scrollable news list
+        SizedBox(
+          height:
+              300, // Adjust this value to change the height of the news cards
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _newsItems.length,
+            itemBuilder: (context, index) {
+              return _buildNewsCard(_newsItems[index]);
+            },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNewsCard(Map<String, String> newsItem) {
+    return Container(
+      width: 300, // Adjust this value to change the width of the news cards
+      margin: EdgeInsets.only(right: 16),
+      decoration: BoxDecoration(
+        color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isDarkMode ? Colors.white24 : Colors.black12,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // News Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: Image.asset(
+              newsItem['imageUrl']!,
+              width: double.infinity,
+              height: 150,
+              fit: BoxFit.cover,
+            ),
+          ),
+          // News Details
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  newsItem['title']!,
+                  style: TextStyle(
+                    color: _isDarkMode ? Colors.white : Colors.black,
+                    fontSize: 16,
+                    fontFamily: 'Onest',
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  newsItem['description']!,
+                  style: TextStyle(
+                    color: _isDarkMode ? Colors.white70 : Colors.black54,
+                    fontSize: 14,
+                    fontFamily: 'Onest',
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
