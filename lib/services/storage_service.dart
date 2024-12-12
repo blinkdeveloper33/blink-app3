@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:logger/logger.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:myapp/models/transaction.dart';
 
 class StorageKeys {
   static const String firstName = 'firstName';
@@ -13,9 +14,10 @@ class StorageKeys {
   static const String zipcode = 'zipcode';
   static const String email = 'email';
   static const String userId = 'userId';
-  static const String token = 'token'; // Consistent key usage
+  static const String token = 'token';
   static const String bankAccountId = 'bankAccountId';
   static const String bankAccountName = 'bankAccountName';
+  static const String transactions = 'transactions';
 }
 
 class StorageService {
@@ -32,13 +34,11 @@ class StorageService {
 
   StorageService._internal();
 
-  /// Initializes SharedPreferences and encryption settings. Must be called before using the service.
   Future<void> init() async {
     try {
       _prefs = await SharedPreferences.getInstance();
       _logger.i('SharedPreferences initialized successfully.');
 
-      // Load encryption key from environment variables
       final keyString = dotenv.env['ENCRYPTION_KEY'];
       if (keyString == null || keyString.length != 32) {
         throw Exception('Invalid or missing ENCRYPTION_KEY in .env file.');
@@ -54,13 +54,11 @@ class StorageService {
     }
   }
 
-  /// Encrypts a plain text string.
   String _encrypt(String plainText) {
     final encrypted = _encrypter.encrypt(plainText, iv: _iv);
     return encrypted.base64;
   }
 
-  /// Decrypts an encrypted string.
   String _decrypt(String encryptedText) {
     final decrypted = _encrypter.decrypt64(encryptedText, iv: _iv);
     return decrypted;
@@ -322,6 +320,45 @@ class StorageService {
     } catch (e) {
       _logger.e('Failed to get primary account name: $e');
       return null;
+    }
+  }
+
+  // New methods for storing and retrieving transactions
+  Future<void> storeTransactions(List<Transaction> transactions) async {
+    try {
+      final jsonTransactions = transactions.map((t) => t.toJson()).toList();
+      final jsonString = json.encode(jsonTransactions);
+      final encryptedString = _encrypt(jsonString);
+      await _prefs.setString(StorageKeys.transactions, encryptedString);
+      _logger.i('Transactions stored successfully');
+    } catch (e) {
+      _logger.e('Failed to store transactions: $e');
+      throw Exception('Failed to store transactions');
+    }
+  }
+
+  List<Transaction>? getStoredTransactions() {
+    try {
+      final encryptedString = _prefs.getString(StorageKeys.transactions);
+      if (encryptedString == null) return null;
+      final jsonString = _decrypt(encryptedString);
+      final jsonTransactions = json.decode(jsonString) as List;
+      return jsonTransactions
+          .map((json) => Transaction.fromJson(json))
+          .toList();
+    } catch (e) {
+      _logger.e('Failed to retrieve stored transactions: $e');
+      return null;
+    }
+  }
+
+  Future<void> clearTransactions() async {
+    try {
+      await _prefs.remove(StorageKeys.transactions);
+      _logger.i('Transactions cleared successfully');
+    } catch (e) {
+      _logger.e('Failed to clear transactions: $e');
+      throw Exception('Failed to clear transactions');
     }
   }
 }

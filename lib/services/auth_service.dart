@@ -5,7 +5,7 @@ import 'package:myapp/services/storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';
-import 'package:intl/intl.dart'; // Added for date formatting
+import 'package:intl/intl.dart';
 
 class Transaction {
   final String id;
@@ -37,7 +37,7 @@ class Transaction {
       merchantName: json['merchant_name'] as String? ?? 'Unknown Merchant',
       category: json['category'] as String?,
       date: DateTime.parse(json['date'] as String),
-      amount: amount,
+      amount: amount.abs(),
       isOutflow: isOutflow,
     );
   }
@@ -60,13 +60,9 @@ class AuthService {
       : _logger = logger ?? Logger(),
         _storageService = storageService;
 
-  /// -------------------------
-  /// General Helper Methods
-  /// -------------------------
-
   Future<Map<String, dynamic>> _makeRequest({
     required String endpoint,
-    required Map<String, dynamic> body,
+    required dynamic body,
     required String method,
     bool requireAuth = false,
   }) async {
@@ -90,7 +86,12 @@ class AuthService {
         response =
             await http.post(url, headers: headers, body: jsonEncode(body));
       } else if (method.toUpperCase() == 'GET') {
-        response = await http.get(url, headers: headers);
+        final Uri finalUrl = body is Map
+            ? url.replace(
+                queryParameters:
+                    body.map((key, value) => MapEntry(key, value.toString())))
+            : url;
+        response = await http.get(finalUrl, headers: headers);
       } else if (method.toUpperCase() == 'PATCH') {
         response =
             await http.patch(url, headers: headers, body: jsonEncode(body));
@@ -378,6 +379,37 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> getAllTransactions() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/all',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] == true && response['transactions'] is List) {
+        final transactions = (response['transactions'] as List)
+            .map((json) => Transaction.fromJson(json as Map<String, dynamic>))
+            .toList();
+
+        return {
+          'success': true,
+          'transactions': transactions,
+        };
+      } else {
+        throw Exception(
+            'Failed to fetch transactions: Unexpected response format');
+      }
+    } catch (e) {
+      _logger.e('Error fetching transactions: $e');
+      return {
+        'success': false,
+        'error': 'Failed to fetch transactions. Please try again.',
+      };
+    }
+  }
+
   /// -------------------------
   /// BlinkAdvance Endpoints
   /// -------------------------
@@ -394,11 +426,9 @@ class AuthService {
       body: {
         'userId': userId,
         'requestedAmount': requestedAmount,
-        'transferSpeed': transferSpeed == TransferSpeed.instant
-            ? 'Instant'
-            : 'Normal', // **Corrected Transfer Speed**
-        'repayDate': DateFormat('yyyy-MM-dd')
-            .format(repayDate), // **Corrected Repayment Date Format**
+        'transferSpeed':
+            transferSpeed == TransferSpeed.instant ? 'Instant' : 'Normal',
+        'repayDate': DateFormat('yyyy-MM-dd').format(repayDate),
         'bankAccountId': bankAccountId,
       },
       method: 'POST',
@@ -548,7 +578,6 @@ class AuthService {
   /// -------------------------
 
   Future<void> init() async {
-    // Implement any initialization logic if necessary
     _logger.i('AuthService initialized.');
   }
 }

@@ -2,13 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/auth_service.dart' as auth;
 import 'package:myapp/services/storage_service.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import 'package:myapp/features/account/presentation/account_screen.dart';
 import 'package:myapp/features/blink_advance/presentation/blink_advance_screen.dart';
 import 'package:myapp/widgets/confetti_overlay.dart';
+import 'package:myapp/features/insights/presentation/financial_insights_screen.dart'
+    as insights;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isDarkMode = true;
   final NumberFormat currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
-  List<Transaction> _recentTransactions = [];
+  List<auth.Transaction> _recentTransactions = [];
   double _currentBalance = 0.0; // Dedicated variable for current balance
   late AnimationController _animationController;
   late Animation<double> _animation;
@@ -100,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Fetches and stores detailed bank accounts, setting primaryAccountName
   Future<void> _fetchAndStoreDetailedBankAccounts() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
+    final authService = Provider.of<auth.AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
 
     try {
@@ -173,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Fetches recent transactions
   Future<void> _loadRecentTransactions() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
+    final authService = Provider.of<auth.AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
 
     try {
@@ -203,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Fetches current balances
   Future<void> _loadCurrentBalances() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
+    final authService = Provider.of<auth.AuthService>(context, listen: false);
 
     try {
       final balances = await authService.getCurrentBalances();
@@ -632,47 +634,56 @@ class _HomeScreenState extends State<HomeScreen>
                 const SizedBox(height: 16),
                 // Insights Card
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A237E),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (context) =>
+                                const insights.FinancialInsightsScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A237E),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.insights,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.insights,
-                            color: Colors.white,
-                            size: 20,
+                          const Spacer(),
+                          const Text(
+                            'Insights',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const Spacer(),
-                        const Text(
-                          'Insights',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Review Insights',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                              fontFamily: 'Onest',
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Review Insights',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            fontFamily: 'Onest',
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -685,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   /// Builds individual transaction items
-  Widget _buildTransactionItem(Transaction transaction) {
+  Widget _buildTransactionItem(auth.Transaction transaction) {
     final String formattedAmount =
         currencyFormatter.format(transaction.amount.abs());
     final String formattedDate =

@@ -1,5 +1,3 @@
-// lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -10,6 +8,8 @@ import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/storage_service.dart';
 import 'package:myapp/features/auth/presentation/login_screen.dart';
 import 'package:myapp/features/home/presentation/home_screen.dart';
+import 'package:myapp/features/error/presentation/error_screen.dart';
+import 'package:myapp/features/insights/presentation/financial_insights_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +24,8 @@ Future<void> main() async {
     logger.i('BACKEND_URL: ${dotenv.env['BACKEND_URL']}');
   } catch (e, stackTrace) {
     logger.e("Error loading .env file: $e", error: e, stackTrace: stackTrace);
-    // Optionally, handle the error, e.g., show a fallback screen or exit
+    runApp(ErrorScreen(message: "Failed to load environment variables"));
+    return;
   }
 
   // Initialize StorageService (Singleton)
@@ -35,7 +36,8 @@ Future<void> main() async {
   } catch (e, stackTrace) {
     logger.e('Error initializing StorageService: $e',
         error: e, stackTrace: stackTrace);
-    // Optionally, handle the error, e.g., show a fallback screen or exit
+    runApp(ErrorScreen(message: "Failed to initialize storage service"));
+    return;
   }
 
   // Initialize AuthService
@@ -46,7 +48,8 @@ Future<void> main() async {
   } catch (e, stackTrace) {
     logger.e('Error initializing AuthService: $e',
         error: e, stackTrace: stackTrace);
-    // Optionally, handle the error
+    runApp(ErrorScreen(message: "Failed to initialize authentication service"));
+    return;
   }
 
   // Set system UI overlays
@@ -64,7 +67,7 @@ Future<void> main() async {
       providers: [
         Provider<AuthService>.value(value: authService),
         Provider<StorageService>.value(value: storageService),
-        // Add other providers here if needed
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const MyApp(),
     ),
@@ -74,33 +77,72 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  /// Builds the application's theme.
-  ThemeData _buildTheme() {
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    return MaterialApp(
+      title: 'Blink',
+      debugShowCheckedModeBanner: false,
+      theme: themeProvider.lightTheme,
+      darkTheme: themeProvider.darkTheme,
+      themeMode: themeProvider.themeMode,
+      initialRoute: '/',
+      onGenerateRoute: (settings) {
+        final uri = Uri.parse(settings.name ?? '');
+        final path = uri.path;
+        final queryParams = uri.queryParameters;
+
+        switch (path) {
+          case '/':
+            return MaterialPageRoute(builder: (_) => const SplashScreen());
+          case '/login':
+            return MaterialPageRoute(builder: (_) => const LoginScreen());
+          case '/home':
+            return MaterialPageRoute(builder: (_) => const HomeScreen());
+          case '/insights':
+            return MaterialPageRoute(
+              builder: (_) => FinancialInsightsScreen(
+                period: queryParams['period'],
+                startDate: queryParams['startDate'],
+                endDate: queryParams['endDate'],
+              ),
+            );
+          default:
+            return MaterialPageRoute(
+              builder: (_) => ErrorScreen(message: "Route not found: $path"),
+            );
+        }
+      },
+    );
+  }
+}
+
+class ThemeProvider with ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode get themeMode => _themeMode;
+
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    notifyListeners();
+  }
+
+  ThemeData get lightTheme {
+    return ThemeData(
+      primarySwatch: Colors.blue,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: Colors.white,
+      fontFamily: 'Onest',
+    );
+  }
+
+  ThemeData get darkTheme {
     return ThemeData(
       primarySwatch: Colors.blue,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: const Color(0xFF061535),
       fontFamily: 'Onest',
-      // Define other theme properties as needed
-      // For example, you can define text themes, button themes, etc.
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Blink',
-      debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
-      home: const SplashScreen(),
-      // Define routes if needed
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/home': (context) =>
-            const HomeScreen(), // Removed userName and bankAccountId
-        // Add other routes here
-      },
-      // Optionally, define onGenerateRoute for dynamic routing
     );
   }
 }
