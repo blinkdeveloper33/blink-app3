@@ -10,8 +10,11 @@ import 'package:blink_app/features/auth/presentation/login_screen.dart';
 import 'package:blink_app/features/home/presentation/home_screen.dart';
 import 'package:blink_app/features/error/presentation/error_screen.dart';
 import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart';
+import 'package:blink_app/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final logger = Logger();
 
@@ -87,6 +90,16 @@ class MyApp extends StatelessWidget {
       theme: themeProvider.lightTheme,
       darkTheme: themeProvider.darkTheme,
       themeMode: themeProvider.themeMode,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', ''), // English
+        Locale('es', ''), // Spanish
+      ],
       initialRoute: '/',
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '');
@@ -96,6 +109,8 @@ class MyApp extends StatelessWidget {
         switch (path) {
           case '/':
             return MaterialPageRoute(builder: (_) => const SplashScreen());
+          case '/onboarding':
+            return MaterialPageRoute(builder: (_) => const OnboardingScreen());
           case '/login':
             return MaterialPageRoute(builder: (_) => const LoginScreen());
           case '/home':
