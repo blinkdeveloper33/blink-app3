@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/features/auth/presentation/enter_otp_screen.dart';
-import 'package:myapp/services/auth_service.dart';
-import 'package:myapp/services/storage_service.dart';
+import 'package:blink_app/features/auth/presentation/enter_otp_screen.dart';
+import 'package:blink_app/services/auth_service.dart';
+import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 

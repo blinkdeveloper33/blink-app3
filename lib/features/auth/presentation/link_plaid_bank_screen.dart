@@ -10,7 +10,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '/services/auth_service.dart';
 import '/services/storage_service.dart';
-import 'package:myapp/features/home/presentation/home_screen.dart';
+import 'package:blink_app/features/home/presentation/home_screen.dart';
 
 class LinkPlaidBankScreen extends StatefulWidget {
   const LinkPlaidBankScreen({super.key});

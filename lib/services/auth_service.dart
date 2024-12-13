@@ -1,7 +1,7 @@
 // lib/services/auth_service.dart
 
 import 'dart:convert';
-import 'package:myapp/services/storage_service.dart';
+import 'package:blink_app/services/storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';

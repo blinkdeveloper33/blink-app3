@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:logger/logger.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:myapp/models/transaction.dart';
+import 'package:blink_app/models/transaction.dart';
 
 class StorageKeys {
   static const String firstName = 'firstName';
@@ -18,6 +18,7 @@ class StorageKeys {
   static const String bankAccountId = 'bankAccountId';
   static const String bankAccountName = 'bankAccountName';
   static const String transactions = 'transactions';
+  static const String lastUpdated = 'lastUpdated';
 }
 
 class StorageService {
@@ -330,6 +331,8 @@ class StorageService {
       final jsonString = json.encode(jsonTransactions);
       final encryptedString = _encrypt(jsonString);
       await _prefs.setString(StorageKeys.transactions, encryptedString);
+      await _prefs.setInt(
+          StorageKeys.lastUpdated, DateTime.now().millisecondsSinceEpoch);
       _logger.i('Transactions stored successfully');
     } catch (e) {
       _logger.e('Failed to store transactions: $e');
@@ -350,6 +353,15 @@ class StorageService {
       _logger.e('Failed to retrieve stored transactions: $e');
       return null;
     }
+  }
+
+  bool isDataStale() {
+    final lastUpdated = _prefs.getInt(StorageKeys.lastUpdated);
+    if (lastUpdated == null) return true;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final difference = now - lastUpdated;
+    // Consider data stale if it's older than 1 hour
+    return difference > 3600000;
   }
 
   Future<void> clearTransactions() async {

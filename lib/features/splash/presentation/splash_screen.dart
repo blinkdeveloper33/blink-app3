@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:blink_app/features/onboarding/presentation/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -51,39 +51,50 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF061535),
-          gradient: RadialGradient(
-            center: const Alignment(0.0, -0.2),
-            radius: 0.8,
-            colors: [
-              const Color(0xFF0A2355).withOpacity(0.9),
-              const Color(0xFF061535),
-            ],
-            stops: const [0.0, 0.9],
-          ),
-        ),
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _fadeAnimation,
-            builder: (context, child) {
-              return Opacity(
-                opacity: _fadeAnimation.value,
-                child: Transform.scale(
-                  scale: 0.8 + (0.2 * _fadeAnimation.value),
-                  child: child,
-                ),
-              );
-            },
-            child: Image.asset(
-              'assets/images/blink_logo.png',
-              width: 150,
-              height: 50,
-              fit: BoxFit.contain,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF061535),
+              gradient: RadialGradient(
+                center: const Alignment(0.0, -0.2),
+                radius: 0.8,
+                colors: [
+                  const Color(0xFF0A2355).withOpacity(0.9),
+                  const Color(0xFF061535),
+                ],
+                stops: const [0.0, 0.9],
+              ),
             ),
-          ),
-        ),
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _fadeAnimation,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _fadeAnimation.value,
+                    child: Transform.scale(
+                      scale: 0.8 + (0.2 * _fadeAnimation.value),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Hero(
+                  tag: 'logo',
+                  child: FractionallySizedBox(
+                    widthFactor: 0.6,
+                    child: AspectRatio(
+                      aspectRatio: 3 / 1,
+                      child: Image.asset(
+                        'assets/images/blink_logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

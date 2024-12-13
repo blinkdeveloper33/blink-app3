@@ -2,14 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:myapp/services/auth_service.dart' as auth;
-import 'package:myapp/services/storage_service.dart';
+import 'package:blink_app/services/auth_service.dart' as auth;
+import 'package:blink_app/services/storage_service.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
-import 'package:myapp/features/account/presentation/account_screen.dart';
-import 'package:myapp/features/blink_advance/presentation/blink_advance_screen.dart';
-import 'package:myapp/widgets/confetti_overlay.dart';
-import 'package:myapp/features/insights/presentation/financial_insights_screen.dart'
+import 'package:blink_app/features/account/presentation/account_screen.dart';
+import 'package:blink_app/features/blink_advance/presentation/blink_advance_screen.dart';
+import 'package:blink_app/widgets/confetti_overlay.dart';
+import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart'
     as insights;
 
 class HomeScreen extends StatefulWidget {

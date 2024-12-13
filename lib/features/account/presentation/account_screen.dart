@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/features/auth/presentation/login_screen.dart';
-import 'package:myapp/services/auth_service.dart';
+import 'package:blink_app/features/auth/presentation/login_screen.dart';
+import 'package:blink_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
 class AccountScreen extends StatelessWidget {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/features/auth/presentation/select_verification_method_screen.dart';
-import 'package:myapp/features/auth/presentation/login_screen.dart';
+import 'package:blink_app/features/auth/presentation/select_verification_method_screen.dart';
+import 'package:blink_app/features/auth/presentation/login_screen.dart';
 import 'package:logger/logger.dart';
 import 'package:animate_do/animate_do.dart';
 

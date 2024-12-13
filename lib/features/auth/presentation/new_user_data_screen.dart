@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:myapp/features/auth/presentation/create_password_screen.dart';
-import 'package:myapp/services/storage_service.dart';
+import 'package:blink_app/features/auth/presentation/create_password_screen.dart';
+import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';

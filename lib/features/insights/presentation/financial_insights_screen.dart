@@ -2,62 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:myapp/services/auth_service.dart';
-import 'package:uuid/uuid.dart';
-
-class Transaction {
-  final String id;
-  final String bankAccountId;
-  final String transactionId;
-  final double amount;
-  final DateTime date;
-  final String description;
-  final String? originalDescription;
-  final String category;
-  final String? categoryDetailed;
-  final String? merchantName;
-  final bool pending;
-  final DateTime createdAt;
-  final String accountId;
-  final String? userId;
-
-  Transaction({
-    required this.id,
-    required this.bankAccountId,
-    required this.transactionId,
-    required this.amount,
-    required this.date,
-    required this.description,
-    this.originalDescription,
-    required this.category,
-    this.categoryDetailed,
-    this.merchantName,
-    required this.pending,
-    required this.createdAt,
-    required this.accountId,
-    this.userId,
-  });
-
-  factory Transaction.fromJson(Map<String, dynamic> json) {
-    return Transaction(
-      id: json['id'] ?? Uuid().v4(),
-      bankAccountId: json['bank_account_id'],
-      transactionId: json['transaction_id'],
-      amount: json['amount'].toDouble(),
-      date: DateTime.parse(json['date']),
-      description: json['description'],
-      originalDescription: json['original_description'],
-      category: json['category'] ?? 'Uncategorized',
-      categoryDetailed: json['category_detailed'],
-      merchantName: json['merchant_name'],
-      pending: json['pending'] ?? false,
-      createdAt: DateTime.parse(
-          json['created_at'] ?? DateTime.now().toIso8601String()),
-      accountId: json['account_id'],
-      userId: json['user_id'],
-    );
-  }
-}
+import 'package:blink_app/services/auth_service.dart' as auth_service;
+import 'package:blink_app/services/storage_service.dart';
+import 'package:blink_app/models/transaction.dart';
+import 'package:blink_app/providers/financial_data_provider.dart';
 
 class FinancialInsightsScreen extends StatefulWidget {
   final String? period;
@@ -78,55 +26,15 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
   final currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
-  bool _isLoading = true;
-  String? _error;
-  List<Transaction> _transactions = [];
-  bool _hasMoreData = true;
-
   @override
   void initState() {
     super.initState();
-    _initializeData();
+    _loadData();
   }
 
-  void _initializeData() {
-    if (widget.period != null) {
-      setState(() {
-        _selectedCashflowPeriod = widget.period!;
-        _selectedExpensePeriod = widget.period!;
-      });
-    }
-    _fetchTransactions();
-  }
-
-  Future<void> _fetchTransactions() async {
-    if (!_hasMoreData) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final response = await authService.getAllTransactions();
-
-      if (response['success'] == true) {
-        final newTransactions = (response['transactions'] as List)
-            .map((json) => Transaction.fromJson(json as Map<String, dynamic>))
-            .toList();
-
-        setState(() {
-          _transactions = newTransactions;
-          _isLoading = false;
-          _error = null;
-        });
-      } else {
-        throw Exception('Failed to fetch transactions: ${response['error']}');
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _error = 'Failed to load transactions. Please try again.';
-      });
-    }
+  Future<void> _loadData() async {
+    final provider = Provider.of<FinancialDataProvider>(context, listen: false);
+    await provider.loadTransactions();
   }
 
   @override
@@ -151,6 +59,10 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: _loadData,
+          ),
+          IconButton(
             icon: const Icon(Icons.info_outline, color: Colors.black),
             onPressed: () {
               showDialog(
@@ -173,44 +85,61 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
+      body: Consumer<FinancialDataProvider>(
+        builder: (context, provider, child) {
+          if (provider.state == DataState.loading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (provider.state == DataState.error) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(provider.error ?? 'An error occurred',
+                      style: const TextStyle(color: Colors.red)),
+                  ElevatedButton(
+                    onPressed: _loadData,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          } else if (provider.state == DataState.loaded) {
+            return RefreshIndicator(
+              onRefresh: provider.refreshTransactions,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                      ElevatedButton(
-                        onPressed: _fetchTransactions,
-                        child: const Text('Retry'),
-                      ),
+                      _buildCashflowAnalysis(provider),
+                      const SizedBox(height: 24),
+                      _buildExpenseAllocation(provider),
+                      const SizedBox(height: 24),
+                      _buildTransactionCards(provider),
                     ],
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchTransactions,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildCashflowAnalysis(),
-                          const SizedBox(height: 24),
-                          _buildExpenseAllocation(),
-                          const SizedBox(height: 24),
-                          _buildTransactionCards(),
-                        ],
-                      ),
-                    ),
-                  ),
                 ),
+              ),
+            );
+          } else {
+            return const Center(child: Text('No data available'));
+          }
+        },
+      ),
     );
   }
 
-  Widget _buildCashflowAnalysis() {
+  Widget _buildCashflowAnalysis(FinancialDataProvider provider) {
+    final transactions = provider.transactions;
+    final inflows =
+        transactions.where((t) => t.amount > 0).map((t) => t.amount).toList();
+    final outflows = transactions
+        .where((t) => t.amount < 0)
+        .map((t) => t.amount.abs())
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -253,7 +182,9 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
           child: BarChart(
             BarChartData(
               alignment: BarChartAlignment.spaceAround,
-              maxY: 800,
+              maxY: inflows.isEmpty
+                  ? 100
+                  : inflows.reduce((a, b) => a > b ? a : b),
               barTouchData: BarTouchData(enabled: false),
               titlesData: FlTitlesData(
                 show: true,
@@ -313,15 +244,14 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
                 },
               ),
               borderData: FlBorderData(show: false),
-              barGroups: [
-                _generateBarGroup(0, 650, 450),
-                _generateBarGroup(1, 750, 600),
-                _generateBarGroup(2, 650, 550),
-                _generateBarGroup(3, 700, 500),
-                _generateBarGroup(4, 600, 450),
-                _generateBarGroup(5, 700, 600),
-                _generateBarGroup(6, 750, 400),
-              ],
+              barGroups: List.generate(
+                7,
+                (index) => _generateBarGroup(
+                  index,
+                  index < inflows.length ? inflows[index] : 0,
+                  index < outflows.length ? outflows[index] : 0,
+                ),
+              ),
             ),
           ),
         ),
@@ -329,108 +259,22 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
         Row(
           children: [
             Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Cash Inflow 💰',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontFamily: 'Onest',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      currencyFormatter.format(_totalInflow),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '+${_inflowChange.toStringAsFixed(0)}% vs Last Year',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green[700],
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                  ],
-                ),
+              child: _buildCashflowCard(
+                title: 'Cash Inflow 💰',
+                amount: provider.getTotalInflow(),
+                change:
+                    10.0, // This should be calculated based on historical data
+                isPositive: true,
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Cash Outflow 💸',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontFamily: 'Onest',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      currencyFormatter.format(_totalOutflow),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_outflowChange.toStringAsFixed(0)}% vs Last Year',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.red[700],
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                  ],
-                ),
+              child: _buildCashflowCard(
+                title: 'Cash Outflow 💸',
+                amount: provider.getTotalOutflow(),
+                change:
+                    5.0, // This should be calculated based on historical data
+                isPositive: false,
               ),
             ),
           ],
@@ -439,7 +283,80 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
     );
   }
 
-  Widget _buildExpenseAllocation() {
+  Widget _buildCashflowCard({
+    required String title,
+    required double amount,
+    required double change,
+    required bool isPositive,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isPositive ? Colors.green[50] : Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: isPositive ? Colors.green : Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontFamily: 'Onest',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            currencyFormatter.format(amount),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Onest',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${isPositive ? '+' : ''}${change.toStringAsFixed(1)}% vs Last Year',
+            style: TextStyle(
+              fontSize: 12,
+              color: isPositive ? Colors.green[700] : Colors.red[700],
+              fontFamily: 'Onest',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpenseAllocation(FinancialDataProvider provider) {
+    final categoryTotals = provider.getCategoryTotals();
+    final totalExpenses =
+        categoryTotals.values.fold(0.0, (sum, amount) => sum + amount);
+
+    final expenseCategories = categoryTotals.map((category, amount) {
+      final percentage =
+          totalExpenses > 0 ? (amount / totalExpenses * 100).round() : 0;
+      return MapEntry(category, {
+        'amount': amount,
+        'percentage': percentage,
+        'color': _getCategoryColor(category),
+        'backgroundColor': _getCategoryColor(category).withOpacity(0.1),
+      });
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -483,10 +400,10 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
             PieChartData(
               sectionsSpace: 0,
               centerSpaceRadius: 40,
-              sections: _expenseCategories.entries.map((entry) {
+              sections: expenseCategories.entries.map((entry) {
                 return PieChartSectionData(
-                  color: entry.value['color'],
-                  value: entry.value['percentage'].toDouble(),
+                  color: entry.value['color'] as Color,
+                  value: entry.value['percentage']?.toDouble(),
                   title: '${entry.value['percentage']}%',
                   radius: 80,
                   titleStyle: const TextStyle(
@@ -504,13 +421,13 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
         Wrap(
           spacing: 16,
           runSpacing: 16,
-          children: _expenseCategories.entries.map((entry) {
+          children: expenseCategories.entries.map((entry) {
             return _buildExpenseCard(
               entry.key,
-              entry.value['amount'],
-              '${entry.value['percentage']}% of the total value for ${entry.key}',
-              entry.value['backgroundColor'],
-              entry.value['color'],
+              entry.value['amount'] as double,
+              '${entry.value['percentage']}% of total expenses',
+              entry.value['backgroundColor'] as Color,
+              entry.value['color'] as Color,
             );
           }).toList(),
         ),
@@ -567,7 +484,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
     );
   }
 
-  Widget _buildTransactionCards() {
+  Widget _buildTransactionCards(FinancialDataProvider provider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -602,9 +519,11 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: _transactions.length,
+          itemCount: provider.transactions.length > 5
+              ? 5
+              : provider.transactions.length,
           itemBuilder: (context, index) {
-            final transaction = _transactions[index];
+            final transaction = provider.transactions[index];
             return _buildTransactionCard(transaction);
           },
         ),
@@ -732,37 +651,21 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
     );
   }
 
-  // Cashflow data
-  final double _totalInflow = 22245.40;
-  final double _totalOutflow = 4165.80;
-  final double _inflowChange = 10.0;
-  final double _outflowChange = -5.0;
+  Color _getCategoryColor(String category) {
+    final colors = {
+      'Food & Groceries': Colors.blue,
+      'Utilities': Colors.orange,
+      'Entertainment': Colors.purple,
+      'Transportation': Colors.green,
+      'Shopping': Colors.red,
+      'Health': Colors.teal,
+      'Education': Colors.indigo,
+    };
 
-  // Expense allocation data
-  final Map<String, Map<String, dynamic>> _expenseCategories = {
-    'Food & Groceries 🛒': {
-      'amount': 1240.50,
-      'percentage': 40,
-      'color': Colors.blue,
-      'backgroundColor': Colors.blue[50]!,
-    },
-    'Utilities ⚡': {
-      'amount': 460.70,
-      'percentage': 15,
-      'color': Colors.orange,
-      'backgroundColor': Colors.orange[50]!,
-    },
-    'Entertainment 🎮': {
-      'amount': 560.70,
-      'percentage': 25,
-      'color': Colors.purple,
-      'backgroundColor': Colors.purple[50]!,
-    },
-    'Others': {
-      'amount': 530.50,
-      'percentage': 20,
-      'color': Colors.pink,
-      'backgroundColor': Colors.pink[50]!,
-    },
-  };
+    return colors[category] ?? Colors.grey;
+  }
+}
+
+extension on Object? {
+  toDouble() {}
 }

@@ -2,14 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:myapp/services/storage_service.dart';
-import 'package:myapp/services/auth_service.dart'
+import 'package:blink_app/services/storage_service.dart';
+import 'package:blink_app/services/auth_service.dart'
     show AuthService, TransferSpeed;
 import 'package:intl/intl.dart';
-import 'package:myapp/features/home/presentation/home_screen.dart';
+import 'package:blink_app/features/home/presentation/home_screen.dart';
 import 'dart:math' show pi, sin;
-import 'package:myapp/utils/theme_manager.dart';
-import 'package:myapp/widgets/confetti_overlay.dart';
+import 'package:blink_app/utils/theme_manager.dart';
+import 'package:blink_app/widgets/confetti_overlay.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animated_emoji/animated_emoji.dart';
 

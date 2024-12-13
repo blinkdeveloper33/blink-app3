@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:myapp/features/splash/presentation/splash_screen.dart';
+import 'package:blink_app/features/splash/presentation/splash_screen.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
-import 'package:myapp/services/auth_service.dart';
-import 'package:myapp/services/storage_service.dart';
-import 'package:myapp/features/auth/presentation/login_screen.dart';
-import 'package:myapp/features/home/presentation/home_screen.dart';
-import 'package:myapp/features/error/presentation/error_screen.dart';
-import 'package:myapp/features/insights/presentation/financial_insights_screen.dart';
+import 'package:blink_app/services/auth_service.dart';
+import 'package:blink_app/services/storage_service.dart';
+import 'package:blink_app/features/auth/presentation/login_screen.dart';
+import 'package:blink_app/features/home/presentation/home_screen.dart';
+import 'package:blink_app/features/error/presentation/error_screen.dart';
+import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

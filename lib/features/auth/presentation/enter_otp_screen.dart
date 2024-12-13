@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:myapp/features/auth/presentation/new_user_data_screen.dart';
-import 'package:myapp/services/auth_service.dart';
+import 'package:blink_app/features/auth/presentation/new_user_data_screen.dart';
+import 'package:blink_app/services/auth_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';

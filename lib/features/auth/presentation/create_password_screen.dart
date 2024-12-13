@@ -1,9 +1,9 @@
 import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
-import 'package:myapp/features/auth/presentation/link_plaid_bank_screen.dart';
-import 'package:myapp/services/auth_service.dart';
-import 'package:myapp/services/storage_service.dart';
+import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
+import 'package:blink_app/services/auth_service.dart';
+import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
