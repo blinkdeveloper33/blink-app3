@@ -1,9 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:blink_app/features/auth/presentation/enter_otp_screen.dart';
+import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:lottie/lottie.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+class BackgroundPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color(0xFF0D47A1),
+          Color(0xFF1565C0),
+          Color(0xFF1976D2),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+
+    final circlePaint = Paint()
+      ..color = Colors.white.withAlpha(25)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+        Offset(size.width * 0.8, size.height * 0.2), 100, circlePaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.2, size.height * 0.8), 150, circlePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
+  }
+}
 
 class SelectVerificationMethodScreen extends StatefulWidget {
   final String email;
@@ -76,7 +112,7 @@ class _SelectVerificationMethodScreenState
           backgroundColor: const Color(0xFF061535),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
+          title: const Text(
             'Error',
             style: TextStyle(
               color: Colors.redAccent,
@@ -93,9 +129,7 @@ class _SelectVerificationMethodScreenState
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text(
                 'OK',
                 style: TextStyle(
@@ -126,7 +160,7 @@ class _SelectVerificationMethodScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Select Verification Method',
+                  'Verify Your Account',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -136,7 +170,7 @@ class _SelectVerificationMethodScreenState
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Choose how you\'d like to receive your verification code',
+                  'Choose your preferred verification method',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 16,
@@ -148,7 +182,7 @@ class _SelectVerificationMethodScreenState
           ),
           const Divider(color: Colors.white24, height: 1),
           _buildOptionTile(
-            icon: Icons.email,
+            icon: Icons.email_outlined,
             title: 'Email Verification',
             subtitle: 'Send code to ${widget.email}',
             onTap: _isSending ? null : _initiateVerification,
@@ -156,7 +190,7 @@ class _SelectVerificationMethodScreenState
           ),
           const Divider(color: Colors.white24, height: 1),
           _buildOptionTile(
-            icon: Icons.phone,
+            icon: Icons.phone_android_outlined,
             title: 'Phone Verification',
             subtitle: 'Coming soon',
             onTap: null,
@@ -175,8 +209,20 @@ class _SelectVerificationMethodScreenState
     required bool isEnabled,
   }) {
     return ListTile(
-      leading: Icon(icon,
-          color: isEnabled ? Colors.white : Colors.white54, size: 28),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isEnabled
+              ? Colors.blue.withOpacity(0.1)
+              : Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          icon,
+          color: isEnabled ? Colors.white : Colors.white54,
+          size: 24,
+        ),
+      ),
       title: Text(
         title,
         style: TextStyle(
@@ -219,23 +265,38 @@ class _SelectVerificationMethodScreenState
           ),
           elevation: _isSending ? 0 : 4,
         ),
-        child: _isSending
-            ? const SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  strokeWidth: 2,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _isSending
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    strokeWidth: 2,
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Continue',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ],
                 ),
-              )
-            : const Text(
-                'Send Email Verification',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+        ),
       ),
     );
   }
@@ -243,56 +304,76 @@ class _SelectVerificationMethodScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF061535),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          CustomPaint(
+            painter: BackgroundPainter(),
+            child: Container(),
+          ),
+          SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    IconButton(
-                      icon: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          shape: BoxShape.circle,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                          ),
+                          onPressed: () =>
+                              Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (context) => const SignUpScreen(),
+                            ),
+                          ),
+                          tooltip: 'Go Back',
                         ),
-                        child:
-                            const Icon(Icons.arrow_back, color: Colors.white),
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                      tooltip: 'Go Back',
+                        SvgPicture.asset(
+                          'assets/images/blink_logo1.svg',
+                          height: 30,
+                          color: Colors.white,
+                        ),
+                      ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16),
-                      child: Image.asset(
-                        'assets/images/blink_logo.png',
-                        height: 30,
-                        fit: BoxFit.contain,
+                    const SizedBox(height: 40),
+                    FadeInDown(
+                      duration: const Duration(milliseconds: 800),
+                      child: Center(
+                        child: Lottie.asset(
+                          'assets/animations/verification.json',
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.contain,
+                        ),
                       ),
+                    ),
+                    const SizedBox(height: 40),
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 800),
+                      child: _buildVerificationOptions(),
+                    ),
+                    const SizedBox(height: 32),
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 800),
+                      delay: const Duration(milliseconds: 200),
+                      child: _buildContinueButton(),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                Center(
-                  child: Image.asset(
-                    'assets/images/verification.png',
-                    height: 180,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                _buildVerificationOptions(),
-                const SizedBox(height: 32),
-                _buildContinueButton(),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

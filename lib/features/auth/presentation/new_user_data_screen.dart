@@ -6,6 +6,40 @@ import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:lottie/lottie.dart';
+
+class BackgroundPainter extends CustomPainter {
+  final Color startColor;
+  final Color endColor;
+
+  BackgroundPainter({required this.startColor, required this.endColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [startColor, endColor],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+
+    final circlePaint = Paint()
+      ..color = Colors.white.withAlpha(25)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+        Offset(size.width * 0.8, size.height * 0.2), 100, circlePaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.2, size.height * 0.8), 150, circlePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
+}
 
 class NewUserDataScreen extends StatefulWidget {
   final String email;
@@ -20,7 +54,7 @@ class NewUserDataScreen extends StatefulWidget {
 }
 
 class _NewUserDataScreenState extends State<NewUserDataScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -88,11 +122,28 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
 
   late AnimationController _animationController;
   late Animation<double> _fadeInAnimation;
+  late AnimationController _backgroundAnimationController;
+  late Animation<Color?> _backgroundColorAnimation;
+
+  final List<Color> _stepColors = [
+    const Color(0xFF1E88E5),
+    const Color(0xFF43A047),
+    const Color(0xFF5E35B1),
+  ];
 
   @override
   void initState() {
     super.initState();
     _storageService = Provider.of<StorageService>(context, listen: false);
+    _backgroundAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _backgroundColorAnimation = ColorTween(
+      begin: _stepColors[0],
+      end: _stepColors[1],
+    ).animate(_backgroundAnimationController);
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -109,6 +160,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
     _lastNameController.dispose();
     _zipCodeController.dispose();
     _animationController.dispose();
+    _backgroundAnimationController.dispose();
     super.dispose();
   }
 
@@ -419,7 +471,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(5),
             color: index == _currentStep
-                ? const Color(0xFF2196F3)
+                ? Colors.white
                 : Colors.white.withOpacity(0.3),
           ),
         ),
@@ -428,221 +480,219 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   }
 
   Widget _buildStepContent() {
+    final List<String> animations = [
+      'assets/animations/personal_info.json',
+      'assets/animations/location.json',
+      'assets/animations/confirmation.json',
+    ];
+
+    return FadeTransition(
+      opacity: _fadeInAnimation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.25, 0.0),
+          end: Offset.zero,
+        ).animate(_fadeInAnimation),
+        child: Column(
+          children: [
+            Lottie.asset(
+              animations[_currentStep],
+              height: 200,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 32),
+            _buildStepSpecificContent(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepSpecificContent() {
     switch (_currentStep) {
       case 0:
-        return FadeInRight(
-          duration: const Duration(milliseconds: 300),
-          child: Column(
-            children: [
-              _buildTextField(
-                label: 'First Name',
-                controller: _firstNameController,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your first name';
-                  }
-                  return null;
-                },
-                hintText: 'Enter your first name',
-                prefixIcon: Icons.person_outline,
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                label: 'Last Name',
-                controller: _lastNameController,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your last name';
-                  }
-                  return null;
-                },
-                hintText: 'Enter your last name',
-                prefixIcon: Icons.person_outline,
-              ),
-            ],
-          ),
+        return Column(
+          children: [
+            _buildTextField(
+              label: 'First Name',
+              controller: _firstNameController,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your first name';
+                }
+                return null;
+              },
+              hintText: 'Enter your first name',
+              prefixIcon: Icons.person_outline,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Last Name',
+              controller: _lastNameController,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your last name';
+                }
+                return null;
+              },
+              hintText: 'Enter your last name',
+              prefixIcon: Icons.person_outline,
+            ),
+          ],
         );
       case 1:
-        return FadeInRight(
-          duration: const Duration(milliseconds: 300),
-          child: _buildDropdownField(),
-        );
+        return _buildDropdownField();
       case 2:
-        return FadeInRight(
-          duration: const Duration(milliseconds: 300),
-          child: Column(
-            children: [
-              _buildTextField(
-                label: 'ZIP Code',
-                controller: _zipCodeController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(5),
-                ],
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your ZIP code';
-                  }
-                  if (value.length != 5) {
-                    return 'ZIP code must be 5 digits';
-                  }
-                  return null;
-                },
-                hintText: 'Enter your ZIP code',
-                prefixIcon: Icons.location_on_outlined,
-              ),
-              const SizedBox(height: 24),
-              _buildCheckbox(),
-              const SizedBox(height: 32),
-              _buildContinueButton(),
-            ],
-          ),
+        return Column(
+          children: [
+            _buildTextField(
+              label: 'ZIP Code',
+              controller: _zipCodeController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(5),
+              ],
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your ZIP code';
+                }
+                if (value.length != 5) {
+                  return 'ZIP code must be 5 digits';
+                }
+                return null;
+              },
+              hintText: 'Enter your ZIP code',
+              prefixIcon: Icons.location_on_outlined,
+            ),
+            const SizedBox(height: 24),
+            _buildCheckbox(),
+            const SizedBox(height: 32),
+            _buildContinueButton(),
+          ],
         );
       default:
         return const SizedBox.shrink();
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF061535),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: FadeTransition(
-              opacity: _fadeInAnimation,
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          icon: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.arrow_back,
-                                color: Colors.white),
-                          ),
-                          onPressed: () => Navigator.of(context).pop(),
-                          tooltip: 'Go Back',
-                        ),
-                        Image.asset(
-                          'assets/images/blink_logo.png',
-                          height: 30,
-                          fit: BoxFit.contain,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Center(
-                      child: FadeInDown(
-                        duration: const Duration(milliseconds: 800),
-                        child: SvgPicture.asset(
-                          'assets/images/personal_info.svg',
-                          height: 180,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    FadeInLeft(
-                      duration: const Duration(milliseconds: 800),
-                      child: const Text(
-                        'Personal Information',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FadeInLeft(
-                      duration: const Duration(milliseconds: 800),
-                      delay: const Duration(milliseconds: 200),
-                      child: Text(
-                        'Please provide your personal information to continue',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 16,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    _buildProgressIndicator(),
-                    const SizedBox(height: 24),
-                    _buildStepContent(),
-                    const SizedBox(height: 32),
-                    FadeInUp(
-                      duration: const Duration(milliseconds: 800),
-                      delay: const Duration(milliseconds: 600),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          if (_currentStep > 0)
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _currentStep--;
-                                });
-                              },
-                              child: const Text(
-                                'Previous',
-                                style: TextStyle(
-                                  color: Color(0xFF2196F3),
-                                  fontSize: 16,
-                                  fontFamily: 'Onest',
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          if (_currentStep < 2)
-                            ElevatedButton(
-                              onPressed: () {
-                                if (_formKey.currentState!.validate()) {
-                                  setState(() {
-                                    _currentStep++;
-                                  });
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2196F3),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                                elevation: 5,
-                              ),
-                              child: const Text(
-                                'Next',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontFamily: 'Onest',
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                  ],
-                ),
+  Widget _buildNavigationButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        if (_currentStep > 0)
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _currentStep--;
+              });
+              _backgroundAnimationController.reverse();
+            },
+            child: const Text(
+              'Previous',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w600,
               ),
+            ),
+          )
+        else
+          const SizedBox(width: 80),
+        ElevatedButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              if (_currentStep < 2) {
+                setState(() {
+                  _currentStep++;
+                });
+                _backgroundAnimationController.forward();
+              } else {
+                _submitForm();
+              }
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: _stepColors[_currentStep],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+            elevation: 5,
+          ),
+          child: Text(
+            _currentStep == 2 ? 'Submit' : 'Next',
+            style: TextStyle(
+              fontSize: 16,
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: AnimatedBuilder(
+        animation: _backgroundColorAnimation,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: BackgroundPainter(
+              startColor:
+                  _backgroundColorAnimation.value ?? _stepColors[_currentStep],
+              endColor: _stepColors[_currentStep],
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0, vertical: 16.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              icon: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.arrow_back,
+                                    color: Colors.white),
+                              ),
+                              onPressed: () => Navigator.of(context).pop(),
+                              tooltip: 'Go Back',
+                            ),
+                            Image.asset(
+                              'assets/images/blink_logo.png',
+                              height: 30,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        _buildStepContent(),
+                        const SizedBox(height: 32),
+                        _buildProgressIndicator(),
+                        const SizedBox(height: 24),
+                        _buildNavigationButtons(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -2,10 +2,44 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:blink_app/features/auth/presentation/new_user_data_screen.dart';
+import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:lottie/lottie.dart';
+
+class BackgroundPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color(0xFF0D47A1),
+          Color(0xFF1565C0),
+          Color(0xFF1976D2),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+
+    final circlePaint = Paint()
+      ..color = Colors.white.withAlpha(25)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+        Offset(size.width * 0.8, size.height * 0.2), 100, circlePaint);
+    canvas.drawCircle(
+        Offset(size.width * 0.2, size.height * 0.8), 150, circlePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
+  }
+}
 
 class EnterOtpScreen extends StatefulWidget {
   final String email;
@@ -382,124 +416,136 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF061535),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          CustomPaint(
+            painter: BackgroundPainter(),
+            child: Container(),
+          ),
+          SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0, vertical: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    IconButton(
-                      icon: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          shape: BoxShape.circle,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                          ),
+                          onPressed: () =>
+                              Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (context) => const SignUpScreen(),
+                            ),
+                          ),
+                          tooltip: 'Go Back',
                         ),
-                        child:
-                            const Icon(Icons.arrow_back, color: Colors.white),
+                        Image.asset(
+                          'assets/images/blink_logo.png',
+                          height: 30,
+                          fit: BoxFit.contain,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: FadeInDown(
+                        duration: Duration(milliseconds: 800),
+                        child: Lottie.asset(
+                          'assets/animations/enterotp.json',
+                          height: 200,
+                          fit: BoxFit.contain,
+                        ),
                       ),
-                      onPressed: () => Navigator.of(context).pop(),
-                      tooltip: 'Go Back',
                     ),
-                    Image.asset(
-                      'assets/images/blink_logo.png',
-                      height: 30,
-                      fit: BoxFit.contain,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Center(
-                  child: FadeInDown(
-                    duration: Duration(milliseconds: 800),
-                    child: Image.asset(
-                      'assets/images/enter_code.png',
-                      height: 180,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                FadeInLeft(
-                  duration: Duration(milliseconds: 800),
-                  child: const Text(
-                    'Enter Verification Code',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontFamily: 'Onest',
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FadeInLeft(
-                  duration: Duration(milliseconds: 800),
-                  delay: Duration(milliseconds: 200),
-                  child: Text(
-                    'We\'ve sent a verification code to ${widget.email}. Please enter it below to verify your account.',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 16,
-                      fontFamily: 'Onest',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                FadeInUp(
-                  duration: Duration(milliseconds: 800),
-                  delay: Duration(milliseconds: 400),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'OTP',
+                    const SizedBox(height: 32),
+                    FadeInLeft(
+                      duration: Duration(milliseconds: 800),
+                      child: const Text(
+                        'Enter Verification Code',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: 28,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FadeInLeft(
+                      duration: Duration(milliseconds: 800),
+                      delay: Duration(milliseconds: 200),
+                      child: Text(
+                        'We\'ve sent a verification code to ${widget.email}. Please enter it below to verify your account.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 16,
                           fontFamily: 'Onest',
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      _buildOtpFields(),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 32),
+                    FadeInUp(
+                      duration: Duration(milliseconds: 800),
+                      delay: Duration(milliseconds: 400),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'OTP',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildOtpFields(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FadeInUp(
+                      duration: Duration(milliseconds: 800),
+                      delay: Duration(milliseconds: 600),
+                      child: Column(
+                        children: [
+                          _buildAutofillButton(),
+                          const SizedBox(height: 8),
+                          _buildTimerDisplay(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    FadeInUp(
+                      duration: Duration(milliseconds: 800),
+                      delay: Duration(milliseconds: 800),
+                      child: _buildVerifyNowButton(),
+                    ),
+                    const SizedBox(height: 16),
+                    FadeInUp(
+                      duration: Duration(milliseconds: 800),
+                      delay: Duration(milliseconds: 1000),
+                      child: _buildResendCodeOption(),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                FadeInUp(
-                  duration: Duration(milliseconds: 800),
-                  delay: Duration(milliseconds: 600),
-                  child: Column(
-                    children: [
-                      _buildAutofillButton(),
-                      const SizedBox(height: 8),
-                      _buildTimerDisplay(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                FadeInUp(
-                  duration: Duration(milliseconds: 800),
-                  delay: Duration(milliseconds: 800),
-                  child: _buildVerifyNowButton(),
-                ),
-                const SizedBox(height: 16),
-                FadeInUp(
-                  duration: Duration(milliseconds: 800),
-                  delay: Duration(milliseconds: 1000),
-                  child: _buildResendCodeOption(),
-                ),
-                const SizedBox(height: 32),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
