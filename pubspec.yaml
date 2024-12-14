@@ -86,6 +86,7 @@ flutter:
     - assets/animations/instant_cash.json
     - assets/animations/money_management.json
     - assets/animations/transparency.json
+    - assets/animations/verification.json
     - assets/images/new_user.png
     - assets/images/link_bank.png
     - assets/images/bank_of_america.svg
