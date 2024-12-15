@@ -39,7 +39,7 @@ dependencies:
   flutter_localization: ^0.2.3
   flutter_chat_bubble: ^2.0.2
   shimmer: ^3.0.0
-  lottie: ^3.2.0
+  lottie: ^3.3.0
   animated_emoji: ^3.1.0
   giffy_dialog: ^2.3.0
   flutter_animation_progress_bar: ^2.3.1
@@ -64,43 +64,16 @@ flutter:
   assets:
     - assets/images/
     - assets/animations/
-    - assets/images/blink_logo.png
-    - assets/images/blink_logo1.svg
-    - assets/images/blinky.svg
-    - assets/images/blinkyship.svg
-    - assets/images/backarrow.png
-    - assets/images/create_password.svg
-    - assets/images/create_password.png
-    - assets/images/personal_info.svg
-    - assets/images/roth_ira_vs_401k.png
-    - assets/images/budgeting_basics.png
-    - assets/images/credit_scores.png
-    - assets/images/investing_beginners.png
-    - assets/images/avatar.png
-    - assets/images/OBJECTS.svg
-    - assets/images/OBJECTS-1.svg
-    - assets/images/OBJECTS-2.svg
-    - assets/images/google_icon.png
-    - assets/images/apple_icon.png
-    - assets/images/verification.png
-    - assets/animations/instant_cash.json
-    - assets/animations/money_management.json
-    - assets/animations/transparency.json
-    - assets/animations/verification.json
-    - assets/animations/personal_info.json
-    - assets/animations/location.json
-    - assets/animations/confirmation.json
-    - assets/animations/location.json
-    - assets/animations/enterotp.json
-    - assets/images/new_user.png
-    - assets/images/link_bank.png
-    - assets/images/bank_of_america.svg
-    - assets/images/chase.svg
-    - assets/images/wells_fargo.svg
-    - assets/images/citi.svg
-    - assets/images/blinky-avatar.png
-    - .env
-
+    # Animated Emoji Assets
+    - packages/animated_emoji/lottie/moneyWithWings.json
+    - packages/animated_emoji/lottie/partyPopper.json
+    - packages/animated_emoji/lottie/checkMark.json
+    - packages/animated_emoji/lottie/sad.json
+    - packages/animated_emoji/lottie/thinkingFace.json
+    - packages/animated_emoji/lottie/rocket.json
+    - packages/animated_emoji/lottie/alarmClock.json
+    - packages/animated_emoji/lottie/electricity.json
+  
   fonts:
     - family: Onest
       fonts:
@@ -109,4 +82,3 @@ flutter:
         - asset: assets/fonts/NunitoSans_SemiBold.ttf
         - asset: assets/fonts/NunitoSans.ttf
           weight: 700
-

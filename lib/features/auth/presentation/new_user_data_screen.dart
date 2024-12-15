@@ -637,6 +637,8 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor:
+          _backgroundColorAnimation.value ?? _stepColors[_currentStep],
       body: AnimatedBuilder(
         animation: _backgroundColorAnimation,
         builder: (context, child) {
@@ -646,46 +648,50 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                   _backgroundColorAnimation.value ?? _stepColors[_currentStep],
               endColor: _stepColors[_currentStep],
             ),
-            child: SafeArea(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0, vertical: 16.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              icon: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  shape: BoxShape.circle,
+            child: Container(
+              height: MediaQuery.of(context).size.height,
+              width: MediaQuery.of(context).size.width,
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0, vertical: 16.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              IconButton(
+                                icon: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.arrow_back,
+                                      color: Colors.white),
                                 ),
-                                child: const Icon(Icons.arrow_back,
-                                    color: Colors.white),
+                                onPressed: () => Navigator.of(context).pop(),
+                                tooltip: 'Go Back',
                               ),
-                              onPressed: () => Navigator.of(context).pop(),
-                              tooltip: 'Go Back',
-                            ),
-                            Image.asset(
-                              'assets/images/blink_logo.png',
-                              height: 30,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _buildStepContent(),
-                        const SizedBox(height: 32),
-                        _buildProgressIndicator(),
-                        const SizedBox(height: 24),
-                        _buildNavigationButtons(),
-                      ],
+                              Image.asset(
+                                'assets/images/blink_logo.png',
+                                height: 30,
+                                fit: BoxFit.contain,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          _buildStepContent(),
+                          const SizedBox(height: 32),
+                          _buildProgressIndicator(),
+                          const SizedBox(height: 24),
+                          _buildNavigationButtons(),
+                        ],
+                      ),
                     ),
                   ),
                 ),

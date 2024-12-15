@@ -2,12 +2,14 @@ import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
+import 'package:blink_app/features/auth/presentation/new_user_data_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:lottie/lottie.dart';
 
 class CreatePasswordScreen extends StatefulWidget {
   final String email;
@@ -363,6 +365,14 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
+            ),
             suffixIcon: IconButton(
               icon: Icon(
                 obscureText ? Icons.visibility_off : Icons.visibility,
@@ -453,6 +463,14 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
+            ),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword
@@ -481,6 +499,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
         onPressed: _isLoading ? null : _submitPassword,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2196F3),
+          foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
@@ -596,155 +615,173 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF061535),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: Stack(
-              children: [
-                ConfettiWidget(
-                  confettiController: _confettiController,
-                  blastDirectionality: BlastDirectionality.explosive,
-                  particleDrag: 0.05,
-                  emissionFrequency: 0.05,
-                  numberOfParticles: 50,
-                  gravity: 0.05,
-                  shouldLoop: false,
-                  colors: const [
-                    Colors.blue,
-                    Colors.white,
-                    Colors.lightBlueAccent
-                  ],
-                ),
-                FadeTransition(
-                  opacity: _fadeInAnimation,
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              icon: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  shape: BoxShape.circle,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0D47A1),
+              Color(0xFF1565C0),
+              Color(0xFF1976D2),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              child: Stack(
+                children: [
+                  ConfettiWidget(
+                    confettiController: _confettiController,
+                    blastDirectionality: BlastDirectionality.explosive,
+                    particleDrag: 0.05,
+                    emissionFrequency: 0.05,
+                    numberOfParticles: 50,
+                    gravity: 0.05,
+                    shouldLoop: false,
+                    colors: const [
+                      Colors.blue,
+                      Colors.white,
+                      Colors.lightBlueAccent
+                    ],
+                  ),
+                  FadeTransition(
+                    opacity: _fadeInAnimation,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              IconButton(
+                                icon: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.arrow_back,
+                                      color: Colors.white),
                                 ),
-                                child: const Icon(Icons.arrow_back,
-                                    color: Colors.white),
+                                onPressed: () =>
+                                    Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        NewUserDataScreen(email: widget.email),
+                                  ),
+                                ),
+                                tooltip: 'Go Back',
                               ),
-                              onPressed: () => Navigator.of(context).pop(),
-                              tooltip: 'Go Back',
+                              SvgPicture.asset(
+                                'assets/images/blink_logo1.svg',
+                                height: 30,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Center(
+                            child: FadeInDown(
+                              duration: const Duration(milliseconds: 800),
+                              child: Lottie.asset(
+                                'assets/animations/create_password.json',
+                                height: 200,
+                                fit: BoxFit.contain,
+                              ),
                             ),
-                            Image.asset(
-                              'assets/images/blink_logo.png',
-                              height: 30,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: FadeInDown(
+                          ),
+                          const SizedBox(height: 32),
+                          FadeInLeft(
                             duration: const Duration(milliseconds: 800),
-                            child: SvgPicture.asset(
-                              'assets/images/create_password.svg',
-                              height: 180,
-                              fit: BoxFit.contain,
+                            child: const Text(
+                              'Create Password',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 800),
-                          child: const Text(
-                            'Create Password',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(height: 8),
+                          FadeInLeft(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 200),
+                            child: Text(
+                              'Create a strong password to secure your account',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 16,
+                                fontFamily: 'Onest',
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 200),
-                          child: Text(
-                            'Create a strong password to secure your account',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 16,
-                              fontFamily: 'Onest',
+                          const SizedBox(height: 32),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 400),
+                            child: _buildPasswordField(
+                              label: 'Password',
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              toggleVisibility: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter a password';
+                                }
+                                if (_strengthScore < 0.6) {
+                                  return 'Password is not strong enough';
+                                }
+                                return null;
+                              },
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 400),
-                          child: _buildPasswordField(
-                            label: 'Password',
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            toggleVisibility: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a password';
-                              }
-                              if (_strengthScore < 0.6) {
-                                return 'Password is not strong enough';
-                              }
-                              return null;
-                            },
+                          const SizedBox(height: 16),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 600),
+                            child: _buildPasswordStrengthIndicator(),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 600),
-                          child: _buildPasswordStrengthIndicator(),
-                        ),
-                        const SizedBox(height: 24),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 800),
-                          child: _buildConfirmPasswordField(),
-                        ),
-                        const SizedBox(height: 24),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 1000),
-                          child: _buildPasswordRequirements(),
-                        ),
-                        const SizedBox(height: 24),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 1200),
-                          child: _buildCheckbox(),
-                        ),
-                        const SizedBox(height: 32),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 1400),
-                          child: _buildCreatePasswordButton(),
-                        ),
-                        const SizedBox(height: 32),
-                      ],
+                          const SizedBox(height: 24),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 800),
+                            child: _buildConfirmPasswordField(),
+                          ),
+                          const SizedBox(height: 24),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 1000),
+                            child: _buildPasswordRequirements(),
+                          ),
+                          const SizedBox(height: 24),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 1200),
+                            child: _buildCheckbox(),
+                          ),
+                          const SizedBox(height: 32),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 1400),
+                            child: _buildCreatePasswordButton(),
+                          ),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

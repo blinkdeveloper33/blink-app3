@@ -51,8 +51,8 @@ enum TransferSpeed {
 }
 
 class AuthService {
-  final String _baseUrl =
-      dotenv.env['BACKEND_URL'] ?? 'https://your-backend-url.com';
+  final String _baseUrl = dotenv.env['BACKEND_URL'] ??
+      'https://5000-idx-blinkbackend2-1731939610309.cluster-fnjdffmttjhy2qqdugh3yehhs2.cloudworkstations.dev';
   final Logger _logger;
   final StorageService _storageService;
 
@@ -103,13 +103,28 @@ class AuthService {
           'Response from $endpoint: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body);
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        } else if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        } else {
+          throw ApiException(
+              message: 'Unexpected response format',
+              statusCode: response.statusCode);
+        }
       } else {
         final error = jsonDecode(response.body);
-        throw ApiException(
-          message: error['error'] ?? 'Unknown error',
-          statusCode: response.statusCode,
-        );
+        if (error is Map<String, dynamic>) {
+          throw ApiException(
+            message: error['error'] ?? 'Unknown error',
+            statusCode: response.statusCode,
+          );
+        } else {
+          throw ApiException(
+              message: 'Unexpected error format',
+              statusCode: response.statusCode);
+        }
       }
     } catch (e) {
       _logger.e('Error in API call to $endpoint: $e');
@@ -208,7 +223,7 @@ class AuthService {
         // Store the first bank account's ID
         final primaryBankAccount = bankAccounts.first;
         await _storageService
-            .setBankAccountId(primaryBankAccount['bankAccountId']);
+            .setBankAccountId(primaryBankAccount['bankAccountId'] as String);
         _logger.i(
             'Bank account ID stored: ${primaryBankAccount['bankAccountId']}');
       } else {
@@ -239,7 +254,9 @@ class AuthService {
       );
 
       if (response['success']) {
-        final profile = response['data'];
+        final profile = response['data'] is Map<String, dynamic>
+            ? response['data'] as Map<String, dynamic>
+            : Map<String, dynamic>.from(response['data'] as Map);
         _logger.i('User profile fetched successfully');
 
         final firstName = profile['first_name'] as String? ?? '';
@@ -250,7 +267,7 @@ class AuthService {
 
         if (profile['bank_account_name'] != null) {
           await _storageService
-              .setBankAccountName(profile['bank_account_name']);
+              .setBankAccountName(profile['bank_account_name'] as String);
           _logger
               .i('Bank account name stored: ${profile['bank_account_name']}');
         } else {
@@ -312,7 +329,17 @@ class AuthService {
       if (response['success']) {
         _logger.i('Bank accounts fetched successfully');
         _logger.i('Bank accounts data: ${response['bankAccounts']}');
-        return List<Map<String, dynamic>>.from(response['bankAccounts']);
+        return List<Map<String, dynamic>>.from(
+            (response['bankAccounts'] as List).map((account) {
+          if (account is Map<String, dynamic>) {
+            return account;
+          } else if (account is Map) {
+            return Map<String, dynamic>.from(account);
+          } else {
+            throw ApiException(
+                message: 'Invalid bank account format', statusCode: 500);
+          }
+        }));
       } else {
         _logger.e('Failed to fetch bank accounts: ${response['error']}');
         return [];
@@ -337,11 +364,22 @@ class AuthService {
         _logger.i('Detailed bank accounts fetched successfully');
         _logger.i('Detailed Bank Accounts: ${response['bankAccounts']}');
         return List<Map<String, dynamic>>.from(
-            response['bankAccounts'].map((account) {
-          return {
-            ...account,
-            'accountName': account['accountName'],
-          };
+            (response['bankAccounts'] as List).map((account) {
+          if (account is Map<String, dynamic>) {
+            return {
+              ...account,
+              'accountName': account['accountName'],
+            };
+          } else if (account is Map) {
+            return {
+              ...Map<String, dynamic>.from(account),
+              'accountName': account['accountName'],
+            };
+          } else {
+            throw ApiException(
+                message: 'Invalid detailed bank account format',
+                statusCode: 500);
+          }
         }));
       } else {
         _logger
@@ -365,10 +403,18 @@ class AuthService {
 
       if (response['success'] &&
           response['bankAccounts'] is List &&
-          response['bankAccounts'].isNotEmpty) {
+          (response['bankAccounts'] as List).isNotEmpty) {
         // Assuming the first account is the primary account
         final primaryAccount = response['bankAccounts'].first;
-        return primaryAccount['accountName'];
+        if (primaryAccount is Map<String, dynamic>) {
+          return primaryAccount['accountName'] as String?;
+        } else if (primaryAccount is Map) {
+          final accountMap = Map<String, dynamic>.from(primaryAccount);
+          return accountMap['accountName'] as String?;
+        } else {
+          _logger.w('Primary account name not found due to invalid format');
+          return null;
+        }
       } else {
         _logger.w('Primary account name not found');
         return null;
@@ -390,7 +436,9 @@ class AuthService {
 
       if (response['success'] == true && response['transactions'] is List) {
         final transactions = (response['transactions'] as List)
-            .map((json) => Transaction.fromJson(json as Map<String, dynamic>))
+            .map((json) => Transaction.fromJson(json is Map<String, dynamic>
+                ? json
+                : Map<String, dynamic>.from(json as Map)))
             .toList();
 
         return {
@@ -398,8 +446,9 @@ class AuthService {
           'transactions': transactions,
         };
       } else {
-        throw Exception(
-            'Failed to fetch transactions: Unexpected response format');
+        throw ApiException(
+            message: 'Failed to fetch transactions: Unexpected response format',
+            statusCode: 500);
       }
     } catch (e) {
       _logger.e('Error fetching transactions: $e');
@@ -443,7 +492,22 @@ class AuthService {
       method: 'GET',
       requireAuth: true,
     );
-    return List<Map<String, dynamic>>.from(response['blinkAdvances']);
+    if (response['blinkAdvances'] is List) {
+      return List<Map<String, dynamic>>.from(
+          (response['blinkAdvances'] as List).map((advance) {
+        if (advance is Map<String, dynamic>) {
+          return advance;
+        } else if (advance is Map) {
+          return Map<String, dynamic>.from(advance);
+        } else {
+          throw ApiException(
+              message: 'Invalid BlinkAdvance format', statusCode: 500);
+        }
+      }));
+    } else {
+      throw ApiException(
+          message: 'Invalid BlinkAdvances data format', statusCode: 500);
+    }
   }
 
   Future<Map<String, dynamic>> getBlinkAdvanceById(String id) async {
@@ -478,7 +542,7 @@ class AuthService {
     );
 
     if (response.containsKey('link_token')) {
-      return response['link_token'];
+      return response['link_token'] as String;
     } else {
       throw ApiException(message: 'Link token not found', statusCode: 500);
     }
@@ -551,16 +615,22 @@ class AuthService {
 
       if (response['success'] == true && response['transactions'] is List) {
         return (response['transactions'] as List)
-            .map((json) => Transaction.fromJson(json as Map<String, dynamic>))
+            .map((json) => Transaction.fromJson(json is Map<String, dynamic>
+                ? json
+                : Map<String, dynamic>.from(json as Map)))
             .toList();
       } else {
         _logger.e('Unexpected response format: $response');
-        throw Exception(
-            'Failed to fetch recent transactions: Unexpected response format');
+        throw ApiException(
+            message:
+                'Failed to fetch recent transactions: Unexpected response format',
+            statusCode: 500);
       }
     } catch (e) {
       _logger.e('Error fetching recent transactions', error: e);
-      throw Exception('Failed to fetch recent transactions: ${e.toString()}');
+      throw ApiException(
+          message: 'Failed to fetch recent transactions: ${e.toString()}',
+          statusCode: 500);
     }
   }
 

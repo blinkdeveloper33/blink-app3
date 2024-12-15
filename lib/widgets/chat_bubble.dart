@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animated_emoji/animated_emoji.dart';
+import 'package:blink_app/features/blink_advance/presentation/blink_advance_screen.dart'; // Ensure proper import
 
 class CustomChatBubble extends StatelessWidget {
-  final String message;
+  final ChatMessage message; // Accept ChatMessage object
   final bool isUser;
   final DateTime timestamp;
   final bool isAnimating;
@@ -68,19 +69,20 @@ class CustomChatBubble extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(
-                        child: Text(
-                          message,
-                          style: TextStyle(
-                            color: isUser ? Colors.white : Colors.black87,
-                            fontSize: 16,
-                            height: 1.4,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        child: message.richText ?? // ✅ Correct access
+                            Text(
+                              message.text,
+                              style: TextStyle(
+                                color: isUser ? Colors.white : Colors.black87,
+                                fontSize: 16,
+                                height: 1.4,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                       ),
                       if (emoji != null) ...[
                         SizedBox(width: 8),
-                        emoji!,
+                        emoji!, // Ensure AnimatedEmoji handles errors internally
                       ],
                     ],
                   ),

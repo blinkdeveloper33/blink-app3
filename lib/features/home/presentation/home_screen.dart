@@ -1,5 +1,3 @@
-// lib/features/home/presentation/home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:blink_app/services/auth_service.dart' as auth;
@@ -22,11 +20,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final Logger _logger = Logger();
-  bool _isDarkMode = true;
+  bool _isDarkMode = false;
   final NumberFormat currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   List<auth.Transaction> _recentTransactions = [];
-  double _currentBalance = 0.0; // Dedicated variable for current balance
+  double _currentBalance = 0.0;
   late AnimationController _animationController;
   late Animation<double> _animation;
   String _userName = '';
@@ -64,7 +62,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    // Initialize AnimationController for balance animation
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -74,7 +71,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
     _animationController.reset();
 
-    // Load initial data
     _loadData();
     _fetchAndStoreDetailedBankAccounts();
   }
@@ -85,7 +81,6 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  /// Loads user info, recent transactions, and current balances
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
@@ -100,7 +95,6 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  /// Fetches and stores detailed bank accounts, setting primaryAccountName
   Future<void> _fetchAndStoreDetailedBankAccounts() async {
     final authService = Provider.of<auth.AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
@@ -115,13 +109,8 @@ class _HomeScreenState extends State<HomeScreen>
       await storageService.setDetailedBankAccounts(detailedBankAccounts);
       _logger.i('Detailed bank accounts fetched and stored successfully');
 
-      // Log the detailed bank accounts
-      _logger.i('Detailed Bank Accounts: $detailedBankAccounts');
-
-      // Extract the first bank account as primary
       final primaryBankAccount = detailedBankAccounts.first;
 
-      // Safely extract and set bankAccountId
       final bankAccountId = primaryBankAccount['bankAccountId'] as String?;
       if (bankAccountId != null && bankAccountId.isNotEmpty) {
         await storageService.setBankAccountId(bankAccountId);
@@ -133,7 +122,6 @@ class _HomeScreenState extends State<HomeScreen>
         _logger.w('Bank account ID is missing in bank account details.');
       }
 
-      // Safely extract and set primaryAccountName
       final primaryAccountName = primaryBankAccount['accountName'] as String?;
       if (primaryAccountName != null && primaryAccountName.isNotEmpty) {
         await storageService.setPrimaryAccountName(primaryAccountName);
@@ -145,16 +133,15 @@ class _HomeScreenState extends State<HomeScreen>
         _logger.w('Primary account name is missing in bank account details.');
       }
 
-      // Trigger balance animation only if needed
       _animationController.reset();
       _animationController.forward();
     } catch (e) {
       _logger.e('Error fetching detailed bank accounts: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-                'Failed to fetch bank account details. Please try again.'),
+          const SnackBar(
+            content:
+                Text('Failed to fetch bank account details. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -162,7 +149,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Loads user information from StorageService
   Future<void> _loadUserInfo() async {
     final storageService = Provider.of<StorageService>(context, listen: false);
     setState(() {
@@ -173,7 +159,6 @@ class _HomeScreenState extends State<HomeScreen>
     _logger.i('User Info - Name: $_userName, Bank Account ID: $_bankAccountId');
   }
 
-  /// Fetches recent transactions
   Future<void> _loadRecentTransactions() async {
     final authService = Provider.of<auth.AuthService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
@@ -193,9 +178,9 @@ class _HomeScreenState extends State<HomeScreen>
       _logger.e('Error loading recent transactions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-                'Failed to load recent transactions. Please try again.'),
+          const SnackBar(
+            content:
+                Text('Failed to load recent transactions. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -203,13 +188,12 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Fetches current balances
   Future<void> _loadCurrentBalances() async {
     final authService = Provider.of<auth.AuthService>(context, listen: false);
 
     try {
       final balances = await authService.getCurrentBalances();
-      _logger.i('Balances Response: $balances'); // Log entire response
+      _logger.i('Balances Response: $balances');
 
       if (balances.isNotEmpty &&
           balances['accounts'] != null &&
@@ -259,9 +243,8 @@ class _HomeScreenState extends State<HomeScreen>
       _logger.e('Error loading current balances: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-                'Failed to load current balances. Please try again.'),
+          const SnackBar(
+            content: Text('Failed to load current balances. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -269,7 +252,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Determines the appropriate greeting based on the current time
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) {
@@ -281,108 +263,99 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Provides context about the current day
   String _getDayContext() {
     final now = DateTime.now();
     final dayName = DateFormat('EEEE').format(now);
     return "How's your $dayName going so far?";
   }
 
-  /// Builds the header section with user info and theme toggle
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        GestureDetector(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const AccountScreen()),
-            );
-          },
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _isDarkMode ? Colors.white24 : Colors.grey[300],
-                ),
-                child: Icon(
-                  Icons.person,
-                  color: _isDarkMode ? Colors.white : Colors.black54,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        '${_getGreeting()}, ',
-                        style: TextStyle(
-                          color: _isDarkMode ? Colors.white70 : Colors.black54,
-                          fontSize: 16,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                      Text(
-                        _userName,
-                        style: TextStyle(
-                          color: _isDarkMode ? Colors.white : Colors.black,
-                          fontSize: 16,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    _getDayContext(),
-                    style: TextStyle(
-                      color: _isDarkMode ? Colors.white70 : Colors.black54,
-                      fontSize: 14,
-                      fontFamily: 'Onest',
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const AccountScreen()),
+              );
+            },
+            child: Row(
+              children: [
+                Hero(
+                  tag: 'profilePicture',
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor:
+                        _isDarkMode ? Colors.white24 : Colors.grey[300],
+                    child: Icon(
+                      Icons.person,
+                      color: _isDarkMode ? Colors.white : Colors.black54,
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        GestureDetector(
-          onTap: () {
-            setState(() {
-              _isDarkMode = !_isDarkMode;
-              // If using a centralized ThemeManager, toggle it here
-              // Example:
-              // Provider.of<ThemeManager>(context, listen: false).toggleTheme();
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _isDarkMode ? Colors.white24 : Colors.grey[300],
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          '${_getGreeting()}, ',
+                          style: TextStyle(
+                            color:
+                                _isDarkMode ? Colors.white70 : Colors.black54,
+                            fontSize: 16,
+                            fontFamily: 'Onest',
+                          ),
+                        ),
+                        Text(
+                          _userName,
+                          style: TextStyle(
+                            color: _isDarkMode ? Colors.white : Colors.black,
+                            fontSize: 16,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      _getDayContext(),
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white70 : Colors.black54,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            child: Icon(
+          ),
+          IconButton(
+            icon: Icon(
               _isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
               color: _isDarkMode ? Colors.white : Colors.black54,
-              size: 24,
             ),
+            onPressed: () {
+              setState(() {
+                _isDarkMode = !_isDarkMode;
+              });
+            },
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  /// Builds the financial summary section displaying current balance and primary account
   Widget _buildFinancialSummary() {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
+        color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -486,13 +459,11 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Builds quick action cards (Blink Advance, Repayment, Insights)
   Widget _buildQuickActions() {
     return AspectRatio(
       aspectRatio: 1,
       child: Row(
         children: [
-          // Blink Advance Card
           Expanded(
             child: GestureDetector(
               onTap: _handleBlinkAdvanceTap,
@@ -501,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _isDarkMode ? Colors.blue[900] : Colors.blue[100],
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
@@ -512,67 +483,34 @@ class _HomeScreenState extends State<HomeScreen>
                     ],
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE3F2FD),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.attach_money,
-                          color: Color(0xFF2196F3),
-                          size: 24,
-                        ),
+                      Icon(
+                        Icons.attach_money,
+                        color: _isDarkMode ? Colors.white : Colors.blue[800],
+                        size: 48,
                       ),
-                      const Spacer(),
-                      const Text(
+                      const SizedBox(height: 16),
+                      Text(
                         'Blink Advance',
                         style: TextStyle(
-                          color: Color(0xFF1A1F36),
-                          fontSize: 24,
+                          color: _isDarkMode ? Colors.white : Colors.blue[800],
+                          fontSize: 18,
                           fontFamily: 'Onest',
                           fontWeight: FontWeight.bold,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Eligibility for Blink',
+                      Text(
+                        'Eligibility: On Review',
                         style: TextStyle(
-                          color: Color(0xFF6B7280),
+                          color:
+                              _isDarkMode ? Colors.white70 : Colors.blue[600],
                           fontSize: 14,
                           fontFamily: 'Onest',
                         ),
-                      ),
-                      const Text(
-                        'Advance: On Review!',
-                        style: TextStyle(
-                          color: Color(0xFF6B7280),
-                          fontSize: 14,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          Text(
-                            'Know more',
-                            style: TextStyle(
-                              color: Color(0xFF2196F3),
-                              fontSize: 14,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_forward,
-                            size: 16,
-                            color: Color(0xFF2196F3),
-                          ),
-                        ],
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
@@ -581,58 +519,42 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(width: 16),
-          // Repayment and Insights Cards
           Expanded(
             child: Column(
               children: [
-                // Repayment Card
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE3F2FD),
+                      color:
+                          _isDarkMode ? Colors.green[900] : Colors.green[100],
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.account_balance,
-                            color: Color(0xFF2196F3),
-                            size: 20,
-                          ),
+                        Icon(
+                          Icons.account_balance,
+                          color: _isDarkMode ? Colors.white : Colors.green[800],
+                          size: 32,
                         ),
-                        const Spacer(),
-                        const Text(
+                        const SizedBox(height: 8),
+                        Text(
                           'Repayment',
                           style: TextStyle(
-                            color: Color(0xFF1A1F36),
-                            fontSize: 18,
+                            color:
+                                _isDarkMode ? Colors.white : Colors.green[800],
+                            fontSize: 16,
                             fontFamily: 'Onest',
                             fontWeight: FontWeight.bold,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Repayment Calendar',
-                          style: TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 13,
-                            fontFamily: 'Onest',
-                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Insights Card
                 Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -643,44 +565,34 @@ class _HomeScreenState extends State<HomeScreen>
                       );
                     },
                     child: Container(
-                      padding: const EdgeInsets.all(32),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1A237E),
+                        color: _isDarkMode
+                            ? Colors.purple[900]
+                            : Colors.purple[100],
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.insights,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                          Icon(
+                            Icons.insights,
+                            color:
+                                _isDarkMode ? Colors.white : Colors.purple[800],
+                            size: 32,
                           ),
-                          const Spacer(),
-                          const Text(
+                          const SizedBox(height: 8),
+                          Text(
                             'Insights',
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
+                              color: _isDarkMode
+                                  ? Colors.white
+                                  : Colors.purple[800],
+                              fontSize: 16,
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.bold,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Review Insights',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                              fontFamily: 'Onest',
-                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
@@ -695,7 +607,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Builds individual transaction items
   Widget _buildTransactionItem(auth.Transaction transaction) {
     final String formattedAmount =
         currencyFormatter.format(transaction.amount.abs());
@@ -713,7 +624,6 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       child: Row(
         children: [
-          // Transaction Icon based on category
           Container(
             width: 40,
             height: 40,
@@ -727,7 +637,6 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(width: 12),
-          // Transaction Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,7 +671,6 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
-          // Transaction Amount
           Text(
             transaction.isOutflow ? '-$formattedAmount' : '+$formattedAmount',
             style: TextStyle(
@@ -777,11 +685,9 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Builds the recent transactions section
   Widget _buildRecentTransactions() {
     return Column(
       children: [
-        // Header with title and 'See all' button
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -811,7 +717,6 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
         const SizedBox(height: 16),
-        // Transactions List or Loading Indicator
         _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _recentTransactions.isEmpty
@@ -835,11 +740,9 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Builds the news and updates section
   Widget _buildNewsAndUpdates() {
     return Column(
       children: [
-        // Header with title and 'See all' button
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -869,83 +772,98 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
         const SizedBox(height: 16),
-        // Horizontal scrollable news list
         SizedBox(
-          height:
-              300, // Adjust this value to change the height of the news cards
+          height: 300,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: _newsItems.length,
             itemBuilder: (context, index) {
-              return _buildNewsCard(_newsItems[index]);
+              return _buildNewsCard(_newsItems[index], index);
             },
+            padding: const EdgeInsets.symmetric(horizontal: 16),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildNewsCard(Map<String, String> newsItem) {
-    return Container(
-      width: 300, // Adjust this value to change the width of the news cards
-      margin: EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _isDarkMode ? Colors.white24 : Colors.black12,
+  Widget _buildNewsCard(Map<String, String> newsItem, int index) {
+    return TweenAnimationBuilder(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 500 + (index * 100)),
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 50 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: GestureDetector(
+        onTap: () {
+          // TODO: Implement news item tap action
+        },
+        child: Container(
+          width: 300,
+          margin: const EdgeInsets.only(right: 16),
+          decoration: BoxDecoration(
+            color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isDarkMode ? Colors.white24 : Colors.black12,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+                child: Image.asset(
+                  newsItem['imageUrl']!,
+                  width: double.infinity,
+                  height: 150,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      newsItem['title']!,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white : Colors.black,
+                        fontSize: 16,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      newsItem['description']!,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white70 : Colors.black54,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // News Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Image.asset(
-              newsItem['imageUrl']!,
-              width: double.infinity,
-              height: 150,
-              fit: BoxFit.cover,
-            ),
-          ),
-          // News Details
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  newsItem['title']!,
-                  style: TextStyle(
-                    color: _isDarkMode ? Colors.white : Colors.black,
-                    fontSize: 16,
-                    fontFamily: 'Onest',
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  newsItem['description']!,
-                  style: TextStyle(
-                    color: _isDarkMode ? Colors.white70 : Colors.black54,
-                    fontSize: 14,
-                    fontFamily: 'Onest',
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  /// Handles tap on Blink Advance card
   void _handleBlinkAdvanceTap() {
     if (_bankAccountId.isNotEmpty) {
       Navigator.of(context).push(
@@ -965,7 +883,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Returns appropriate icon based on transaction category
   IconData _getCategoryIcon(String category) {
     switch (category.toLowerCase()) {
       case 'groceries':
@@ -985,7 +902,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Wrap Scaffold with ConfettiOverlay to enable confetti animations
     return ConfettiOverlay(
       child: Scaffold(
         backgroundColor:
@@ -993,6 +909,8 @@ class _HomeScreenState extends State<HomeScreen>
         body: SafeArea(
           child: RefreshIndicator(
             onRefresh: _loadData,
+            color: _isDarkMode ? Colors.white : Colors.blue,
+            backgroundColor: _isDarkMode ? Colors.blue[700] : Colors.white,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Padding(
