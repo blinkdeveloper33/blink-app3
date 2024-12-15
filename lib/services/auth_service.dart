@@ -95,6 +95,8 @@ class AuthService {
       } else if (method.toUpperCase() == 'PATCH') {
         response =
             await http.patch(url, headers: headers, body: jsonEncode(body));
+      } else if (method.toUpperCase() == 'DELETE') {
+        response = await http.delete(url, headers: headers);
       } else {
         throw UnsupportedMethodException('Unsupported HTTP method: $method');
       }
@@ -218,7 +220,7 @@ class AuthService {
       await _fetchAndStoreUserProfile();
 
       // **Fetch and store bankAccountId after login**
-      final bankAccounts = await getUserBankAccounts();
+      final bankAccounts = await getLinkedAccounts();
       if (bankAccounts.isNotEmpty) {
         // Store the first bank account's ID
         final primaryBankAccount = bankAccounts.first;
@@ -316,9 +318,9 @@ class AuthService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getUserBankAccounts() async {
+  Future<List<Map<String, dynamic>>> getLinkedAccounts() async {
     try {
-      _logger.i('Fetching user bank accounts...');
+      _logger.i('Fetching user linked accounts...');
       final response = await _makeRequest(
         endpoint: '/api/users/bank-accounts/detailed',
         body: {},
@@ -327,8 +329,8 @@ class AuthService {
       );
 
       if (response['success']) {
-        _logger.i('Bank accounts fetched successfully');
-        _logger.i('Bank accounts data: ${response['bankAccounts']}');
+        _logger.i('Linked accounts fetched successfully');
+        _logger.i('Linked accounts data: ${response['bankAccounts']}');
         return List<Map<String, dynamic>>.from(
             (response['bankAccounts'] as List).map((account) {
           if (account is Map<String, dynamic>) {
@@ -341,11 +343,11 @@ class AuthService {
           }
         }));
       } else {
-        _logger.e('Failed to fetch bank accounts: ${response['error']}');
+        _logger.e('Failed to fetch linked accounts: ${response['error']}');
         return [];
       }
     } catch (e) {
-      _logger.e('Error fetching bank accounts: $e');
+      _logger.e('Error fetching linked accounts: $e');
       return [];
     }
   }
@@ -366,15 +368,9 @@ class AuthService {
         return List<Map<String, dynamic>>.from(
             (response['bankAccounts'] as List).map((account) {
           if (account is Map<String, dynamic>) {
-            return {
-              ...account,
-              'accountName': account['accountName'],
-            };
+            return account;
           } else if (account is Map) {
-            return {
-              ...Map<String, dynamic>.from(account),
-              'accountName': account['accountName'],
-            };
+            return Map<String, dynamic>.from(account);
           } else {
             throw ApiException(
                 message: 'Invalid detailed bank account format',
@@ -637,6 +633,90 @@ class AuthService {
   Future<Map<String, dynamic>> getCurrentBalances() async {
     return _makeRequest(
       endpoint: '/api/plaid/current-balances',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
+  /// -------------------------
+  /// User Profile Management
+  /// -------------------------
+  Future<Map<String, dynamic>> updateUserProfile(
+      Map<String, dynamic> updatedInfo) async {
+    return _makeRequest(
+      endpoint: '/api/users/update-profile',
+      body: updatedInfo,
+      method: 'PATCH',
+      requireAuth: true,
+    );
+  }
+
+  /// -------------------------
+  /// Linked Account Management
+  /// -------------------------
+  Future<Map<String, dynamic>> addLinkedAccount(String accountInfo) async {
+    return _makeRequest(
+      endpoint: '/api/users/add-account',
+      body: {'accountInfo': accountInfo},
+      method: 'POST',
+      requireAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> removeLinkedAccount(String accountId) async {
+    return _makeRequest(
+      endpoint: '/api/users/remove-account/$accountId',
+      body: {},
+      method: 'DELETE',
+      requireAuth: true,
+    );
+  }
+
+  /// -------------------------
+  /// Account Statistics
+  /// -------------------------
+  Future<Map<String, dynamic>> getDetailedAccountStatistics() async {
+    return _makeRequest(
+      endpoint: '/api/users/account-statistics',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> getUserProfile() async {
+    return _makeRequest(
+      endpoint: '/api/users/profile',
+      body: {},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> getAllTransactionsPaginated(
+      {int page = 1, int pageSize = 100}) async {
+    return _makeRequest(
+      endpoint: '/api/plaid/all-transactions',
+      body: {'page': page, 'pageSize': pageSize},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> handlePlaidWebhook(
+      Map<String, dynamic> webhookData) async {
+    return _makeRequest(
+      endpoint: '/api/plaid/webhook',
+      body: webhookData,
+      method: 'POST',
+      requireAuth: false,
+    );
+  }
+
+  Future<Map<String, dynamic>> getAccountData() async {
+    return _makeRequest(
+      endpoint: '/api/users/account-data',
       body: {},
       method: 'GET',
       requireAuth: true,

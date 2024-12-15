@@ -19,6 +19,7 @@ class StorageKeys {
   static const String bankAccountName = 'bankAccountName';
   static const String transactions = 'transactions';
   static const String lastUpdated = 'lastUpdated';
+  static const String createdAt = 'createdAt';
 }
 
 class StorageService {
@@ -371,6 +372,72 @@ class StorageService {
     } catch (e) {
       _logger.e('Failed to clear transactions: $e');
       throw Exception('Failed to clear transactions');
+    }
+  }
+
+  Future<void> setAccountStatistics(Map<String, dynamic> statistics) async {
+    try {
+      final jsonString = json.encode(statistics);
+      final encryptedString = _encrypt(jsonString);
+      await _prefs.setString('accountStatistics', encryptedString);
+      _logger.i('Account statistics stored successfully');
+    } catch (e) {
+      _logger.e('Failed to store account statistics: $e');
+      throw Exception('Failed to store account statistics');
+    }
+  }
+
+  Map<String, dynamic>? getAccountStatistics() {
+    try {
+      final encryptedString = _prefs.getString('accountStatistics');
+      if (encryptedString == null) return null;
+      final jsonString = _decrypt(encryptedString);
+      return json.decode(jsonString) as Map<String, dynamic>;
+    } catch (e) {
+      _logger.e('Failed to retrieve account statistics: $e');
+      return null;
+    }
+  }
+
+  Future<void> setUserPreferences(Map<String, dynamic> preferences) async {
+    try {
+      final jsonString = json.encode(preferences);
+      await _prefs.setString('userPreferences', jsonString);
+      _logger.i('User preferences stored successfully');
+    } catch (e) {
+      _logger.e('Failed to store user preferences: $e');
+      throw Exception('Failed to store user preferences');
+    }
+  }
+
+  Map<String, dynamic>? getUserPreferences() {
+    try {
+      final jsonString = _prefs.getString('userPreferences');
+      if (jsonString == null) return null;
+      return json.decode(jsonString) as Map<String, dynamic>;
+    } catch (e) {
+      _logger.e('Failed to retrieve user preferences: $e');
+      return null;
+    }
+  }
+
+  Future<void> setCreatedAt(DateTime createdAt) async {
+    try {
+      await _prefs.setString('createdAt', createdAt.toIso8601String());
+      _logger.i('Created at date set: $createdAt');
+    } catch (e) {
+      _logger.e('Failed to set created at date: $e');
+      throw Exception('Failed to set created at date');
+    }
+  }
+
+  DateTime? getCreatedAt() {
+    try {
+      final createdAtString = _prefs.getString('createdAt');
+      return createdAtString != null ? DateTime.parse(createdAtString) : null;
+    } catch (e) {
+      _logger.e('Failed to get created at date: $e');
+      return null;
     }
   }
 }

@@ -73,6 +73,7 @@ flutter:
     - packages/animated_emoji/lottie/rocket.json
     - packages/animated_emoji/lottie/alarmClock.json
     - packages/animated_emoji/lottie/electricity.json
+    - .env
   
   fonts:
     - family: Onest

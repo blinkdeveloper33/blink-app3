@@ -52,12 +52,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   String? _selectedAmount;
   TransferSpeed? _selectedSpeed;
   DateTime? _selectedDate;
-  final ScrollController _scrollController = ScrollController();
+  late ScrollController _scrollController;
   int? _animatingMessageIndex;
   bool _isTyping = false;
   final GlobalKey _confettiKey = GlobalKey();
-  final List<int> _amountOptions =
-      List.generate(7, (index) => 150 + index * 25);
+  final List<int> _amountOptions = [300, 275, 250, 225, 200, 175, 150];
   late AnimationController _fadeController;
   late AnimationController _inputSectionController;
   late Animation<Offset> _inputSectionAnimation;
@@ -86,6 +85,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     _loadUserName();
     _addInitialMessage();
     _fadeController.forward();
+    _scrollController = ScrollController();
 
     // Initialize the input section animation after a delay
     Future.delayed(Duration(milliseconds: 500), () {
@@ -160,11 +160,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
 
     Future.delayed(Duration(milliseconds: 100), () {
       if (!mounted) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      _scrollToBottom();
     });
 
     // Show quick actions after message animation completes
@@ -269,6 +265,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         timestamp: DateTime.now(),
         emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
       ));
+      _resetInputSection();
     });
   }
 
@@ -458,6 +455,18 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     });
   }
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final storageService = Provider.of<StorageService>(context, listen: false);
@@ -476,36 +485,37 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
               icon: Icon(Icons.arrow_back_ios_new, color: Colors.white),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text(
-                  'Blinky',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Blinky',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'Advance for $bankAccountName',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withAlpha(204),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  'Advance for $bankAccountName',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withAlpha(204),
-                  ),
+                SizedBox(width: 8),
+                CircleAvatar(
+                  backgroundImage:
+                      AssetImage('assets/images/blinky-avatar.png'),
+                  radius: 20,
                 ),
               ],
             ),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Image.asset(
-                  'assets/images/blink_logo.png',
-                  height: 30,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ],
           ),
           body: Column(
             children: [
@@ -634,28 +644,32 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         runSpacing: 8,
         alignment: WrapAlignment.center,
         children: _amountOptions.map((amount) {
-          return ElevatedButton(
+          return _buildAnimatedButton(
             onPressed: () => _handleAmountSelection(amount.toString()),
             child: Text(
               '\$$amount',
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: kPrimaryColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              elevation: 5,
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 100.ms)
-              .scale(begin: Offset(0.8, 0.8), end: Offset(1, 1));
+            backgroundColor: kPrimaryColor,
+          );
         }).toList(),
       ),
     );
+  }
+
+  Widget _buildAnimatedButton({
+    required VoidCallback onPressed,
+    required Widget child,
+    required Color backgroundColor,
+  }) {
+    return AnimatedButton(
+      onPressed: onPressed,
+      backgroundColor: backgroundColor,
+      child: child,
+    )
+        .animate()
+        .fadeIn(duration: 300.ms, delay: 100.ms)
+        .scale(begin: Offset(0.8, 0.8), end: Offset(1, 1));
   }
 
   Widget _buildSpeedSelection() {
@@ -676,6 +690,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 ),
                 textColor: Colors.white,
                 emoji: AnimatedEmoji(AnimatedEmojis.electricity, size: 28),
+                particles: true,
               ),
             ),
             SizedBox(width: 12),
@@ -692,6 +707,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 ),
                 textColor: kPrimaryColor,
                 emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 28),
+                particles: false,
               ),
             ),
           ],
@@ -711,70 +727,67 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     required Gradient gradient,
     required Color textColor,
     required Widget emoji,
+    required bool particles,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _handleSpeedSelection(speed),
+    return GestureDetector(
+      onTap: () => _handleSpeedSelection(speed),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: gradient,
           borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-            child: Column(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha((0.1 * 255).round()),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.symmetric(
+            vertical: 20.8,
+            horizontal: 12), // Increased vertical padding by 1.3 times
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    emoji,
-                    SizedBox(width: 8),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 4),
+                emoji,
+                SizedBox(width: 8),
                 Text(
-                  subtitle,
+                  title,
                   style: TextStyle(
-                    color: textColor.withOpacity(0.8),
-                    fontSize: 14,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: textColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '\$${fee.toStringAsFixed(2)} fee',
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-          ),
+            SizedBox(height: 6.5), // Increased from 6 to 6.5
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: textColor.withAlpha((0.8 * 255).round()),
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(height: 6.5), // Increased from 6 to 6.5
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: textColor.withAlpha((0.15 * 255).round()),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '\$${fee.toStringAsFixed(2)} fee',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     )
@@ -1084,9 +1097,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
             child: Text(
               DateFormat('MMM d, h:mm a').format(widget.timestamp),
               style: TextStyle(
-                color: widget.isUser
-                    ? Colors.white.withAlpha(179)
-                    : Colors.black87.withAlpha(179),
+                color: Colors.white.withAlpha(179),
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -1169,6 +1180,77 @@ class BlinkyAvatar extends StatelessWidget {
         child: Image.asset(
           'assets/images/blinky-avatar.png',
           fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
+class AnimatedButton extends StatefulWidget {
+  final Widget child;
+  final Color backgroundColor;
+  final VoidCallback onPressed;
+
+  const AnimatedButton({
+    Key? key,
+    required this.child,
+    required this.backgroundColor,
+    required this.onPressed,
+  }) : super(key: key);
+
+  @override
+  _AnimatedButtonState createState() => _AnimatedButtonState();
+}
+
+class _AnimatedButtonState extends State<AnimatedButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 200),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) {
+        _controller.reverse();
+        widget.onPressed();
+      },
+      onTapCancel: () => _controller.reverse(),
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Container(
+          decoration: BoxDecoration(
+            color: widget.backgroundColor,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: widget.backgroundColor.withAlpha((0.3 * 255).round()),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: EdgeInsets.symmetric(
+              horizontal: 20, vertical: 15.6), // Increased by 1.3 times
+          child: widget.child,
         ),
       ),
     );
