@@ -1,5 +1,3 @@
-// lib/services/auth_service.dart
-
 import 'dart:convert';
 import 'package:blink_app/services/storage_service.dart';
 import 'package:http/http.dart' as http;
@@ -39,6 +37,26 @@ class Transaction {
       date: DateTime.parse(json['date'] as String),
       amount: amount.abs(),
       isOutflow: isOutflow,
+    );
+  }
+}
+
+class DailyTransactionSummary {
+  final DateTime date;
+  final double totalAmount;
+  final int transactionCount;
+
+  DailyTransactionSummary({
+    required this.date,
+    required this.totalAmount,
+    required this.transactionCount,
+  });
+
+  factory DailyTransactionSummary.fromJson(Map<String, dynamic> json) {
+    return DailyTransactionSummary(
+      date: DateTime.parse(json['date'] as String),
+      totalAmount: (json['totalAmount'] as num).toDouble(),
+      transactionCount: json['transactionCount'] as int,
     );
   }
 }
@@ -137,9 +155,7 @@ class AuthService {
     }
   }
 
-  /// -------------------------
-  /// User Registration & Authentication
-  /// -------------------------
+  // User Registration & Authentication methods
 
   Future<Map<String, dynamic>> registerInitial(String email) async {
     return _makeRequest(
@@ -206,7 +222,6 @@ class AuthService {
       }
       _logger.i('Login successful. Token and userId stored.');
 
-      // Check if firstName and lastName are present in the login response
       final firstName = response['firstName'] as String?;
       final lastName = response['lastName'] as String?;
       if (firstName != null && lastName != null) {
@@ -219,10 +234,8 @@ class AuthService {
 
       await _fetchAndStoreUserProfile();
 
-      // **Fetch and store bankAccountId after login**
       final bankAccounts = await getLinkedAccounts();
       if (bankAccounts.isNotEmpty) {
-        // Store the first bank account's ID
         final primaryBankAccount = bankAccounts.first;
         await _storageService
             .setBankAccountId(primaryBankAccount['bankAccountId'] as String);
@@ -241,9 +254,7 @@ class AuthService {
     _logger.i('User logged out and all data cleared.');
   }
 
-  /// -------------------------
-  /// User Profile Management
-  /// -------------------------
+  // User Profile Management methods
 
   Future<void> _fetchAndStoreUserProfile() async {
     try {
@@ -277,12 +288,10 @@ class AuthService {
         }
         _logger.i('First name and last name stored');
 
-        // Update fullName based on fetched firstName and lastName
         final fullName = '$firstName $lastName';
         await _storageService.setFullName(fullName);
         _logger.i('User full name updated: $fullName');
 
-        // Note: bank_account_id is not present in this response
         _logger.w('bank_account_id not found in user profile');
       } else {
         _logger.e('Failed to fetch user profile: ${response['error']}');
@@ -292,9 +301,7 @@ class AuthService {
     }
   }
 
-  /// -------------------------
-  /// User Status & Bank Accounts
-  /// -------------------------
+  // User Status & Bank Accounts methods
 
   Future<UserStatus> getUserStatus() async {
     final userId = _storageService.getUserId();
@@ -400,7 +407,6 @@ class AuthService {
       if (response['success'] &&
           response['bankAccounts'] is List &&
           (response['bankAccounts'] as List).isNotEmpty) {
-        // Assuming the first account is the primary account
         final primaryAccount = response['bankAccounts'].first;
         if (primaryAccount is Map<String, dynamic>) {
           return primaryAccount['accountName'] as String?;
@@ -455,9 +461,7 @@ class AuthService {
     }
   }
 
-  /// -------------------------
-  /// BlinkAdvance Endpoints
-  /// -------------------------
+  // BlinkAdvance Endpoints
 
   Future<Map<String, dynamic>> createBlinkAdvance({
     required String userId,
@@ -525,9 +529,7 @@ class AuthService {
     );
   }
 
-  /// -------------------------
-  /// Plaid Integration
-  /// -------------------------
+  // Plaid Integration
 
   Future<String> createLinkToken(String userId) async {
     final response = await _makeRequest(
@@ -639,9 +641,8 @@ class AuthService {
     );
   }
 
-  /// -------------------------
-  /// User Profile Management
-  /// -------------------------
+  // User Profile Management
+
   Future<Map<String, dynamic>> updateUserProfile(
       Map<String, dynamic> updatedInfo) async {
     return _makeRequest(
@@ -652,9 +653,8 @@ class AuthService {
     );
   }
 
-  /// -------------------------
-  /// Linked Account Management
-  /// -------------------------
+  // Linked Account Management
+
   Future<Map<String, dynamic>> addLinkedAccount(String accountInfo) async {
     return _makeRequest(
       endpoint: '/api/users/add-account',
@@ -673,9 +673,8 @@ class AuthService {
     );
   }
 
-  /// -------------------------
-  /// Account Statistics
-  /// -------------------------
+  // Account Statistics
+
   Future<Map<String, dynamic>> getDetailedAccountStatistics() async {
     return _makeRequest(
       endpoint: '/api/users/account-statistics',
@@ -723,18 +722,47 @@ class AuthService {
     );
   }
 
-  /// -------------------------
-  /// Initialization
-  /// -------------------------
+  // Daily Transaction Summary
+
+  Future<List<DailyTransactionSummary>> getDailyTransactionSummary() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/daily-transaction-summary',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] == true && response['data'] is List) {
+        return (response['data'] as List)
+            .map((json) => DailyTransactionSummary.fromJson(
+                json is Map<String, dynamic>
+                    ? json
+                    : Map<String, dynamic>.from(json as Map)))
+            .toList();
+      } else {
+        _logger.e('Unexpected response format: $response');
+        throw ApiException(
+            message:
+                'Failed to fetch daily transaction summary: Unexpected response format',
+            statusCode: 500);
+      }
+    } catch (e) {
+      _logger.e('Error fetching daily transaction summary', error: e);
+      throw ApiException(
+          message: 'Failed to fetch daily transaction summary: ${e.toString()}',
+          statusCode: 500);
+    }
+  }
+
+  // Initialization
 
   Future<void> init() async {
     _logger.i('AuthService initialized.');
   }
 }
 
-/// -------------------------
-/// Exception Classes
-/// -------------------------
+// Exception Classes
 
 class ApiException implements Exception {
   final String message;

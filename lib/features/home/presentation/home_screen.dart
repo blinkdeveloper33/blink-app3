@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:blink_app/services/auth_service.dart' as auth;
@@ -9,6 +10,8 @@ import 'package:blink_app/features/blink_advance/presentation/blink_advance_scre
 import 'package:blink_app/widgets/confetti_overlay.dart';
 import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart'
     as insights;
+import 'package:animate_do/animate_do.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +34,9 @@ class _HomeScreenState extends State<HomeScreen>
   String _bankAccountId = '';
   String? _primaryAccountName;
   bool _isLoading = false;
+  List<auth.DailyTransactionSummary> _dailyTransactionSummary = [];
+  bool _isChartExpanded = false;
+  bool _isChartLoading = false;
 
   final List<Map<String, String>> _newsItems = [
     {
@@ -89,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen>
       _loadUserInfo(),
       _loadRecentTransactions(),
       _loadCurrentBalances(),
+      // Remove _loadDailyTransactionSummary() from here
     ]);
     setState(() {
       _isLoading = false;
@@ -252,6 +259,39 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  Future<void> _loadDailyTransactionSummary() async {
+    if (_isChartLoading) return;
+
+    setState(() {
+      _isChartLoading = true;
+    });
+
+    final authService = Provider.of<auth.AuthService>(context, listen: false);
+
+    try {
+      final summary = await authService.getDailyTransactionSummary();
+      setState(() {
+        _dailyTransactionSummary = summary;
+        _isChartLoading = false;
+      });
+      _logger.i('Loaded daily transaction summary: $_dailyTransactionSummary');
+    } catch (e) {
+      _logger.e('Error loading daily transaction summary: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Failed to load daily transaction summary. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      setState(() {
+        _isChartLoading = false;
+      });
+    }
+  }
+
   String _getGreeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) {
@@ -263,87 +303,226 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  String _getDayContext() {
+  String _getCreativeGreeting() {
     final now = DateTime.now();
-    final dayName = DateFormat('EEEE').format(now);
-    return "How's your $dayName going so far?";
+    final dayOfWeek = now.weekday;
+    final random = Random();
+
+    final greetings = [
+      // Monday
+      [
+        "Monday blues? Let's turn them into green!",
+        "New week, new financial goals!",
+        "Monday: Your wallet's fresh start!",
+        "Mondays are for money moves!",
+        "Ready to rock this Money Monday?",
+      ],
+      // Tuesday
+      [
+        "Taco Tuesday or Saving Tuesday?",
+        "Tuesday: The day your budget gets real!",
+        "Two-sday: Double down on your savings!",
+        "It's Choose-day: Choose to save!",
+        "Tuesday: Small changes, big impacts!",
+      ],
+      // Wednesday
+      [
+        "Wednesday: Halfway to financial freedom!",
+        "It's Hump Day for your money too!",
+        "Wednesday wisdom: Save a little, earn a lot!",
+        "Midweek money check: How're we doing?",
+        "Wednesday: Your wallet's halftime show!",
+      ],
+      // Thursday
+      [
+        "Thursday: Almost payday, stay strong!",
+        "Thrifty Thursday: Every penny counts!",
+        "Thursday thought: What's your money doing?",
+        "Pre-Friday financial check-in!",
+        "Thursday: Budget's last stand before the weekend!",
+      ],
+      // Friday
+      [
+        "TGIF: Thank Goodness It's Financially savvy Friday!",
+        "Friday fun doesn't have to break the bank!",
+        "Friyay! Time to celebrate (responsibly)!",
+        "Friday: Treat yourself, but don't cheat yourself!",
+        "Weekend's here! Time for some R&R (Relaxation & Responsible spending)!",
+      ],
+      // Saturday
+      [
+        "Saturday: Spend time, not just money!",
+        "Weekend vibes and smart financial decisions!",
+        "Saturday's special: Free fun with friends!",
+        "Savvy Saturday: Mix pleasure with financial leisure!",
+        "Weekend warrior or weekend saver?",
+      ],
+      // Sunday
+      [
+        "Sunday: Plan your week, plan your wealth!",
+        "Lazy Sunday? Your money never rests!",
+        "Sunday funday: Enjoy life's free pleasures!",
+        "Reflect, relax, and review your finances!",
+        "Sunday: Your wallet's day of rest too!",
+      ],
+    ];
+
+    return greetings[dayOfWeek - 1][random.nextInt(5)];
+  }
+
+  String _getDayContext() {
+    return _getCreativeGreeting();
   }
 
   Widget _buildHeader() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: _isDarkMode ? const Color(0xFF1C2A4D) : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: _isDarkMode ? Colors.black12 : Colors.grey.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const AccountScreen()),
-              );
-            },
+          Expanded(
             child: Row(
               children: [
-                Hero(
-                  tag: 'profilePicture',
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor:
-                        _isDarkMode ? Colors.white24 : Colors.grey[300],
-                    child: Icon(
-                      Icons.person,
-                      color: _isDarkMode ? Colors.white : Colors.black54,
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (context) => const AccountScreen()),
+                    );
+                  },
+                  child: Hero(
+                    tag: 'profilePicture',
+                    child: FadeIn(
+                      duration: const Duration(milliseconds: 500),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor:
+                            _isDarkMode ? Colors.white24 : Colors.grey[300],
+                        child: Icon(
+                          Icons.person,
+                          color: _isDarkMode ? Colors.white : Colors.black54,
+                          size: 24,
+                        ),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          '${_getGreeting()}, ',
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      FadeInDown(
+                        duration: const Duration(milliseconds: 500),
+                        from: 20,
+                        child: Text(
+                          '${_getGreeting()}, ${_userName.split(' ')[0]}',
+                          style: TextStyle(
+                            color: _isDarkMode ? Colors.white : Colors.black87,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Onest',
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      FadeInDown(
+                        duration: const Duration(milliseconds: 500),
+                        delay: const Duration(milliseconds: 200),
+                        from: 20,
+                        child: Text(
+                          _getDayContext(),
                           style: TextStyle(
                             color:
                                 _isDarkMode ? Colors.white70 : Colors.black54,
-                            fontSize: 16,
+                            fontSize: 12,
                             fontFamily: 'Onest',
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
+                          textAlign: TextAlign.left,
                         ),
-                        Text(
-                          _userName,
-                          style: TextStyle(
-                            color: _isDarkMode ? Colors.white : Colors.black,
-                            fontSize: 16,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      _getDayContext(),
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white70 : Colors.black54,
-                        fontSize: 14,
-                        fontFamily: 'Onest',
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          IconButton(
-            icon: Icon(
-              _isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
-              color: _isDarkMode ? Colors.white : Colors.black54,
-            ),
-            onPressed: () {
-              setState(() {
-                _isDarkMode = !_isDarkMode;
-              });
-            },
+          Row(
+            children: [
+              FadeIn(
+                duration: const Duration(milliseconds: 500),
+                delay: const Duration(milliseconds: 300),
+                child: Stack(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.notifications_none,
+                        color: _isDarkMode ? Colors.white : Colors.black54,
+                        size: 28,
+                      ),
+                      onPressed: () {
+                        // TODO: Implement notification screen navigation
+                      },
+                    ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: const Text(
+                          '3',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FadeIn(
+                duration: const Duration(milliseconds: 500),
+                delay: const Duration(milliseconds: 400),
+                child: IconButton(
+                  icon: Icon(
+                    _isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
+                    color: _isDarkMode ? Colors.white : Colors.black54,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isDarkMode = !_isDarkMode;
+                    });
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -355,14 +534,14 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.white,
+        color: _isDarkMode ? const Color(0xFF2C3E50) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: _isDarkMode
-                ? Colors.black.withOpacity(0.2)
+                ? Colors.black.withOpacity(0.3)
                 : Colors.grey.withOpacity(0.2),
-            blurRadius: 10,
+            blurRadius: 15,
             offset: const Offset(0, 5),
           ),
         ],
@@ -370,14 +549,37 @@ class _HomeScreenState extends State<HomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Your Blink Financial Summary",
-            style: TextStyle(
-              color: _isDarkMode ? Colors.white : Colors.black,
-              fontSize: 20,
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Financial Summary",
+                style: TextStyle(
+                  color: _isDarkMode ? Colors.white : Colors.black,
+                  fontSize: 22,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: AnimatedRotation(
+                  turns: _isChartExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 300),
+                  child: Icon(
+                    Icons.keyboard_arrow_down,
+                    color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isChartExpanded = !_isChartExpanded;
+                  });
+                  if (_isChartExpanded && _dailyTransactionSummary.isEmpty) {
+                    _loadDailyTransactionSummary();
+                  }
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           Text(
@@ -431,7 +633,7 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Row(
             children: [
               Text(
@@ -453,6 +655,129 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ],
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            child: _isChartExpanded
+                ? Column(
+                    children: [
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        height: 200,
+                        child: _isChartLoading
+                            ? Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    _isDarkMode ? Colors.white : Colors.blue,
+                                  ),
+                                ),
+                              )
+                            : _dailyTransactionSummary.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      'No transaction data available',
+                                      style: TextStyle(
+                                        color: _isDarkMode
+                                            ? Colors.white70
+                                            : Colors.black54,
+                                        fontSize: 16,
+                                        fontFamily: 'Onest',
+                                      ),
+                                    ),
+                                  )
+                                : LineChart(
+                                    LineChartData(
+                                      gridData: FlGridData(show: false),
+                                      titlesData: FlTitlesData(
+                                        leftTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false)),
+                                        bottomTitles: AxisTitles(
+                                          sideTitles:
+                                              SideTitles(showTitles: false),
+                                        ),
+                                        rightTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false)),
+                                        topTitles: AxisTitles(
+                                            sideTitles:
+                                                SideTitles(showTitles: false)),
+                                      ),
+                                      borderData: FlBorderData(show: false),
+                                      minX: 0,
+                                      maxX:
+                                          (_dailyTransactionSummary.length - 1)
+                                              .toDouble(),
+                                      minY: _dailyTransactionSummary
+                                          .map((e) => -e.totalAmount)
+                                          .reduce(min),
+                                      maxY: _dailyTransactionSummary
+                                          .map((e) => -e.totalAmount)
+                                          .reduce(max),
+                                      lineBarsData: [
+                                        LineChartBarData(
+                                          spots: _dailyTransactionSummary
+                                              .asMap()
+                                              .entries
+                                              .map((entry) => FlSpot(
+                                                  entry.key.toDouble(),
+                                                  -entry.value.totalAmount))
+                                              .toList(),
+                                          isCurved: true,
+                                          color: _isDarkMode
+                                              ? Colors.greenAccent
+                                              : Colors.blue,
+                                          barWidth: 3,
+                                          isStrokeCapRound: true,
+                                          dotData: FlDotData(show: false),
+                                          belowBarData: BarAreaData(
+                                            show: true,
+                                            color: _isDarkMode
+                                                ? Colors.greenAccent
+                                                    .withOpacity(0.1)
+                                                : Colors.blue.withOpacity(0.1),
+                                          ),
+                                        ),
+                                      ],
+                                      lineTouchData: LineTouchData(
+                                        touchTooltipData: LineTouchTooltipData(
+                                          fitInsideHorizontally: true,
+                                          fitInsideVertically: true,
+                                          getTooltipItems: (List<LineBarSpot>
+                                              touchedBarSpots) {
+                                            return touchedBarSpots
+                                                .map((barSpot) {
+                                              final flSpot = barSpot;
+                                              if (flSpot.x >= 0 &&
+                                                  flSpot.x <
+                                                      _dailyTransactionSummary
+                                                          .length) {
+                                                final date =
+                                                    _dailyTransactionSummary[
+                                                            flSpot.x.toInt()]
+                                                        .date;
+                                                return LineTooltipItem(
+                                                  '${DateFormat('MM/dd').format(date)}\n${currencyFormatter.format(-flSpot.y)}',
+                                                  TextStyle(
+                                                    color: _isDarkMode
+                                                        ? Colors.white
+                                                        : Colors.black,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                );
+                                              }
+                                              return null;
+                                            }).toList();
+                                          },
+                                        ),
+                                        handleBuiltInTouches: true,
+                                      ),
+                                    ),
+                                  ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -524,7 +849,7 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(36),
                     decoration: BoxDecoration(
                       color:
                           _isDarkMode ? Colors.green[900] : Colors.green[100],
@@ -565,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen>
                       );
                     },
                     child: Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(50),
                       decoration: BoxDecoration(
                         color: _isDarkMode
                             ? Colors.purple[900]
@@ -747,7 +1072,7 @@ class _HomeScreenState extends State<HomeScreen>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'News & Updates',
+              'News& Updates',
               style: TextStyle(
                 color: _isDarkMode ? Colors.white : Colors.black,
                 fontSize: 20,
@@ -907,31 +1232,38 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor:
             _isDarkMode ? const Color(0xFF061535) : Colors.grey[100],
         body: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: _loadData,
-            color: _isDarkMode ? Colors.white : Colors.blue,
-            backgroundColor: _isDarkMode ? Colors.blue[700] : Colors.white,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(),
-                    const SizedBox(height: 24),
-                    _buildFinancialSummary(),
-                    const SizedBox(height: 24),
-                    _buildQuickActions(),
-                    const SizedBox(height: 32),
-                    _buildRecentTransactions(),
-                    const SizedBox(height: 32),
-                    _buildNewsAndUpdates(),
-                    const SizedBox(height: 32),
-                  ],
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _loadData,
+                  color: _isDarkMode ? Colors.white : Colors.blue,
+                  backgroundColor:
+                      _isDarkMode ? Colors.blue[700] : Colors.white,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          _buildFinancialSummary(),
+                          const SizedBox(height: 24),
+                          _buildQuickActions(),
+                          const SizedBox(height: 32),
+                          _buildRecentTransactions(),
+                          const SizedBox(height: 32),
+                          _buildNewsAndUpdates(),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
