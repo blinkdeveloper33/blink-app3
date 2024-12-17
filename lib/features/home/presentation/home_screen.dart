@@ -37,6 +37,9 @@ class _HomeScreenState extends State<HomeScreen>
   List<auth.DailyTransactionSummary> _dailyTransactionSummary = [];
   bool _isChartExpanded = false;
   bool _isChartLoading = false;
+  bool _isBlinkAdvanceApproved = false;
+  String _blinkAdvanceStatus = 'On Review';
+  bool _isBlinkAdvanceLoading = false;
 
   final List<Map<String, String>> _newsItems = [
     {
@@ -79,6 +82,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     _loadData();
     _fetchAndStoreDetailedBankAccounts();
+    _loadBlinkAdvanceStatus();
   }
 
   @override
@@ -95,7 +99,6 @@ class _HomeScreenState extends State<HomeScreen>
       _loadUserInfo(),
       _loadRecentTransactions(),
       _loadCurrentBalances(),
-      // Remove _loadDailyTransactionSummary() from here
     ]);
     setState(() {
       _isLoading = false;
@@ -289,6 +292,38 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _isChartLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadBlinkAdvanceStatus() async {
+    setState(() {
+      _isBlinkAdvanceLoading = true;
+    });
+
+    try {
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final status = await authService.getBlinkAdvanceApprovalStatus();
+
+      setState(() {
+        _isBlinkAdvanceApproved = status['isApproved'];
+        _blinkAdvanceStatus = status['status'];
+        _isBlinkAdvanceLoading = false;
+      });
+    } catch (e) {
+      _logger.e('Error loading Blink Advance status: $e');
+      setState(() {
+        _isBlinkAdvanceLoading = false;
+        _blinkAdvanceStatus = 'Error';
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Failed to load Blink Advance status. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -827,16 +862,25 @@ class _HomeScreenState extends State<HomeScreen>
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        'Eligibility: On Review',
-                        style: TextStyle(
-                          color:
-                              _isDarkMode ? Colors.white70 : Colors.blue[600],
-                          fontSize: 14,
-                          fontFamily: 'Onest',
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                      _isBlinkAdvanceLoading
+                          ? CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                _isDarkMode
+                                    ? Colors.white70
+                                    : Colors.blue[600]!,
+                              ),
+                            )
+                          : Text(
+                              'Status: $_blinkAdvanceStatus',
+                              style: TextStyle(
+                                color: _isDarkMode
+                                    ? Colors.white70
+                                    : Colors.blue[600],
+                                fontSize: 14,
+                                fontFamily: 'Onest',
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
                     ],
                   ),
                 ),
@@ -1072,7 +1116,7 @@ class _HomeScreenState extends State<HomeScreen>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'News& Updates',
+              'News & Updates',
               style: TextStyle(
                 color: _isDarkMode ? Colors.white : Colors.black,
                 fontSize: 20,
@@ -1190,19 +1234,30 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _handleBlinkAdvanceTap() {
-    if (_bankAccountId.isNotEmpty) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) =>
-              BlinkAdvanceScreen(bankAccountId: _bankAccountId),
-        ),
-      );
+    if (_isBlinkAdvanceApproved) {
+      if (_bankAccountId.isNotEmpty) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Bank account ID not found. Please link your bank account.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Bank account ID not found. Please link your bank account.'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: Text(_blinkAdvanceStatus == 'On Review'
+              ? 'Your Blink Advance application is still under review. Please check back later.'
+              : 'You are not currently eligible for Blink Advance. Please check back later or contact support for more information.'),
+          backgroundColor: Colors.orange,
         ),
       );
     }
@@ -1237,7 +1292,12 @@ class _HomeScreenState extends State<HomeScreen>
               _buildHeader(),
               Expanded(
                 child: RefreshIndicator(
-                  onRefresh: _loadData,
+                  onRefresh: () async {
+                    await Future.wait([
+                      _loadData(),
+                      _loadBlinkAdvanceStatus(),
+                    ]);
+                  },
                   color: _isDarkMode ? Colors.white : Colors.blue,
                   backgroundColor:
                       _isDarkMode ? Colors.blue[700] : Colors.white,

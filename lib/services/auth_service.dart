@@ -529,6 +529,35 @@ class AuthService {
     );
   }
 
+  Future<Map<String, dynamic>> getBlinkAdvanceApprovalStatus() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/blink-advances/approval-status',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] == true && response['data'] != null) {
+        return {
+          'isApproved': response['data']['isApproved'] as bool,
+          'approvedAt': response['data']['approvedAt'] != null
+              ? DateTime.parse(response['data']['approvedAt'] as String)
+              : null,
+          'status': response['data']['status'] as String,
+        };
+      } else {
+        throw ApiException(
+          message: 'Failed to get Blink Advance approval status',
+          statusCode: 500,
+        );
+      }
+    } catch (e) {
+      _logger.e('Error getting Blink Advance approval status: $e');
+      rethrow;
+    }
+  }
+
   // Plaid Integration
 
   Future<String> createLinkToken(String userId) async {
