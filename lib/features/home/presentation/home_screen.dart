@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:blink_app/services/auth_service.dart' as auth;
 import 'package:blink_app/services/storage_service.dart';
@@ -14,7 +15,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -40,6 +41,9 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isBlinkAdvanceApproved = false;
   String _blinkAdvanceStatus = 'On Review';
   bool _isBlinkAdvanceLoading = false;
+  bool _isBlinkAdvanceExpanded = false;
+  bool _hasActiveAdvance = false;
+  Map<String, dynamic>? _activeAdvance;
 
   final List<Map<String, String>> _newsItems = [
     {
@@ -303,10 +307,13 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final authService = Provider.of<auth.AuthService>(context, listen: false);
       final status = await authService.getBlinkAdvanceApprovalStatus();
+      final activeAdvanceResponse = await authService.getActiveBlinkAdvance();
 
       setState(() {
         _isBlinkAdvanceApproved = status['isApproved'];
         _blinkAdvanceStatus = status['status'];
+        _hasActiveAdvance = activeAdvanceResponse['hasActiveAdvance'];
+        _activeAdvance = activeAdvanceResponse['activeAdvance'];
         _isBlinkAdvanceLoading = false;
       });
     } catch (e) {
@@ -314,6 +321,8 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _isBlinkAdvanceLoading = false;
         _blinkAdvanceStatus = 'Error';
+        _hasActiveAdvance = false;
+        _activeAdvance = null;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -825,11 +834,13 @@ class _HomeScreenState extends State<HomeScreen>
       child: Row(
         children: [
           Expanded(
+            flex: _isBlinkAdvanceExpanded ? 2 : 1,
             child: GestureDetector(
               onTap: _handleBlinkAdvanceTap,
               child: Hero(
                 tag: 'blinkAdvanceCard',
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: _isDarkMode ? Colors.blue[900] : Colors.blue[100],
@@ -842,121 +853,42 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ],
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.attach_money,
-                        color: _isDarkMode ? Colors.white : Colors.blue[800],
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Blink Advance',
-                        style: TextStyle(
-                          color: _isDarkMode ? Colors.white : Colors.blue[800],
-                          fontSize: 18,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      _isBlinkAdvanceLoading
-                          ? CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                _isDarkMode
-                                    ? Colors.white70
-                                    : Colors.blue[600]!,
-                              ),
-                            )
-                          : Text(
-                              'Status: $_blinkAdvanceStatus',
-                              style: TextStyle(
-                                color: _isDarkMode
-                                    ? Colors.white70
-                                    : Colors.blue[600],
-                                fontSize: 14,
-                                fontFamily: 'Onest',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                    ],
-                  ),
+                  child: _isBlinkAdvanceExpanded
+                      ? _buildExpandedBlinkAdvanceContent()
+                      : _buildCollapsedBlinkAdvanceContent(),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(36),
-                    decoration: BoxDecoration(
-                      color:
-                          _isDarkMode ? Colors.green[900] : Colors.green[100],
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.account_balance,
-                          color: _isDarkMode ? Colors.white : Colors.green[800],
-                          size: 32,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Repayment',
-                          style: TextStyle(
-                            color:
-                                _isDarkMode ? Colors.white : Colors.green[800],
-                            fontSize: 16,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (context) =>
-                                const insights.FinancialInsightsScreen()),
-                      );
-                    },
+          if (!_isBlinkAdvanceExpanded) ...[
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(
                     child: Container(
-                      padding: const EdgeInsets.all(50),
+                      padding: const EdgeInsets.all(36),
                       decoration: BoxDecoration(
-                        color: _isDarkMode
-                            ? Colors.purple[900]
-                            : Colors.purple[100],
+                        color:
+                            _isDarkMode ? Colors.green[900] : Colors.green[100],
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.insights,
+                            Icons.account_balance,
                             color:
-                                _isDarkMode ? Colors.white : Colors.purple[800],
+                                _isDarkMode ? Colors.white : Colors.green[800],
                             size: 32,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Insights',
+                            'Repayment',
                             style: TextStyle(
                               color: _isDarkMode
                                   ? Colors.white
-                                  : Colors.purple[800],
+                                  : Colors.green[800],
                               fontSize: 16,
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.bold,
@@ -967,13 +899,316 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  const insights.FinancialInsightsScreen()),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(50),
+                        decoration: BoxDecoration(
+                          color: _isDarkMode
+                              ? Colors.purple[900]
+                              : Colors.purple[100],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.insights,
+                              color: _isDarkMode
+                                  ? Colors.white
+                                  : Colors.purple[800],
+                              size: 32,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Insights',
+                              style: TextStyle(
+                                color: _isDarkMode
+                                    ? Colors.white
+                                    : Colors.purple[800],
+                                fontSize: 16,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _buildCollapsedBlinkAdvanceContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Icon(
+              Icons.attach_money,
+              color: Colors.blue[800],
+              size: 24,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Blink',
+          style: TextStyle(
+            color: _isDarkMode ? Colors.white : Colors.blue[800],
+            fontSize: 24,
+            fontFamily: 'Onest',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          'Advance',
+          style: TextStyle(
+            color: _isDarkMode ? Colors.white : Colors.blue[800],
+            fontSize: 24,
+            fontFamily: 'Onest',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const Spacer(),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Status:',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white70 : Colors.blue[600],
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(
+                  _hasActiveAdvance ? 'Active' : _blinkAdvanceStatus,
+                  style: TextStyle(
+                    color: _isDarkMode ? Colors.white : Colors.blue[800],
+                    fontSize: 14,
+                    fontFamily: 'Onest',
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                _getStatusEmoji(),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Know more',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white70 : Colors.blue[600],
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isBlinkAdvanceExpanded = true;
+                });
+              },
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: _isDarkMode ? Colors.white : Colors.blue[800],
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.arrow_forward,
+                    color: _isDarkMode ? Colors.blue[800] : Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExpandedBlinkAdvanceContent() {
+    return SizedBox(
+      height: MediaQuery.of(context).size.width,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Blink Advance',
+                  style: TextStyle(
+                    color: _isDarkMode ? Colors.white : Colors.blue[800],
+                    fontSize: 24,
+                    fontFamily: 'Onest',
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    color: _isDarkMode ? Colors.white : Colors.blue[800],
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isBlinkAdvanceExpanded = false;
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _hasActiveAdvance
+                  ? 'Active Blink Advance'
+                  : 'Application Status: $_blinkAdvanceStatus',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.blue[800],
+                fontSize: 18,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _hasActiveAdvance
+                  ? 'You currently have an active Blink Advance. Make sure to repay it on time to maintain your good standing.'
+                  : 'We\'re reviewing your application. This usually takes 1-2 business days.',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white70 : Colors.blue[600],
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Next Steps:',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.blue[800],
+                fontSize: 16,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _hasActiveAdvance
+                  ? '• Monitor your repayment date and ensure sufficient funds are available.'
+                  : '• You\'ll receive a notification once your application is approved.',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white70 : Colors.blue[600],
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'About Blink Advance:',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.blue[800],
+                fontSize: 16,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Blink Advance is a short-term cash advance service designed to help you manage unexpected expenses or cash flow gaps.',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white70 : Colors.blue[600],
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'FAQs:',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.blue[800],
+                fontSize: 16,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _hasActiveAdvance
+                  ? '1. When is my repayment due?\n   Check your account details for the exact date.\n\n2. Can I repay early?\n   Yes, you can repay at any time without penalties.'
+                  : '1. How long does the review process take?\n   Usually 1-2 business days.\n\n2. Can I cancel my application?\n   Yes, contact support for assistance.',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white70 : Colors.blue[600],
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                // TODO: Implement contact support functionality
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isDarkMode ? Colors.white : Colors.blue[800],
+                foregroundColor: _isDarkMode ? Colors.blue[800] : Colors.white,
+              ),
+              child: const Text('Contact Support'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _getStatusEmoji() {
+    if (_hasActiveAdvance) {
+      return const Text('✅', style: TextStyle(fontSize: 16));
+    }
+    switch (_blinkAdvanceStatus.toLowerCase()) {
+      case 'on review':
+        return const Text('🕒', style: TextStyle(fontSize: 16));
+      case 'approved':
+        return const Text('✅', style: TextStyle(fontSize: 16));
+      case 'rejected':
+        return const Text('❌', style: TextStyle(fontSize: 16));
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _buildTransactionItem(auth.Transaction transaction) {
@@ -1234,7 +1469,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _handleBlinkAdvanceTap() {
-    if (_isBlinkAdvanceApproved) {
+    if (_hasActiveAdvance) {
+      // TODO: Navigate to active Blink Advance details screen
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'You have an active Blink Advance. Repayment details coming soon.'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    } else if (_isBlinkAdvanceApproved) {
       if (_bankAccountId.isNotEmpty) {
         Navigator.of(context).push(
           MaterialPageRoute(

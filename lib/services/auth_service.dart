@@ -558,6 +558,34 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> getActiveBlinkAdvance() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/blink-advances/active',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] == true) {
+        return {
+          'hasActiveAdvance': response['data']['hasActiveAdvance'] as bool,
+          'activeAdvance': response['data']['activeAdvance'] != null
+              ? Map<String, dynamic>.from(response['data']['activeAdvance'])
+              : null,
+        };
+      } else {
+        throw ApiException(
+          message: 'Failed to get active Blink Advance status',
+          statusCode: 500,
+        );
+      }
+    } catch (e) {
+      _logger.e('Error getting active Blink Advance status: $e');
+      rethrow;
+    }
+  }
+
   // Plaid Integration
 
   Future<String> createLinkToken(String userId) async {
