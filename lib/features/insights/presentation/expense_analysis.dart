@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:blink_app/features/insights/presentation/summary_card.dart';
+import 'package:blink_app/features/insights/presentation/animated_pie_chart.dart';
 
-class ExpenseAnalysis extends StatelessWidget {
+class ExpenseAnalysis extends StatefulWidget {
   final Map<String, dynamic> expenseData;
   final String timeFrame;
   final Function(String) onTimeFrameChanged;
@@ -15,71 +16,97 @@ class ExpenseAnalysis extends StatelessWidget {
   });
 
   @override
+  State<ExpenseAnalysis> createState() => _ExpenseAnalysisState();
+}
+
+class _ExpenseAnalysisState extends State<ExpenseAnalysis>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final categories = expenseData['categories'] as List<dynamic>? ?? [];
+    final categories = widget.expenseData['categories'] as List<dynamic>? ?? [];
     final totalSpending =
-        (expenseData['totalSpending'] as num?)?.toDouble() ?? 0.0;
+        (widget.expenseData['totalSpending'] as num?)?.toDouble() ?? 0.0;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 38),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Expense Analysis',
-            style: TextStyle(
-              color: Colors.white,
-              fontFamily: 'Onest',
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 77),
-          SizedBox(
-            height: 200,
-            child: PieChart(
-              PieChartData(
-                sections: _getPieChartSections(categories),
-                centerSpaceRadius: 50,
-                sectionsSpace: 2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.6,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                16, 24, 16, 16), // Reduced bottom padding
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Expense Analysis',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'Onest',
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                itemCount: categories.length,
-                itemBuilder: (context, index) {
-                  final category =
-                      categories[index] as Map<String, dynamic>? ?? {};
-                  final categoryName = category['name'] as String? ?? 'Unknown';
-                  final amount =
-                      (category['amount'] as num?)?.toDouble() ?? 0.0;
-                  final percentage =
-                      (category['percentage'] as num?)?.toDouble() ?? 0.0;
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: constraints.maxWidth * 0.6,
+                  child: AnimatedPieChart(
+                    sections: _getPieChartSections(categories),
+                    animationController: _animationController,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio:
+                        1.4, // Decreased to 1.4 to allow more height for cards
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: categories.length,
+                  itemBuilder: (context, index) {
+                    final category = categories[index] as Map<String, dynamic>;
+                    final categoryName =
+                        category['name'] as String? ?? 'Unknown';
+                    final amount =
+                        (category['amount'] as num?)?.toDouble() ?? 0.0;
+                    final percentage =
+                        (category['percentage'] as num?)?.toDouble() ?? 0.0;
 
-                  return SummaryCard(
-                    categoryName: categoryName,
-                    amount: amount,
-                    totalSpending: totalSpending,
-                    percentage: percentage,
-                    emoji: _getCategoryEmoji(categoryName),
-                  );
-                },
-              );
-            },
+                    return SummaryCard(
+                      categoryName: categoryName,
+                      amount: amount,
+                      totalSpending: totalSpending,
+                      percentage: percentage,
+                      emoji: _getCategoryEmoji(categoryName),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16), // Added extra space at the bottom
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -100,7 +127,7 @@ class ExpenseAnalysis extends StatelessWidget {
       return PieChartSectionData(
         color: colors[index % colors.length],
         value: percentage,
-        title: percentage >= 1.0 ? '${percentage.toStringAsFixed(0)}%' : '',
+        title: percentage >= 5.0 ? '${percentage.toStringAsFixed(0)}%' : '',
         radius: 110,
         titleStyle: const TextStyle(
           fontSize: 16,
@@ -108,7 +135,6 @@ class ExpenseAnalysis extends StatelessWidget {
           color: Colors.white,
           fontFamily: 'Onest',
         ),
-        titlePositionPercentageOffset: 0.55,
       );
     }).toList();
   }
