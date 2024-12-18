@@ -13,6 +13,7 @@ import 'package:blink_app/features/insights/presentation/financial_insights_scre
 import 'package:blink_app/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:blink_app/providers/financial_data_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +72,8 @@ void main() async {
         Provider<AuthService>.value(value: authService),
         Provider<StorageService>.value(value: storageService),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(
+            create: (context) => FinancialDataProvider(authService)),
       ],
       child: const MyApp(),
     ),
@@ -104,7 +107,6 @@ class MyApp extends StatelessWidget {
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '');
         final path = uri.path;
-        final queryParams = uri.queryParameters;
 
         switch (path) {
           case '/':
@@ -117,11 +119,7 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => const HomeScreen());
           case '/insights':
             return MaterialPageRoute(
-              builder: (_) => FinancialInsightsScreen(
-                period: queryParams['period'],
-                startDate: queryParams['startDate'],
-                endDate: queryParams['endDate'],
-              ),
+              builder: (_) => const FinancialInsightsScreen(),
             );
           default:
             return MaterialPageRoute(
@@ -149,6 +147,13 @@ class ThemeProvider with ChangeNotifier {
       brightness: Brightness.light,
       scaffoldBackgroundColor: Colors.white,
       fontFamily: 'Onest',
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(fontFamily: 'Onest'),
+        bodyMedium: TextStyle(fontFamily: 'Onest'),
+        titleLarge: TextStyle(fontFamily: 'Onest'),
+        titleMedium: TextStyle(fontFamily: 'Onest'),
+        titleSmall: TextStyle(fontFamily: 'Onest'),
+      ),
     );
   }
 
@@ -158,6 +163,13 @@ class ThemeProvider with ChangeNotifier {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: const Color(0xFF061535),
       fontFamily: 'Onest',
+      textTheme: const TextTheme(
+        bodyLarge: TextStyle(fontFamily: 'Onest'),
+        bodyMedium: TextStyle(fontFamily: 'Onest'),
+        titleLarge: TextStyle(fontFamily: 'Onest'),
+        titleMedium: TextStyle(fontFamily: 'Onest'),
+        titleSmall: TextStyle(fontFamily: 'Onest'),
+      ),
     );
   }
 }

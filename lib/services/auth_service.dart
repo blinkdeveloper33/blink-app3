@@ -812,6 +812,26 @@ class AuthService {
     }
   }
 
+  // New Method for Category Analysis
+  Future<Map<String, dynamic>> getCategoryAnalysis(String timeFrame) async {
+    return _makeRequest(
+      endpoint: '/api/plaid/category-analysis',
+      body: {'timeFrame': timeFrame},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
+  // New Method for Cash Flow Analysis
+  Future<Map<String, dynamic>> getCashFlowAnalysis(String timeFrame) async {
+    return _makeRequest(
+      endpoint: '/api/cash-flow/analysis',
+      body: {'timeFrame': timeFrame},
+      method: 'GET',
+      requireAuth: true,
+    );
+  }
+
   // Initialization
 
   Future<void> init() async {
