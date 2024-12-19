@@ -74,6 +74,18 @@ flutter:
     - packages/animated_emoji/lottie/rocket.json
     - packages/animated_emoji/lottie/alarmClock.json
     - packages/animated_emoji/lottie/electricity.json
+    - packages/animated_emoji/lottie/spaghetti.json
+    - packages/animated_emoji/lottie/hotBeverage.json
+    - packages/animated_emoji/lottie/lightBulb.json
+    - packages/animated_emoji/lottie/airplaneArrival.json
+    - packages/animated_emoji/lottie/airplaneDeparture.json
+    - packages/animated_emoji/lottie/rocket.json
+    - packages/animated_emoji/lottie/mirrorBall.json
+    - packages/animated_emoji/lottie/thinkingFace.json
+    - packages/animated_emoji/lottie/batteryFull.json
+    - packages/animated_emoji/lottie/batteryLow.json
+    - packages/animated_emoji/lottie/flyingSaucer.json
+    - packages/animated_emoji/lottie/bicycle.json
     - .env
 
   fonts:

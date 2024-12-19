@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:blink_app/features/insights/presentation/summary_card.dart';
 import 'package:blink_app/features/insights/presentation/animated_pie_chart.dart';
+import 'package:animated_emoji/animated_emoji.dart';
+import 'package:blink_app/features/insights/presentation/time_frame_selector.dart';
 
 class ExpenseAnalysis extends StatefulWidget {
   final Map<String, dynamic> expenseData;
@@ -22,6 +24,7 @@ class ExpenseAnalysis extends StatefulWidget {
 class _ExpenseAnalysisState extends State<ExpenseAnalysis>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
+  bool _useRocket = true;
 
   @override
   void initState() {
@@ -45,68 +48,82 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
     final totalSpending =
         (widget.expenseData['totalSpending'] as num?)?.toDouble() ?? 0.0;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                16, 24, 16, 16), // Reduced bottom padding
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Expense Analysis',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Onest',
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Expense Analysis',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Onest',
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: constraints.maxWidth * 0.6,
-                  child: AnimatedPieChart(
-                    sections: _getPieChartSections(categories),
-                    animationController: _animationController,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio:
-                        1.4, // Decreased to 1.4 to allow more height for cards
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  itemCount: categories.length,
-                  itemBuilder: (context, index) {
-                    final category = categories[index] as Map<String, dynamic>;
-                    final categoryName =
-                        category['name'] as String? ?? 'Unknown';
-                    final amount =
-                        (category['amount'] as num?)?.toDouble() ?? 0.0;
-                    final percentage =
-                        (category['percentage'] as num?)?.toDouble() ?? 0.0;
+              ),
+              TimeFrameSelector(
+                selectedTimeFrame: widget.timeFrame,
+                onChanged: widget.onTimeFrameChanged,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Column(
+                  children: [
+                    SizedBox(
+                      height: constraints.maxHeight * 0.4,
+                      child: AnimatedPieChart(
+                        sections: _getPieChartSections(categories),
+                        animationController: _animationController,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 1.5,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        itemCount: categories.length,
+                        itemBuilder: (context, index) {
+                          final category =
+                              categories[index] as Map<String, dynamic>;
+                          final categoryName =
+                              category['name'] as String? ?? 'Unknown';
+                          final amount =
+                              (category['amount'] as num?)?.toDouble() ?? 0.0;
+                          final percentage =
+                              (category['percentage'] as num?)?.toDouble() ??
+                                  0.0;
 
-                    return SummaryCard(
-                      categoryName: categoryName,
-                      amount: amount,
-                      totalSpending: totalSpending,
-                      percentage: percentage,
-                      emoji: _getCategoryEmoji(categoryName),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16), // Added extra space at the bottom
-              ],
+                          return SummaryCard(
+                            categoryName: categoryName,
+                            amount: amount,
+                            totalSpending: totalSpending,
+                            percentage: percentage,
+                            animatedEmoji:
+                                _getCategoryAnimatedEmoji(categoryName),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -128,7 +145,7 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
         color: colors[index % colors.length],
         value: percentage,
         title: percentage >= 5.0 ? '${percentage.toStringAsFixed(0)}%' : '',
-        radius: 110,
+        radius: 100,
         titleStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
@@ -139,33 +156,25 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
     }).toList();
   }
 
-  String _getCategoryEmoji(String category) {
+  Widget _getCategoryAnimatedEmoji(String category) {
     switch (category.toLowerCase()) {
       case 'food & groceries':
       case 'food':
-        return '🍽️';
+        return const AnimatedEmoji(AnimatedEmojis.spaghetti);
       case 'utilities':
-        return '💡';
+        return const AnimatedEmoji(AnimatedEmojis.lightBulb);
       case 'entertainment':
-        return '🎭';
+        return const AnimatedEmoji(AnimatedEmojis.mirrorBall);
       case 'transportation':
-        return '🚗';
+        _useRocket = !_useRocket;
+        return AnimatedEmoji(
+            _useRocket ? AnimatedEmojis.rocket : AnimatedEmojis.flyingSaucer);
       case 'housing':
-        return '🏠';
-      case 'healthcare':
-        return '🏥';
-      case 'education':
-        return '📚';
-      case 'shopping':
-        return '🛍️';
-      case 'travel':
-        return '✈️';
+        return const AnimatedEmoji(AnimatedEmojis.hotBeverage);
       case 'payment':
-        return '💳';
-      case 'others':
-        return '📦';
+        return const AnimatedEmoji(AnimatedEmojis.moneyWithWings);
       default:
-        return '💼';
+        return const AnimatedEmoji(AnimatedEmojis.thinkingFace);
     }
   }
 }

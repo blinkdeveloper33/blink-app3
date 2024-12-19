@@ -1,7 +1,10 @@
+import 'package:animated_emoji/emoji.dart';
+import 'package:animated_emoji/emojis.g.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:blink_app/features/insights/presentation/summary_card.dart';
+import 'package:blink_app/features/insights/presentation/time_frame_selector.dart';
 
 class CashFlowChart extends StatelessWidget {
   final Map<String, dynamic> cashFlowData;
@@ -21,102 +24,146 @@ class CashFlowChart extends StatelessWidget {
         NumberFormat.currency(symbol: '\$', decimalDigits: 0);
     final segments = cashFlowData['segments'] as List<dynamic>? ?? [];
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Cashflow Analysis',
-            style: TextStyle(
-              color: Colors.white,
-              fontFamily: 'Onest',
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 300,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: _getMaxY(segments),
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      final amount = rod.toY;
-                      return BarTooltipItem(
-                        currencyFormatter.format(amount),
-                        const TextStyle(
-                            color: Colors.white, fontFamily: 'Onest'),
-                      );
-                    },
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) => Text(
-                        _getXAxisLabel(
-                            segments[value.toInt()]['period'] as String? ?? '',
-                            timeFrame),
-                        style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12,
-                            fontFamily: 'Onest'),
-                      ),
-                      reservedSize: 30,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableHeight = constraints.maxHeight;
+        final chartHeight = availableHeight * 0.60;
+        final cardHeight =
+            availableHeight * 0.25; // Increased from 0.20 to 0.30 (1.5 times)
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Cashflow Analysis',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'Onest',
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 60,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          currencyFormatter.format(value),
-                          style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 12,
-                              fontFamily: 'Onest'),
+                  Flexible(
+                    child: TimeFrameSelector(
+                      selectedTimeFrame: timeFrame,
+                      onChanged: onTimeFrameChanged,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 2), //Reduced spacing
+            SizedBox(
+              height: chartHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: _getMaxY(segments),
+                    barTouchData: BarTouchData(
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          final amount = rod.toY;
+                          return BarTooltipItem(
+                            currencyFormatter.format(amount),
+                            const TextStyle(
+                                color: Colors.white, fontFamily: 'Onest'),
+                          );
+                        },
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) => Padding(
+                            padding: const EdgeInsets.only(top: 5.0),
+                            child: Text(
+                              _getXAxisLabel(
+                                  segments[value.toInt()]['period']
+                                          as String? ??
+                                      '',
+                                  timeFrame),
+                              style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 9,
+                                  fontFamily: 'Onest'),
+                            ),
+                          ),
+                          reservedSize: 30,
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 50,
+                          getTitlesWidget: (value, meta) {
+                            return Text(
+                              currencyFormatter.format(value),
+                              style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 9,
+                                  fontFamily: 'Onest'),
+                            );
+                          },
+                        ),
+                      ),
+                      rightTitles:
+                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles:
+                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      horizontalInterval: 5000,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(
+                          color: Colors.white.withAlpha(25),
+                          strokeWidth: 1,
                         );
                       },
                     ),
+                    borderData: FlBorderData(show: false),
+                    barGroups: _getBarGroups(segments),
                   ),
-                  rightTitles:
-                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles:
-                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 5000,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: Colors.white.withAlpha(25),
-                      strokeWidth: 1,
-                    );
-                  },
-                ),
-                borderData: FlBorderData(show: false),
-                barGroups: _getBarGroups(segments),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _buildSummaryCard(true)),
-              const SizedBox(width: 16),
-              Expanded(child: _buildSummaryCard(false)),
-            ],
-          ),
-        ],
-      ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: cardHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: cardHeight,
+                        child: _buildSummaryCard(true, cardHeight),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: SizedBox(
+                        height: cardHeight,
+                        child: _buildSummaryCard(false, cardHeight),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -225,7 +272,7 @@ class CashFlowChart extends StatelessWidget {
     return period.length > 3 ? period.substring(0, 3) : period;
   }
 
-  Widget _buildSummaryCard(bool isInflow) {
+  Widget _buildSummaryCard(bool isInflow, double cardHeight) {
     final totalAmount =
         (cashFlowData[isInflow ? 'totalInflow' : 'totalOutflow'] as num?)
                 ?.toDouble() ??
@@ -236,7 +283,10 @@ class CashFlowChart extends StatelessWidget {
       amount: totalAmount,
       totalSpending: totalAmount,
       percentage: null,
-      emoji: isInflow ? '💰' : '💸',
+      animatedEmoji: AnimatedEmoji(isInflow
+          ? AnimatedEmojis.airplaneArrival
+          : AnimatedEmojis.airplaneDeparture),
+      textColor: isInflow ? const Color(0xFF7EA16B) : const Color(0xFFA45A52),
     );
   }
 }

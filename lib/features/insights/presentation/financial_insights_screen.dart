@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:blink_app/providers/financial_data_provider.dart';
 import 'package:blink_app/features/insights/presentation/cash_flow_chart.dart';
 import 'package:blink_app/features/insights/presentation/expense_analysis.dart';
 
 class FinancialInsightsScreen extends StatefulWidget {
-  const FinancialInsightsScreen({Key? key}) : super(key: key);
+  const FinancialInsightsScreen({super.key});
 
   @override
-  _FinancialInsightsScreenState createState() =>
+  State<FinancialInsightsScreen> createState() =>
       _FinancialInsightsScreenState();
 }
 
 class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
-  String _selectedTimeFrame = 'YTD';
+  String _cashFlowTimeFrame = 'YTD';
+  String _expenseTimeFrame = 'YTD';
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -24,13 +25,21 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
     final provider = Provider.of<FinancialDataProvider>(context, listen: false);
-    await provider.loadFinancialData(_selectedTimeFrame);
+    await provider.loadFinancialData(_cashFlowTimeFrame, _expenseTimeFrame);
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),
       appBar: AppBar(
@@ -49,137 +58,159 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
             fontSize: 20,
           ),
         ),
-        actions: [
-          _buildTimeFrameSelector(),
-        ],
       ),
       body: Consumer<FinancialDataProvider>(
         builder: (context, provider, child) {
-          if (provider.state == DataState.loading) {
-            return const Center(
-                child: CircularProgressIndicator(color: Colors.white));
-          } else if (provider.state == DataState.error) {
-            return _buildErrorWidget(provider.error);
-          } else if (provider.state == DataState.loaded) {
-            return _buildContent(provider);
-          } else {
-            return const Center(
-              child: Text(
-                'No data available',
-                style: TextStyle(color: Colors.white, fontFamily: 'Onest'),
+          return SingleChildScrollView(
+            controller: _scrollController,
+            physics: const ClampingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
+                  _buildSectionContainer(
+                    height: screenSize.width * 1.4, // Increased from 0.9 to 1.2
+                    child: _buildCashFlowSection(provider),
+                    color: const Color(0xFF1C2A4D),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSectionContainer(
+                    height: screenSize.width * 1.5, // Increased from 1.1 to 1.4
+                    child: _buildExpenseSection(provider),
+                    color: const Color(0xFF2C3E50),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
-            );
-          }
+            ),
+          );
         },
       ),
     );
   }
 
-  Widget _buildTimeFrameSelector() {
+  Widget _buildSectionContainer({
+    required Widget child,
+    required Color color,
+    required double height,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      margin: const EdgeInsets.only(right: 16),
+      height: height,
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.2),
+        color: color,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedTimeFrame,
-          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-          style: const TextStyle(color: Colors.white, fontFamily: 'Onest'),
-          dropdownColor: const Color(0xFF0A0E21),
-          onChanged: (String? newValue) {
-            if (newValue != null) {
-              setState(() {
-                _selectedTimeFrame = newValue;
-              });
-              _loadData();
-            }
-          },
-          items: <String>['WTD', 'MTD', 'QTD', 'YTD']
-              .map<DropdownMenuItem<String>>((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(_formatTimeFrameLabel(value)),
-            );
-          }).toList(),
-        ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: child,
       ),
     );
   }
 
-  Widget _buildErrorWidget(String? error) {
-    return Center(
+  Widget _buildCashFlowSection(FinancialDataProvider provider) {
+    return Stack(
+      children: [
+        if (provider.cashFlowState == DataState.loaded &&
+            provider.cashFlowAnalysis != null)
+          CashFlowChart(
+            cashFlowData: provider.cashFlowAnalysis!,
+            timeFrame: _cashFlowTimeFrame,
+            onTimeFrameChanged: (String newTimeFrame) {
+              setState(() {
+                _cashFlowTimeFrame = newTimeFrame;
+              });
+              provider.loadCashFlowData(newTimeFrame);
+            },
+          ),
+        if (provider.cashFlowState == DataState.loading)
+          const Center(child: CircularProgressIndicator(color: Colors.white)),
+        if (provider.cashFlowState == DataState.error)
+          Center(
+            child: _buildErrorWidget(
+              provider.cashFlowError,
+              () => provider.loadCashFlowData(_cashFlowTimeFrame),
+            ),
+          ),
+        if (provider.cashFlowState == DataState.initial)
+          const Center(
+            child: Text(
+              'No cash flow data available',
+              style: TextStyle(color: Colors.white, fontFamily: 'Onest'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildExpenseSection(FinancialDataProvider provider) {
+    return Stack(
+      children: [
+        if (provider.expenseState == DataState.loaded &&
+            provider.categoryAnalysis != null)
+          ExpenseAnalysis(
+            expenseData: provider.categoryAnalysis!,
+            timeFrame: _expenseTimeFrame,
+            onTimeFrameChanged: (String newTimeFrame) {
+              setState(() {
+                _expenseTimeFrame = newTimeFrame;
+              });
+              provider.loadExpenseData(newTimeFrame);
+            },
+          ),
+        if (provider.expenseState == DataState.loading)
+          const Center(child: CircularProgressIndicator(color: Colors.white)),
+        if (provider.expenseState == DataState.error)
+          Center(
+            child: _buildErrorWidget(
+              provider.expenseError,
+              () => provider.loadExpenseData(_expenseTimeFrame),
+            ),
+          ),
+        if (provider.expenseState == DataState.initial)
+          const Center(
+            child: Text(
+              'No expense data available',
+              style: TextStyle(color: Colors.white, fontFamily: 'Onest'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildErrorWidget(String? error, VoidCallback onRetry) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             error ?? 'An error occurred',
-            style: const TextStyle(color: Colors.red, fontFamily: 'Onest'),
+            style: const TextStyle(
+              color: Colors.red,
+              fontFamily: 'Onest',
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
           ),
+          const SizedBox(height: 8),
           ElevatedButton(
-            onPressed: _loadData,
-            child: const Text('Retry', style: TextStyle(fontFamily: 'Onest')),
+            onPressed: onRetry,
+            child: const Text(
+              'Retry',
+              style: TextStyle(fontFamily: 'Onest'),
+            ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildContent(FinancialDataProvider provider) {
-    final cashFlowAnalysis = provider.cashFlowAnalysis;
-    final categoryAnalysis = provider.categoryAnalysis;
-    if (cashFlowAnalysis == null || categoryAnalysis == null) {
-      return const Center(
-        child: Text(
-          'No data available',
-          style: TextStyle(color: Colors.white, fontFamily: 'Onest'),
-        ),
-      );
-    }
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CashFlowChart(
-            cashFlowData: cashFlowAnalysis,
-            timeFrame: _selectedTimeFrame,
-            onTimeFrameChanged: (String newTimeFrame) {
-              setState(() {
-                _selectedTimeFrame = newTimeFrame;
-              });
-              _loadData();
-            },
-          ),
-          const SizedBox(height: 24),
-          ExpenseAnalysis(
-            expenseData: categoryAnalysis,
-            timeFrame: _selectedTimeFrame,
-            onTimeFrameChanged: (String newTimeFrame) {
-              setState(() {
-                _selectedTimeFrame = newTimeFrame;
-              });
-              _loadData();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTimeFrameLabel(String value) {
-    switch (value) {
-      case 'WTD':
-        return 'Week to Date';
-      case 'MTD':
-        return 'Month to Date';
-      case 'QTD':
-        return 'Quarter to Date';
-      case 'YTD':
-        return 'Year to Date';
-      default:
-        return value;
-    }
   }
 }
