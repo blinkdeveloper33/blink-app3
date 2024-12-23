@@ -59,37 +59,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _insightsEmojiAnimationController;
   late Animation<double> _insightsEmojiAnimation;
 
-  int _currentStoryIndex = 0;
-  bool _isViewingStory = false;
-
   final List<Map<String, String>> _newsItems = [
     {
       'title': 'Roth IRA vs. 401(k): What\'s the Difference?',
       'description':
           'Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals...',
       'imageUrl': 'assets/images/roth_ira_vs_401k.png',
-      'isRead': 'false',
     },
     {
       'title': 'The Basics of Budgeting: A Step-by-Step Guide',
       'description':
           'Creating and sticking to a budget is a fundamental step in managing your finances. This guide walks you through the process of setting up a budget that works for your lifestyle and financial goals...',
       'imageUrl': 'assets/images/budgeting_basics.png',
-      'isRead': 'false',
     },
     {
       'title': 'Understanding Credit Scores: What You Need to Know',
       'description':
           'Your credit score plays a crucial role in your financial life. Learn what factors influence your credit score, how to check it, and steps you can take to improve it over time...',
       'imageUrl': 'assets/images/credit_scores.png',
-      'isRead': 'true',
     },
     {
       'title': 'Investing for Beginners: Getting Started in the Stock Market',
       'description':
           'Thinking about investing in stocks? This article covers the basics of stock market investing, including how to open a brokerage account, understanding stock types, and strategies for beginners...',
       'imageUrl': 'assets/images/investing_beginners.png',
-      'isRead': 'false',
     },
   ];
 
@@ -100,7 +93,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildNewsCard(Map<String, String> newsItem, int index) {
-    bool isRead = newsItem['isRead'] == 'true';
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: 1),
       duration: Duration(milliseconds: 500 + (index * 100)),
@@ -116,223 +108,77 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: GestureDetector(
         onTap: () {
           _performHapticFeedback(HapticsType.light);
-          setState(() {
-            _currentStoryIndex = index;
-            _isViewingStory = true;
-            _newsItems[index]['isRead'] = 'true';
-          });
+          // TODO: Implement news item tap action
         },
-        child: Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  width: 300,
-                  margin: const EdgeInsets.only(right: 16),
-                  decoration: BoxDecoration(
-                    color: _isDarkMode
-                        ? Colors.white.withAlpha(26)
-                        : Colors.white.withAlpha(180),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _isDarkMode
-                          ? Colors.white.withAlpha(51)
-                          : Colors.black.withAlpha(26),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16)),
-                        child: Image.asset(
-                          newsItem['imageUrl']!,
-                          width: double.infinity,
-                          height: 150,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              newsItem['title']!,
-                              style: TextStyle(
-                                color:
-                                    _isDarkMode ? Colors.white : Colors.black,
-                                fontSize: 16,
-                                fontFamily: 'Onest',
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              newsItem['description']!,
-                              style: TextStyle(
-                                color: _isDarkMode
-                                    ? Colors.white70
-                                    : Colors.black54,
-                                fontSize: 14,
-                                fontFamily: 'Onest',
-                              ),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              width: 300,
+              margin: const EdgeInsets.only(right: 16),
+              decoration: BoxDecoration(
+                color: _isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _isDarkMode
+                      ? Colors.white.withOpacity(0.2)
+                      : Colors.black.withOpacity(0.1),
                 ),
               ),
-            ),
-            if (!isRead)
-              Positioned(
-                top: 8,
-                right: 24,
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.blue,
-                    border: Border.all(
-                      color: _isDarkMode ? Colors.black : Colors.white,
-                      width: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: Image.asset(
+                      newsItem['imageUrl']!,
+                      width: double.infinity,
+                      height: 150,
+                      fit: BoxFit.cover,
                     ),
                   ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStoryView() {
-    return GestureDetector(
-      onTapDown: (details) {
-        final screenWidth = MediaQuery.of(context).size.width;
-        if (details.globalPosition.dx < screenWidth / 2) {
-          _navigateStory(false);
-        } else {
-          _navigateStory(true);
-        }
-      },
-      child: Stack(
-        children: [
-          Image.asset(
-            _newsItems[_currentStoryIndex]['imageUrl']!,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withAlpha(180),
-                  Colors.transparent,
-                  Colors.black.withAlpha(180),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          newsItem['title']!,
+                          style: TextStyle(
+                            color: _isDarkMode ? Colors.white : Colors.black,
+                            fontSize: 16,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          newsItem['description']!,
+                          style: TextStyle(
+                            color:
+                                _isDarkMode ? Colors.white70 : Colors.black54,
+                            fontSize: 14,
+                            fontFamily: 'Onest',
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: _newsItems.asMap().entries.map((entry) {
-                      return Expanded(
-                        child: Container(
-                          height: 2,
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          color: entry.key == _currentStoryIndex
-                              ? Colors.white
-                              : Colors.white.withAlpha(130),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _newsItems[_currentStoryIndex]['title']!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _newsItems[_currentStoryIndex]['description']!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          // TODO: Implement "Read More" functionality
-                        },
-                        child: const Text('Read More'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 16,
-            right: 16,
-            child: SafeArea(
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () {
-                  setState(() {
-                    _isViewingStory = false;
-                  });
-                },
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
-  }
-
-  void _navigateStory(bool forward) {
-    setState(() {
-      if (forward) {
-        _currentStoryIndex = (_currentStoryIndex + 1) % _newsItems.length;
-      } else {
-        _currentStoryIndex =
-            (_currentStoryIndex - 1 + _newsItems.length) % _newsItems.length;
-      }
-      _newsItems[_currentStoryIndex]['isRead'] = 'true';
-    });
   }
 
   IconData _getCategoryIcon(String category) {
@@ -379,15 +225,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _getStatusEmoji() {
     if (_hasActiveAdvance) {
-      return const Text('âœ…', style: TextStyle(fontSize: 16));
+      return const Text('✅', style: TextStyle(fontSize: 16));
     }
     switch (_blinkAdvanceStatus.toLowerCase()) {
       case 'on review':
-        return const Text('ðŸ•’', style: TextStyle(fontSize: 16));
+        return const Text('🕒', style: TextStyle(fontSize: 16));
       case 'approved':
-        return const Text('âœ…', style: TextStyle(fontSize: 16));
+        return const Text('✅', style: TextStyle(fontSize: 16));
       case 'rejected':
-        return const Text('âŒ', style: TextStyle(fontSize: 16));
+        return const Text('❌', style: TextStyle(fontSize: 16));
       default:
         return const SizedBox.shrink();
     }
@@ -569,8 +415,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const SizedBox(height: 8),
             Text(
               _hasActiveAdvance
-                  ? 'â€¢ Monitor your repayment date and ensure sufficient funds are available.'
-                  : 'â€¢ You\'ll receive a notification once your application is approved.',
+                  ? '• Monitor your repayment date and ensure sufficient funds are available.'
+                  : '• You\'ll receive a notification once your application is approved.',
               style: TextStyle(
                 color: _isDarkMode ? Colors.white70 : Colors.blue[600],
                 fontSize: 14,
@@ -647,12 +493,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       );
     } else if (_isBlinkAdvanceApproved) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) =>
-              BlinkAdvanceScreen(bankAccountId: _bankAccountId ?? ''),
-        ),
-      );
+      if (_bankAccountId.isNotEmpty) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Bank account ID not found. Please link your bank account.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1002,8 +858,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ],
       // Thursday
       [
-        "Thursday: Almost payday, stay strong<continuation_point"
-            "Thursday: Almost payday, stay strong!",
+        "Thursday: Almost payday, stay strong!",
         "Thrifty Thursday: Every penny counts!",
         "Thursday thought: What's your money doing?",
         "Pre-Friday financial check-in!",
@@ -1210,14 +1065,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: _isDarkMode
-                ? Colors.black.withAlpha(80)
-                : Colors.white.withAlpha(180),
+                ? Colors.black.withOpacity(0.3)
+                : Colors.white.withOpacity(0.7),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
                 color: _isDarkMode
-                    ? Colors.black.withAlpha(80)
-                    : Colors.grey.withAlpha(50),
+                    ? Colors.black.withOpacity(0.3)
+                    : Colors.grey.withOpacity(0.2),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               ),
@@ -1497,7 +1352,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withAlpha(13),
+                            color: Colors.black.withOpacity(0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -1662,8 +1517,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Colors.blue[600]!.withAlpha(240),
-                    Colors.blue[400]!.withAlpha(240),
+                    Colors.blue[600]!.withOpacity(0.95),
+                    Colors.blue[400]!.withOpacity(0.95),
                   ],
                   stops: const [0.2, 0.8],
                 ),
@@ -1671,7 +1526,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     const BorderRadius.horizontal(right: Radius.circular(12)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blue.withAlpha(80),
+                    color: Colors.blue.withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -1684,11 +1539,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   curve: Curves.easeInOut,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(50),
+                    color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(26),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -1720,8 +1575,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
                   colors: [
-                    Colors.orange[400]!.withAlpha(240),
-                    Colors.orange[600]!.withAlpha(240),
+                    Colors.orange[400]!.withOpacity(0.95),
+                    Colors.orange[600]!.withOpacity(0.95),
                   ],
                   stops: const [0.2, 0.8],
                 ),
@@ -1729,7 +1584,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     const BorderRadius.horizontal(left: Radius.circular(12)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.orange.withAlpha(80),
+                    color: Colors.orange.withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -1742,70 +1597,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   curve: Curves.easeInOut,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(50),
+                    color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(26),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: const Icon(
-                    Icons.category,
-                    size: 28,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          CustomSlidableAction(
-            onPressed: (context) => _viewDetails(transaction),
-            padding: EdgeInsets.zero,
-            backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [
-                    Colors.blue[400]!.withAlpha(240),
-                    Colors.blue[600]!.withAlpha(240),
-                  ],
-                  stops: const [0.2, 0.8],
-                ),
-                borderRadius:
-                    const BorderRadius.horizontal(left: Radius.circular(12)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withAlpha(80),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: Center(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(50),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(26),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.remove_red_eye_rounded,
+                    Icons.category_rounded,
                     size: 28,
                     color: Colors.white,
                   ),
@@ -1815,138 +1618,253 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              _getCategoryIcon(transaction.category),
-              color: _isDarkMode ? Colors.white : Colors.black,
-              size: 24,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: Hero(
+        tag: 'transaction-${transaction.id}',
+        child: Card(
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          color: _isDarkMode ? const Color(0xFF1C2A4D) : Colors.white,
+          child: InkWell(
+            onTap: () => _viewDetails(transaction),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
                 children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _isDarkMode ? Colors.white24 : Colors.grey[200],
+                    ),
+                    child: Icon(
+                      _getCategoryIcon(transaction.category ?? ''),
+                      color: _isDarkMode ? Colors.white : Colors.black54,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          transaction.merchantName,
+                          style: TextStyle(
+                            color: _isDarkMode ? Colors.white : Colors.black,
+                            fontSize: 16,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          transaction.category ?? 'Uncategorized',
+                          style: TextStyle(
+                            color:
+                                _isDarkMode ? Colors.white70 : Colors.black54,
+                            fontSize: 14,
+                            fontFamily: 'Onest',
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          formattedDate,
+                          style: TextStyle(
+                            color:
+                                _isDarkMode ? Colors.white38 : Colors.black38,
+                            fontSize: 12,
+                            fontFamily: 'Onest',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   Text(
-                    transaction.merchantName,
+                    transaction.isOutflow
+                        ? '-$formattedAmount'
+                        : '+$formattedAmount',
                     style: TextStyle(
-                      color: _isDarkMode ? Colors.white : Colors.black,
+                      color: transaction.isOutflow
+                          ? Colors.red
+                          : _isDarkMode
+                              ? Colors.green[300]
+                              : Colors.green,
                       fontSize: 16,
                       fontFamily: 'Onest',
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    formattedDate,
-                    style: TextStyle(
-                      color: _isDarkMode ? Colors.white70 : Colors.black54,
-                      fontSize: 14,
-                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
-            Text(
-              transaction.amount > 0
-                  ? '+ $formattedAmount'
-                  : '- $formattedAmount',
-              style: TextStyle(
-                color: transaction.amount > 0
-                    ? _isDarkMode
-                        ? Colors.green
-                        : Colors.green[800]
-                    : _isDarkMode
-                        ? Colors.red
-                        : Colors.red[800],
-                fontSize: 16,
-                fontFamily: 'Onest',
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildRecentTransactions() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Transactions',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.black,
+                fontSize: 20,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                _performHapticFeedback(HapticsType.light);
+                // TODO: Implement navigation to all transactions
+              },
+              child: Text(
+                'See all',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontSize: 14,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _recentTransactions.isEmpty
+                ? Center(
+                    child: Text(
+                      'No recent transactions',
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white70 : Colors.black54,
+                        fontSize: 16,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _recentTransactions.length,
+                    itemBuilder: (context, index) {
+                      return _buildTransactionItem(_recentTransactions[index]);
+                    },
+                  ),
+      ],
+    );
+  }
+
+  Widget _buildNewsAndUpdates() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'News & Updates',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.black,
+                fontSize: 20,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                _performHapticFeedback(HapticsType.light);
+                // TODO: Implement navigation to all news
+              },
+              child: Text(
+                'See all',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontSize: 14,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 300,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _newsItems.length,
+            itemBuilder: (context, index) {
+              return _buildNewsCard(_newsItems[index], index);
+            },
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: _isDarkMode ? Colors.black : Colors.white,
-      statusBarIconBrightness: _isDarkMode ? Brightness.light : Brightness.dark,
-    ));
-    return Scaffold(
-      backgroundColor:
-          _isDarkMode ? const Color(0xFF1C2A4D) : const Color(0xFFF5F5F5),
-      body: Stack(
-        children: [
-          AnimatedGradientBackground(isDarkMode: _isDarkMode),
-          SafeArea(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeader(),
-                        const SizedBox(height: 24),
-                        _buildFinancialSummary(),
-                        const SizedBox(height: 24),
-                        _buildQuickActions(),
-                        const SizedBox(height: 24),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Recent Transactions',
-                                style: TextStyle(
-                                  color:
-                                      _isDarkMode ? Colors.white : Colors.black,
-                                  fontSize: 20,
-                                  fontFamily: 'Onest',
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Column(
-                                children: _recentTransactions
-                                    .map(_buildTransactionItem)
-                                    .toList(),
-                              ),
-                            ],
-                          ),
+    return ConfettiOverlay(
+      child: AnimatedGradientBackground(
+        isDarkMode: _isDarkMode,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      _performHapticFeedback(HapticsType.medium);
+                      await Future.wait([
+                        _loadData(),
+                        _loadBlinkAdvanceStatus(),
+                      ]);
+                    },
+                    color: _isDarkMode ? Colors.white : Colors.blue,
+                    backgroundColor:
+                        _isDarkMode ? Colors.blue[700] : Colors.white,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 24),
+                            _buildFinancialSummary(),
+                            const SizedBox(height: 24),
+                            _buildQuickActions(),
+                            const SizedBox(height: 32),
+                            _buildRecentTransactions(),
+                            const SizedBox(height: 32),
+                            _buildNewsAndUpdates(),
+                            const SizedBox(height: 32),
+                          ],
                         ),
-                        const SizedBox(height: 24),
-                        if (_isViewingStory)
-                          _buildStoryView()
-                        else
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: SizedBox(
-                              height: 200,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: _newsItems.length,
-                                itemBuilder: (context, index) =>
-                                    _buildNewsCard(_newsItems[index], index),
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
                   ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
+
