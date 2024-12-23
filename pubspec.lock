@@ -302,6 +302,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.69.2"
+  fluentui_emoji_icon:
+    dependency: "direct main"
+    description:
+      name: fluentui_emoji_icon
+      sha256: "50d8f19547a8e2dad3084b124478c56dac3d1c44f1802ca4c9098187276318cc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.2"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -392,6 +400,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.0.5"
+  flutter_slidable:
+    dependency: "direct main"
+    description:
+      name: flutter_slidable
+      sha256: a857de7ea701f276fd6a6c4c67ae885b60729a3449e42766bb0e655171042801
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.2"
   flutter_svg:
     dependency: "direct main"
     description:
@@ -434,6 +450,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.0"
+  git:
+    dependency: transitive
+    description:
+      name: git
+      sha256: daea03e7471607e7ed942bccd4814cfc7e4fa8ca5d3dd6ad4fb170e44423d1a0
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.0"
   glob:
     dependency: transitive
     description:
@@ -450,6 +474,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.2"
+  haptic_feedback:
+    dependency: "direct main"
+    description:
+      name: haptic_feedback
+      sha256: d3b5ad41858d18a35d317636c9cdc1cb8aef23c7b861ca5896273acc68e1a98a
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.1+1"
   http:
     dependency: "direct main"
     description:
@@ -786,6 +818,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.4"
+  recase:
+    dependency: transitive
+    description:
+      name: recase
+      sha256: e4eb4ec2dcdee52dcf99cb4ceabaffc631d7424ee55e56f280bc039737f89213
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
   rive:
     dependency: transitive
     description:
@@ -802,6 +842,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.4.15"
+  rw_git:
+    dependency: transitive
+    description:
+      name: rw_git
+      sha256: "5c6321f336b42369fd46a44353d142c430e3a9173cecedb017faecf92168c1fc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.3"
   rxdart:
     dependency: transitive
     description:

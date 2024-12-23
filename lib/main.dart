@@ -145,7 +145,7 @@ class ThemeProvider with ChangeNotifier {
     return ThemeData(
       primarySwatch: Colors.blue,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: Colors.white,
+      scaffoldBackgroundColor: Colors.transparent,
       fontFamily: 'Onest',
       textTheme: const TextTheme(
         bodyLarge: TextStyle(fontFamily: 'Onest'),
@@ -161,7 +161,7 @@ class ThemeProvider with ChangeNotifier {
     return ThemeData(
       primarySwatch: Colors.blue,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF061535),
+      scaffoldBackgroundColor: Colors.transparent,
       fontFamily: 'Onest',
       textTheme: const TextTheme(
         bodyLarge: TextStyle(fontFamily: 'Onest'),
