@@ -1,33 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:blink_app/features/insights/presentation/glass_container.dart';
+import 'package:animated_emoji/emoji.dart';
 
 class SummaryCard extends StatelessWidget {
   final String categoryName;
   final double amount;
   final double totalSpending;
   final double? percentage;
-  final Widget animatedEmoji;
-  final Color textColor;
+  final AnimatedEmoji animatedEmoji;
+  final Color? textColor;
+  final double? width;
+  final double? height;
+  final bool isDarkMode;
 
   const SummaryCard({
     super.key,
     required this.categoryName,
     required this.amount,
     required this.totalSpending,
-    required this.percentage,
+    this.percentage,
     required this.animatedEmoji,
-    this.textColor = Colors.white,
+    this.textColor,
+    this.width,
+    this.height,
+    required this.isDarkMode,
   });
 
   @override
   Widget build(BuildContext context) {
+    final defaultTextColor = isDarkMode ? Colors.white : Colors.black87;
     final currencyFormatter =
         NumberFormat.currency(symbol: '\$', decimalDigits: 0);
 
     return GlassContainer(
       child: Padding(
-        padding: const EdgeInsets.all(12), // Update 1: Reduced padding
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -44,8 +52,8 @@ class SummaryCard extends StatelessWidget {
                   child: Text(
                     categoryName,
                     style: TextStyle(
-                      color: textColor,
-                      fontSize: 14, // Update 3: Reduced font size
+                      color: textColor ?? defaultTextColor,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Onest',
                     ),
@@ -54,22 +62,22 @@ class SummaryCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4), // Update 2: Adjusted SizedBox height
+            const SizedBox(height: 4),
             Text(
               currencyFormatter.format(amount),
               style: TextStyle(
                 color: textColor,
-                fontSize: 18, // Update 3: Reduced font size
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Onest',
               ),
             ),
             if (percentage != null) ...[
-              const SizedBox(height: 4), // Update 2: Adjusted SizedBox height
+              const SizedBox(height: 4),
               Text(
                 '${percentage!.toStringAsFixed(1)}% of total',
                 style: TextStyle(
-                  color: textColor.withOpacity(0.7),
+                  color: (textColor ?? Colors.white).withOpacity(0.7),
                   fontSize: 12,
                   fontFamily: 'Onest',
                 ),

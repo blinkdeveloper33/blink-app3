@@ -3,31 +3,47 @@ import 'package:flutter/material.dart';
 class TimeFrameSelector extends StatelessWidget {
   final String selectedTimeFrame;
   final Function(String) onChanged;
+  final bool isDarkMode;
 
   const TimeFrameSelector({
-    Key? key,
+    super.key,
     required this.selectedTimeFrame,
     required this.onChanged,
-  }) : super(key: key);
+    required this.isDarkMode,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 150),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: isDarkMode
+            ? Colors.white.withOpacity(0.1)
+            : Colors.black.withOpacity(0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(
+          color: isDarkMode
+              ? Colors.white.withOpacity(0.2)
+              : Colors.black.withOpacity(0.1),
+        ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
+          isExpanded: true,
           value: selectedTimeFrame,
-          icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+          icon: Icon(
+            Icons.arrow_drop_down,
+            color: isDarkMode ? Colors.white70 : Colors.black54,
+          ),
           iconSize: 24,
           elevation: 16,
-          style: const TextStyle(
-              color: Colors.white, fontSize: 14, fontFamily: 'Onest'),
-          dropdownColor: const Color(0xFF1C2A4D),
+          style: TextStyle(
+            color: isDarkMode ? Colors.white : Colors.black87,
+            fontSize: 14,
+            fontFamily: 'Onest',
+          ),
+          dropdownColor: isDarkMode ? const Color(0xFF1C2A4D) : Colors.white,
           onChanged: (String? newValue) {
             if (newValue != null) {
               onChanged(newValue);

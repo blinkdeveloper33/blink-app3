@@ -54,9 +54,9 @@ class DailyTransactionSummary {
 
   factory DailyTransactionSummary.fromJson(Map<String, dynamic> json) {
     return DailyTransactionSummary(
-      date: DateTime.parse(json['date'] as String),
+      date: DateTime.parse(json['date']),
       totalAmount: (json['totalAmount'] as num).toDouble(),
-      transactionCount: json['transactionCount'] as int,
+      transactionCount: (json['transactionCount'] as num).toInt(),
     );
   }
 }
@@ -87,7 +87,7 @@ class AuthService {
     final headers = {'Content-Type': 'application/json'};
 
     if (requireAuth) {
-      final token = _storageService.getToken();
+      final token = await _storageService.getToken();
       if (token == null) {
         throw ApiException(message: 'User not authenticated', statusCode: 401);
       }
@@ -208,45 +208,47 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final response = await _makeRequest(
-      endpoint: '/api/users/login',
-      body: {'email': email, 'password': password},
-      method: 'POST',
-    );
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/login',
+        body: {'email': email, 'password': password},
+        method: 'POST',
+      );
 
-    if (response['success']) {
-      await _storageService.setToken(response['token']);
-      await _storageService.setUserId(response['userId']);
-      if (response['bankAccountName'] != null) {
-        await _storageService.setBankAccountName(response['bankAccountName']);
-      }
-      _logger.i('Login successful. Token and userId stored.');
+      _logger.i('Login response: $response');
 
-      final firstName = response['firstName'] as String?;
-      final lastName = response['lastName'] as String?;
-      if (firstName != null && lastName != null) {
-        final fullName = '$firstName $lastName';
-        await _storageService.setFullName(fullName);
-        _logger.i('User full name stored: $fullName');
+      if (response['success'] == true && response['token'] != null) {
+        await _storageService.setToken(response['token']);
+        final userId = response['userId'];
+        if (userId != null) {
+          await _storageService.setUserId(userId);
+
+          // Fetch and store user profile
+          final userProfile = await fetchUserProfile();
+          if (userProfile['success'] == true) {
+            await _storeUserProfile(userProfile['data']);
+          } else {
+            _logger
+                .w('Failed to fetch user profile: ${userProfile['message']}');
+            throw Exception('Failed to fetch user profile');
+          }
+        } else {
+          _logger.e('User ID is missing in the login response.');
+          throw Exception('User ID missing in login response.');
+        }
+
+        return {'success': true, 'message': 'Login successful'};
       } else {
-        _logger.w('firstName or lastName missing in login response.');
+        _logger.w('Login failed: ${response['message']}');
+        return {
+          'success': false,
+          'message': response['message'] ?? 'Login failed'
+        };
       }
-
-      await _fetchAndStoreUserProfile();
-
-      final bankAccounts = await getLinkedAccounts();
-      if (bankAccounts.isNotEmpty) {
-        final primaryBankAccount = bankAccounts.first;
-        await _storageService
-            .setBankAccountId(primaryBankAccount['bankAccountId'] as String);
-        _logger.i(
-            'Bank account ID stored: ${primaryBankAccount['bankAccountId']}');
-      } else {
-        _logger.w('No bank accounts found for the user.');
-      }
+    } catch (e) {
+      _logger.e('Error during login', error: e);
+      rethrow;
     }
-
-    return response;
   }
 
   Future<void> logout() async {
@@ -256,72 +258,53 @@ class AuthService {
 
   // User Profile Management methods
 
-  Future<void> _fetchAndStoreUserProfile() async {
-    try {
-      _logger.i('Fetching user profile...');
-      final response = await _makeRequest(
-        endpoint: '/api/users/profile',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
+  Future<void> _storeUserProfile(Map<String, dynamic> userProfile) async {
+    await _storageService.setFirstName(userProfile['first_name'] ?? '');
+    await _storageService.setLastName(userProfile['last_name'] ?? '');
+    await _storageService.setEmail(userProfile['email'] ?? '');
+    await _storageService.setState(userProfile['state'] ?? '');
+    await _storageService.setZipcode(userProfile['zipcode'] ?? '');
 
-      if (response['success']) {
-        final profile = response['data'] is Map<String, dynamic>
-            ? response['data'] as Map<String, dynamic>
-            : Map<String, dynamic>.from(response['data'] as Map);
-        _logger.i('User profile fetched successfully');
+    final fullName =
+        '${userProfile['first_name'] ?? ''} ${userProfile['last_name'] ?? ''}'
+            .trim();
+    await _storageService.setFullName(fullName);
 
-        final firstName = profile['first_name'] as String? ?? '';
-        final lastName = profile['last_name'] as String? ?? '';
-
-        await _storageService.setFirstName(firstName);
-        await _storageService.setLastName(lastName);
-
-        if (profile['bank_account_name'] != null) {
-          await _storageService
-              .setBankAccountName(profile['bank_account_name'] as String);
-          _logger
-              .i('Bank account name stored: ${profile['bank_account_name']}');
-        } else {
-          _logger.w('Bank account name not present in user profile');
-        }
-        _logger.i('First name and last name stored');
-
-        final fullName = '$firstName $lastName';
-        await _storageService.setFullName(fullName);
-        _logger.i('User full name updated: $fullName');
-
-        _logger.w('bank_account_id not found in user profile');
-      } else {
-        _logger.e('Failed to fetch user profile: ${response['error']}');
-      }
-    } catch (e) {
-      _logger.e('Error fetching user profile: $e');
+    if (userProfile['bank_account_name'] != null) {
+      await _storageService
+          .setBankAccountName(userProfile['bank_account_name']);
     }
+
+    _logger.i('User profile stored successfully');
   }
 
   // User Status & Bank Accounts methods
 
   Future<UserStatus> getUserStatus() async {
     final userId = _storageService.getUserId();
-    if (userId == null) {
-      throw Exception('User ID not found. Please log in again.');
+    if (userId == null || userId.isEmpty) {
+      _logger.w('User ID not found or empty. Returning newUser status.');
+      return UserStatus.newUser;
     }
 
-    final response = await _makeRequest(
-      endpoint: '/api/users/status/$userId',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/status/$userId',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
 
-    if (response['hasBankAccount'] == true) {
-      return UserStatus.complete;
-    } else if (response['isNewUser'] == true) {
+      if (response['hasBankAccount'] == true) {
+        return UserStatus.complete;
+      } else if (response['isNewUser'] == true) {
+        return UserStatus.newUser;
+      } else {
+        return UserStatus.noBankAccount;
+      }
+    } catch (e) {
+      _logger.e('Error getting user status', error: e);
       return UserStatus.newUser;
-    } else {
-      return UserStatus.noBankAccount;
     }
   }
 
@@ -750,6 +733,29 @@ class AuthService {
     );
   }
 
+  Future<Map<String, dynamic>> fetchUserProfile() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/profile',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['success'] == true) {
+        return {'success': true, 'data': response['data']};
+      } else {
+        return {
+          'success': false,
+          'message': response['message'] ?? 'Failed to fetch user profile'
+        };
+      }
+    } catch (e) {
+      _logger.e('Error fetching user profile', error: e);
+      return {'success': false, 'message': 'Error fetching user profile: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> getAllTransactionsPaginated(
       {int page = 1, int pageSize = 100}) async {
     return _makeRequest(
@@ -781,7 +787,7 @@ class AuthService {
 
   // Daily Transaction Summary
 
-  Future<List<DailyTransactionSummary>> getDailyTransactionSummary() async {
+  Future<Map<String, dynamic>> getDailyTransactionSummary() async {
     try {
       final response = await _makeRequest(
         endpoint: '/api/plaid/daily-transaction-summary',
@@ -790,18 +796,12 @@ class AuthService {
         requireAuth: true,
       );
 
-      if (response['success'] == true && response['data'] is List) {
-        return (response['data'] as List)
-            .map((json) => DailyTransactionSummary.fromJson(
-                json is Map<String, dynamic>
-                    ? json
-                    : Map<String, dynamic>.from(json as Map)))
-            .toList();
+      if (response['success'] == true) {
+        return response;
       } else {
         _logger.e('Unexpected response format: $response');
         throw ApiException(
-            message:
-                'Failed to fetch daily transaction summary: Unexpected response format',
+            message: 'Failed to fetch daily transaction summary',
             statusCode: 500);
       }
     } catch (e) {

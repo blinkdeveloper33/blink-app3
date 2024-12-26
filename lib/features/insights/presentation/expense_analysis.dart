@@ -9,12 +9,14 @@ class ExpenseAnalysis extends StatefulWidget {
   final Map<String, dynamic> expenseData;
   final String timeFrame;
   final Function(String) onTimeFrameChanged;
+  final bool isDarkMode;
 
   const ExpenseAnalysis({
     super.key,
     required this.expenseData,
     required this.timeFrame,
     required this.onTimeFrameChanged,
+    required this.isDarkMode,
   });
 
   @override
@@ -56,10 +58,10 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Expense Analysis',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: widget.isDarkMode ? Colors.white : Colors.black87,
                   fontFamily: 'Onest',
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -68,6 +70,7 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
               TimeFrameSelector(
                 selectedTimeFrame: widget.timeFrame,
                 onChanged: widget.onTimeFrameChanged,
+                isDarkMode: widget.isDarkMode,
               ),
             ],
           ),
@@ -87,12 +90,12 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
                     const SizedBox(height: 24),
                     Expanded(
                       child: GridView.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 1.5,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount:
+                              MediaQuery.of(context).size.width < 360 ? 1 : 2,
+                          childAspectRatio: 1.8,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
                         ),
                         itemCount: categories.length,
                         itemBuilder: (context, index) {
@@ -113,6 +116,7 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
                             percentage: percentage,
                             animatedEmoji:
                                 _getCategoryAnimatedEmoji(categoryName),
+                            isDarkMode: widget.isDarkMode,
                           );
                         },
                       ),
@@ -128,14 +132,23 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
   }
 
   List<PieChartSectionData> _getPieChartSections(List<dynamic> categories) {
-    final colors = [
-      const Color(0xFF9C27B0),
-      const Color(0xFFFF9800),
-      const Color(0xFF2196F3),
-      const Color(0xFFF44336),
-      const Color(0xFF4CAF50),
-      const Color(0xFFFFEB3B),
-    ];
+    final colors = widget.isDarkMode
+        ? [
+            const Color(0xFF9C27B0),
+            const Color(0xFFFF9800),
+            const Color(0xFF2196F3),
+            const Color(0xFFF44336),
+            const Color(0xFF4CAF50),
+            const Color(0xFFFFEB3B),
+          ]
+        : [
+            const Color(0xFF6200EA),
+            const Color(0xFFE65100),
+            const Color(0xFF0277BD),
+            const Color(0xFFC62828),
+            const Color(0xFF2E7D32),
+            const Color(0xFFF9A825),
+          ];
 
     return categories.asMap().entries.map((entry) {
       final index = entry.key;
@@ -156,7 +169,7 @@ class _ExpenseAnalysisState extends State<ExpenseAnalysis>
     }).toList();
   }
 
-  Widget _getCategoryAnimatedEmoji(String category) {
+  AnimatedEmoji _getCategoryAnimatedEmoji(String category) {
     switch (category.toLowerCase()) {
       case 'food & groceries':
       case 'food':

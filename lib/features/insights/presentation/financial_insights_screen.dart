@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:blink_app/providers/financial_data_provider.dart';
 import 'package:blink_app/features/insights/presentation/cash_flow_chart.dart';
 import 'package:blink_app/features/insights/presentation/expense_analysis.dart';
+import 'package:blink_app/providers/theme_provider.dart';
+import 'dart:math' show min;
 
 class FinancialInsightsScreen extends StatefulWidget {
   const FinancialInsightsScreen({super.key});
@@ -39,20 +41,22 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E21),
+      backgroundColor: isDarkMode ? const Color(0xFF0A0E21) : Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios,
+              color: isDarkMode ? Colors.white : Colors.black87),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Insights',
           style: TextStyle(
-            color: Colors.white,
+            color: isDarkMode ? Colors.white : Colors.black87,
             fontFamily: 'Onest',
             fontWeight: FontWeight.bold,
             fontSize: 20,
@@ -70,7 +74,8 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
                 children: [
                   const SizedBox(height: 16),
                   _buildSectionContainer(
-                    height: screenSize.width * 1.4, // Increased from 0.9 to 1.2
+                    height:
+                        min(screenSize.width * 1.4, screenSize.height * 0.6),
                     child: _buildCashFlowSection(provider),
                     color: const Color(0xFF1C2A4D),
                   ),
@@ -95,15 +100,20 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
     required Color color,
     required double height,
   }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: height,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: color,
+        color: isDarkMode
+            ? color
+            : color.withOpacity(0.8), // Lighter for light mode
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: isDarkMode
+                ? Colors.black.withOpacity(0.2)
+                : Colors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -117,6 +127,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
   }
 
   Widget _buildCashFlowSection(FinancialDataProvider provider) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Stack(
       children: [
         if (provider.cashFlowState == DataState.loaded &&
@@ -130,6 +141,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
               });
               provider.loadCashFlowData(newTimeFrame);
             },
+            isDarkMode: isDarkMode,
           ),
         if (provider.cashFlowState == DataState.loading)
           const Center(child: CircularProgressIndicator(color: Colors.white)),
@@ -152,6 +164,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
   }
 
   Widget _buildExpenseSection(FinancialDataProvider provider) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Stack(
       children: [
         if (provider.expenseState == DataState.loaded &&
@@ -165,6 +178,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
               });
               provider.loadExpenseData(newTimeFrame);
             },
+            isDarkMode: isDarkMode,
           ),
         if (provider.expenseState == DataState.loading)
           const Center(child: CircularProgressIndicator(color: Colors.white)),

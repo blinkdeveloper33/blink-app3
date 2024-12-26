@@ -29,6 +29,7 @@ class StorageService {
   late encrypt.Key _encryptionKey;
   final encrypt.IV _iv = encrypt.IV.fromLength(16);
   late encrypt.Encrypter _encrypter;
+  bool _isInitialized = false;
 
   factory StorageService() {
     return _instance;
@@ -37,6 +38,8 @@ class StorageService {
   StorageService._internal();
 
   Future<void> init() async {
+    if (_isInitialized) return;
+
     try {
       _prefs = await SharedPreferences.getInstance();
       _logger.i('SharedPreferences initialized successfully.');
@@ -48,6 +51,7 @@ class StorageService {
 
       _encryptionKey = encrypt.Key.fromUtf8(keyString);
       _encrypter = encrypt.Encrypter(encrypt.AES(_encryptionKey));
+      _isInitialized = true;
 
       _logger.i('Encryption key initialized successfully.');
     } catch (e) {

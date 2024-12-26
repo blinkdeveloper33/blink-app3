@@ -5,7 +5,6 @@ import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:blink_app/features/home/presentation/home_screen.dart';
 import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -32,6 +31,9 @@ class _LoginScreenState extends State<LoginScreen>
 
   late AnimationController _pulseAnimationController;
   late Animation<double> _pulseAnimation;
+
+  String? _errorMessage;
+  bool _showError = false;
 
   @override
   void initState() {
@@ -65,6 +67,11 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _submitLogin() async {
+    setState(() {
+      _errorMessage = null;
+      _showError = false;
+    });
+
     if (_formKey.currentState!.validate()) {
       setState(() => _isSubmitting = true);
 
@@ -78,96 +85,43 @@ class _LoginScreenState extends State<LoginScreen>
           password: _passwordController.text,
         );
 
-        if (loginResponse['success']) {
+        if (loginResponse['success'] == true) {
           final userId = storageService.getUserId();
-          storageService.getFullName();
-
           if (userId == null) {
-            _showErrorDialog('User ID not found. Please try logging in again.');
+            setState(() {
+              _errorMessage = 'Account not found. Would you like to sign up?';
+              _showError = true;
+            });
             return;
           }
 
-          final detailedBankAccounts =
-              await authService.getDetailedBankAccounts();
-          await storageService.setDetailedBankAccounts(detailedBankAccounts);
-
-          UserStatus userStatus = await authService.getUserStatus();
-
           if (!mounted) return;
-
-          switch (userStatus) {
-            case UserStatus.newUser:
-              Navigator.of(context).pushReplacementNamed('/signup');
-              break;
-            case UserStatus.noBankAccount:
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => const LinkPlaidBankScreen(),
-                ),
-              );
-              break;
-            case UserStatus.complete:
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
-                ),
-              );
-              break;
-          }
+          Navigator.of(context).pushReplacementNamed('/home');
         } else {
-          _showErrorDialog(
-              loginResponse['message'] ?? 'Login failed. Please try again.');
+          String errorMessage = 'Invalid email or password. ';
+          if (loginResponse['message']?.contains('not found') ?? false) {
+            errorMessage += 'Don\'t have an account? Sign up below!';
+          } else {
+            errorMessage += 'Please try again.';
+          }
+          setState(() {
+            _errorMessage = errorMessage;
+            _showError = true;
+          });
         }
       } catch (e) {
         _logger.e('Error during login', error: e);
-        _showErrorDialog('Login failed. Please try again.');
+        setState(() {
+          _errorMessage =
+              'Unable to connect. Please check your internet connection and try again.';
+          _showError = true;
+        });
       } finally {
         if (mounted) {
           setState(() => _isSubmitting = false);
         }
       }
     }
-  }
-
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF061535),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
-            'Error',
-            style: TextStyle(
-              color: Colors.redAccent,
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Text(
-            message,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontFamily: 'Onest',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'OK',
-                style: TextStyle(
-                  color: Color(0xFF2196F3),
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _handleGoogleSignIn() {
@@ -199,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen>
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withAlpha(25),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -250,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
+          SizedBox(
             height: 80,
             child: Stack(
               children: [
@@ -261,15 +215,14 @@ class _LoginScreenState extends State<LoginScreen>
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
+                    fillColor: Colors.white.withAlpha(25),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide:
-                          BorderSide(color: Colors.white.withOpacity(0.3)),
+                      borderSide: BorderSide(color: Colors.white.withAlpha(76)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -551,6 +504,15 @@ class _LoginScreenState extends State<LoginScreen>
                         key: _formKey,
                         child: Column(
                           children: [
+                            if (_showError && _errorMessage != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: AnimatedErrorMessage(
+                                  message: _errorMessage!,
+                                  onDismiss: () =>
+                                      setState(() => _showError = false),
+                                ),
+                              ),
                             _buildInputField(
                               controller: _emailController,
                               focusNode: _emailFocusNode,
@@ -647,7 +609,7 @@ class BackgroundPainter extends CustomPainter {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
 
     final circlePaint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
+      ..color = Colors.white.withAlpha(25)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(
@@ -659,5 +621,61 @@ class BackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return false;
+  }
+}
+
+class AnimatedErrorMessage extends StatelessWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const AnimatedErrorMessage({
+    required this.message,
+    required this.onDismiss,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeInDown(
+      duration: const Duration(milliseconds: 400),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.red.withAlpha(25),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withAlpha(76)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withAlpha(25),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 14,
+                  fontFamily: 'Onest',
+                  height: 1.4,
+                ),
+              ),
+            ),
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(Icons.close, color: Colors.red, size: 20),
+              onPressed: onDismiss,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

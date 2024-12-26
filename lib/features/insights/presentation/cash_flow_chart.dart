@@ -10,12 +10,14 @@ class CashFlowChart extends StatelessWidget {
   final Map<String, dynamic> cashFlowData;
   final String timeFrame;
   final Function(String) onTimeFrameChanged;
+  final bool isDarkMode;
 
   const CashFlowChart({
     super.key,
     required this.cashFlowData,
     required this.timeFrame,
     required this.onTimeFrameChanged,
+    required this.isDarkMode,
   });
 
   @override
@@ -52,6 +54,7 @@ class CashFlowChart extends StatelessWidget {
                     child: TimeFrameSelector(
                       selectedTimeFrame: timeFrame,
                       onChanged: onTimeFrameChanged,
+                      isDarkMode: isDarkMode,
                     ),
                   ),
                 ],
@@ -278,15 +281,20 @@ class CashFlowChart extends StatelessWidget {
                 ?.toDouble() ??
             0.0;
 
-    return SummaryCard(
-      categoryName: isInflow ? 'Inflow' : 'Outflow',
-      amount: totalAmount,
-      totalSpending: totalAmount,
-      percentage: null,
-      animatedEmoji: AnimatedEmoji(isInflow
-          ? AnimatedEmojis.airplaneArrival
-          : AnimatedEmojis.airplaneDeparture),
-      textColor: isInflow ? const Color(0xFF7EA16B) : const Color(0xFFA45A52),
-    );
+    return LayoutBuilder(builder: (context, constraints) {
+      return SummaryCard(
+        categoryName: isInflow ? 'Inflow' : 'Outflow',
+        amount: totalAmount,
+        totalSpending: totalAmount,
+        percentage: null,
+        animatedEmoji: AnimatedEmoji(isInflow
+            ? AnimatedEmojis.airplaneArrival
+            : AnimatedEmojis.airplaneDeparture),
+        textColor: isInflow ? const Color(0xFF7EA16B) : const Color(0xFFA45A52),
+        width: constraints.maxWidth,
+        height: cardHeight,
+        isDarkMode: isDarkMode,
+      );
+    });
   }
 }
