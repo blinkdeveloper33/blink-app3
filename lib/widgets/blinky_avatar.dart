@@ -26,8 +26,8 @@ class BlinkyAvatar extends StatelessWidget {
         ],
       ),
       child: ClipOval(
-        child: Image.asset(
-          'assets/images/blinky-avatar.png',
+        child: Image.network(
+          'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Robot.png',
           fit: BoxFit.cover,
         ),
       ),

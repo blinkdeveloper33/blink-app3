@@ -65,7 +65,7 @@ enum UserStatus { newUser, noBankAccount, complete }
 
 enum TransferSpeed {
   instant,
-  normal,
+  standard,
 }
 
 class AuthService {

@@ -88,6 +88,8 @@ flutter:
     - packages/animated_emoji/lottie/batteryLow.json
     - packages/animated_emoji/lottie/flyingSaucer.json
     - packages/animated_emoji/lottie/bicycle.json
+    - packages/animated_emoji/lottie/wave.json
+    - packages/animated_emoji/lottie/robot.json
     - .env
     - assets/images/blink_logo.png
 
