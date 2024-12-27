@@ -11,7 +11,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animated_emoji/animated_emoji.dart';
 import 'package:blink_app/widgets/typing_indicator.dart';
 import 'package:flutter/services.dart';
-import 'package:haptic_feedback/haptic_feedback.dart';
 
 const Color kPrimaryColor = Color(0xFF0E6BA8);
 const Color kSecondaryColor = Color(0xFF1A237E);
@@ -26,6 +25,17 @@ enum ConversationState {
   dateSelection,
   summary,
   completed
+}
+
+enum HapticsType {
+  light,
+  medium,
+  heavy,
+  success,
+  warning,
+  error,
+  selection,
+  rigid,
 }
 
 class AnimatedBackground extends StatelessWidget {
@@ -75,7 +85,6 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   late Animation<Offset> _inputSectionAnimation;
   String? _bankAccountId = '';
   bool _showQuickActions = false;
-  List<Widget> _quickActionItems = [];
   bool _isLoading = false;
   late AnimationController _confettiController;
 
@@ -144,7 +153,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       });
 
       _addMessage(ChatMessage(
-        text: 'Hi $_userName! 👋',
+        text: 'Hi $_userName!',
         isUser: false,
         timestamp: DateTime.now(),
         emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
@@ -156,14 +165,12 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         });
 
         _addMessage(ChatMessage(
-          text:
-              'So, tell me $_userName, how much would you like for your Blink Advance today? I can help you with amounts from \$150 to \$300! 💫',
+          text: 'How much do you need today? Choose between \$150-\$300',
           isUser: false,
           timestamp: DateTime.now(),
           emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
         ));
 
-        // Show quick actions only after amount question
         Future.delayed(Duration(milliseconds: 1000), () {
           if (mounted &&
               _conversationState == ConversationState.amountSelection) {
@@ -178,22 +185,6 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     if (!mounted) return;
 
     setState(() {
-      switch (_conversationState) {
-        case ConversationState.amountSelection:
-          _quickActionItems = _buildAmountOptions();
-          break;
-        case ConversationState.speedSelection:
-          _quickActionItems = _buildSpeedOptions();
-          break;
-        case ConversationState.dateSelection:
-          _quickActionItems = _buildDateOptions();
-          break;
-        case ConversationState.summary:
-          _quickActionItems = _buildConfirmationOptions();
-          break;
-        default:
-          _quickActionItems = [];
-      }
       _showQuickActions = true;
     });
 
@@ -252,7 +243,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     _inputSectionController.reverse();
 
     _addMessage(ChatMessage(
-      text: 'I would like to get \$$amount',
+      text: 'I need \$$amount',
       isUser: true,
       timestamp: DateTime.now(),
     ));
@@ -263,8 +254,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       if (!mounted) return;
 
       _addMessage(ChatMessage(
-        text:
-            'Great choice! Now, how would you like to receive your Blink Advance?',
+        text: 'When do you need these funds?',
         isUser: false,
         timestamp: DateTime.now(),
         emoji: AnimatedEmoji(AnimatedEmojis.sparkles, size: 24),
@@ -303,8 +293,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           : AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24);
 
       _addMessage(ChatMessage(
-        text:
-            'Perfect! ${speed == TransferSpeed.instant ? 'I\'ll make sure your money arrives in minutes!' : 'Your money will arrive within 1-2 business days.'}',
+        text: speed == TransferSpeed.instant
+            ? 'Your money will arrive in minutes!'
+            : 'Your money will arrive in 1-2 business days.',
         isUser: false,
         timestamp: DateTime.now(),
         emoji: speedEmoji,
@@ -312,8 +303,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
 
       Future.delayed(Duration(milliseconds: 1500), () {
         _addMessage(ChatMessage(
-          text:
-              'Last step, $_userName! When would you like to repay your \$$_selectedAmount Blink Advance? Pick a date that works best for you! 📅',
+          text: 'When would you like to repay your \$$_selectedAmount advance?',
           isUser: false,
           timestamp: DateTime.now(),
           emoji: AnimatedEmoji(AnimatedEmojis.thinkingFace, size: 24),
@@ -378,7 +368,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     final formattedDate = DateFormat('MMMM d, yyyy').format(date);
 
     _addMessage(ChatMessage(
-      text: 'I\'ll repay the advance on $formattedDate.',
+      text: 'I\'ll repay on $formattedDate.',
       isUser: true,
       timestamp: DateTime.now(),
     ));
@@ -389,8 +379,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       if (!mounted) return;
 
       _addMessage(ChatMessage(
-        text:
-            '📅 Perfect! You\'ve chosen $formattedDate as your repayment date.',
+        text: 'Got it! Let me prepare your summary.',
         isUser: false,
         timestamp: DateTime.now(),
         emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24),
@@ -404,15 +393,17 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   }
 
   void _showAdvanceSummary() {
+    final fee = _selectedSpeed == TransferSpeed.instant ? 8.99 : 3.99;
     _addMessage(ChatMessage(
-      text: 'Here\'s your Blink Advance summary:\n\n'
+      text: 'Here\'s your advance details:\n\n'
           '• Amount: \$$_selectedAmount\n'
           '• Transfer: ${_selectedSpeed == TransferSpeed.instant ? 'Instant' : 'Standard'}\n'
-          '• Repayment Date: ${DateFormat('MMMM d, yyyy').format(_selectedDate!)}\n\n'
-          'Would you like to proceed?',
+          '• Fee: \$${fee.toStringAsFixed(2)}\n'
+          '• Repayment: ${DateFormat('MMMM d, yyyy').format(_selectedDate!)}\n\n'
+          'Ready to proceed?',
       isUser: false,
       timestamp: DateTime.now(),
-      emoji: AnimatedEmoji(AnimatedEmojis.pencil, size: 24),
+      emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
     ));
 
     Future.delayed(const Duration(milliseconds: 1000), () {
@@ -438,33 +429,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       _isLoading = true;
     });
 
-    Future.delayed(Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
-      _showSuccessAnimation();
-    });
-  }
-
-  void _showSuccessAnimation() {
-    _confettiController.forward();
-    _performHapticFeedback(HapticsType.success);
-
-    Future.delayed(Duration(milliseconds: 2000), () {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
-          transitionDuration: Duration(milliseconds: 500),
-        ),
-      );
-    });
+    // Process the advance
+    _createBlinkAdvance();
   }
 
   Future<void> _createBlinkAdvance() async {
@@ -520,26 +486,144 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       if (mounted) {
         _showErrorMessage('An unexpected error occurred. Please try again.');
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   void _showSuccessMessage() {
     if (!mounted) return;
 
+    // First haptic feedback for success
+    _performHapticFeedback(HapticsType.success);
+
+    // Show success popup with logo
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 16,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Success checkmark animation
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.green.withOpacity(0.1),
+                  ),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 60,
+                  ),
+                ).animate().scale(
+                      begin: Offset(0.5, 0.5),
+                      end: Offset(1, 1),
+                      duration: 500.ms,
+                      curve: Curves.elasticOut,
+                    ),
+                SizedBox(height: 24),
+                // Blink logo
+                Image.asset(
+                  'assets/images/blink_logo.png',
+                  height: 40,
+                  fit: BoxFit.contain,
+                ).animate().fadeIn(duration: 600.ms).scale(
+                      begin: Offset(0.8, 0.8),
+                      end: Offset(1, 1),
+                      duration: 600.ms,
+                    ),
+                SizedBox(height: 24),
+                Text(
+                  'Advance Processed!',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0),
+                SizedBox(height: 8),
+                Text(
+                  'Your funds are on the way',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
+                  ),
+                ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2, end: 0),
+              ],
+            ),
+          ).animate().scale(
+                begin: Offset(0.8, 0.8),
+                end: Offset(1, 1),
+                duration: 400.ms,
+                curve: Curves.easeOut,
+              ),
+        );
+      },
+    );
+
+    // Second haptic feedback after a short delay
+    Future.delayed(Duration(milliseconds: 300), () {
+      _performHapticFeedback(HapticsType.medium);
+    });
+
+    // Third haptic feedback for extra satisfaction
+    Future.delayed(Duration(milliseconds: 600), () {
+      _performHapticFeedback(HapticsType.light);
+    });
+
+    // Show confetti effect
+    if (_confettiKey.currentContext != null) {
+      ConfettiOverlay.of(_confettiKey.currentContext!)?.showConfetti();
+    }
+
+    // Add the final message
     _addMessage(ChatMessage(
-      text:
-          'Great! Your Blink Advance has been processed. The funds will be available in your account shortly. Have a great day!',
+      text: 'Your advance is on its way! Check your account shortly.',
       isUser: false,
       timestamp: DateTime.now(),
       emoji: AnimatedEmoji(AnimatedEmojis.rocket, size: 24),
     ));
-    if (_confettiKey.currentContext != null) {
-      ConfettiOverlay.of(_confettiKey.currentContext!)?.showConfetti();
-    }
-    Future.delayed(Duration(seconds: 2), () {
+
+    // Automatically close popup and return to home screen after a delay
+    Future.delayed(Duration(milliseconds: 3000), () {
       if (mounted) {
+        Navigator.of(context).pop(); // Close the popup
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                HomeScreen(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+            transitionDuration: Duration(milliseconds: 500),
+          ),
         );
       }
     });
@@ -566,15 +650,6 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         ),
       );
     }
-  }
-
-  void _resetInputSection() {
-    _inputSectionController.reset();
-    Future.delayed(Duration(milliseconds: 300), () {
-      if (mounted) {
-        _inputSectionController.forward();
-      }
-    });
   }
 
   void _scrollToBottom() {
@@ -609,14 +684,12 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       if (!mounted) return;
 
       _addMessage(ChatMessage(
-        text:
-            'No problem, $_userName! Your Blink Advance request has been cancelled.',
+        text: 'No worries! Let me know if you need anything else.',
         isUser: false,
         timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(AnimatedEmojis.thinkingFace, size: 24),
+        emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
       ));
 
-      // Add a smooth transition to home screen
       Future.delayed(Duration(milliseconds: 2000), () {
         if (!mounted) return;
 
@@ -647,14 +720,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             _performHapticFeedback(HapticsType.medium);
             _handleAmountSelection(amount.toString());
           },
-          style: ElevatedButton.styleFrom(
+          style: _getButtonStyle(
             backgroundColor: Colors.blue[600],
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            borderRadius: 20,
             elevation: 2,
+            padding: EdgeInsets.symmetric(vertical: 12),
           ),
           child: Text('\$$amount',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
@@ -669,8 +739,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         width: MediaQuery.of(context).size.width * 0.43,
         child: _buildSpeedButton(
           speed: TransferSpeed.instant,
-          title: 'Instant',
-          subtitle: '(\$8.99)',
+          title: 'For Now',
+          subtitle: 'Instant Transfer',
           fee: 8.99,
           gradient: const LinearGradient(
             colors: [Colors.purple, Colors.blue],
@@ -686,8 +756,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         width: MediaQuery.of(context).size.width * 0.43,
         child: _buildSpeedButton(
           speed: TransferSpeed.standard,
-          title: 'Standard',
-          subtitle: '(\$3.99)',
+          title: 'For Tomorrow',
+          subtitle: 'Standard Transfer',
           fee: 3.99,
           gradient: const LinearGradient(
             colors: [Colors.blue, Colors.lightBlue],
@@ -786,14 +856,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       Expanded(
         child: ElevatedButton(
           onPressed: () => _handleConfirmation(true),
-          style: ElevatedButton.styleFrom(
-            foregroundColor: Colors.white,
+          style: _getButtonStyle(
             backgroundColor: Colors.green,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-            padding: EdgeInsets.symmetric(vertical: 12),
+            borderRadius: 30,
             elevation: 5,
+            padding: EdgeInsets.symmetric(vertical: 12),
           ),
           child: Text('Confirm',
               style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -803,14 +870,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       Expanded(
         child: ElevatedButton(
           onPressed: _handleCancellation,
-          style: ElevatedButton.styleFrom(
+          style: _getButtonStyle(
             backgroundColor: Colors.grey[300],
-            foregroundColor: Colors.black87,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            borderRadius: 20,
             elevation: 2,
+            padding: EdgeInsets.symmetric(vertical: 12),
           ),
           child: const Text('Cancel'),
         ),
@@ -831,14 +895,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           icon: const Icon(Icons.calendar_today, color: Colors.white),
           label: const Text('Select Repayment Date',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          style: ElevatedButton.styleFrom(
+          style: _getButtonStyle(
             backgroundColor: Colors.blue[600],
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            borderRadius: 20,
             elevation: 2,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           ),
         ),
       ),
@@ -852,54 +913,20 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(26),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Colors.white.withAlpha(204),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    'Choose a repayment date within the next 30 days',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(204),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildInfoBox('Choose a repayment date within the next 30 days'),
+          const SizedBox(height: 12),
           ElevatedButton(
             onPressed: () {
               _performHapticFeedback(HapticsType.medium);
               _showDatePicker();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[600],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              elevation: 2,
-            ),
-            child: Row(
+            style: _getButtonStyle(),
+            child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.calendar_today, size: 20),
-                const SizedBox(width: 12),
-                const Text(
+                Icon(Icons.calendar_today, size: 20),
+                SizedBox(width: 12),
+                Text(
                   'Select Repayment Date',
                   style: TextStyle(
                     fontSize: 16,
@@ -911,10 +938,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             ),
           )
               .animate()
-              .fadeIn(duration: const Duration(milliseconds: 300))
-              .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1))
-              .then()
-              .shimmer(duration: const Duration(milliseconds: 1200)),
+              .fadeIn(duration: 300.ms)
+              .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
           SizedBox(height: 8),
           Text(
             'Repayment must be completed within 30 days',
@@ -937,14 +962,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           Expanded(
             child: ElevatedButton(
               onPressed: () => _handleConfirmation(true),
-              style: ElevatedButton.styleFrom(
+              style: _getButtonStyle(
                 backgroundColor: Colors.green[600],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                borderRadius: 20,
                 elevation: 2,
+                padding: EdgeInsets.symmetric(vertical: 12),
               ),
               child: const Text('Confirm',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
@@ -954,22 +976,93 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           Expanded(
             child: ElevatedButton(
               onPressed: () => _handleConfirmation(false),
-              style: ElevatedButton.styleFrom(
+              style: _getButtonStyle(
                 backgroundColor: Colors.red[400],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                borderRadius: 20,
                 elevation: 2,
+                padding: EdgeInsets.symmetric(vertical: 12),
               ),
               child: const Text('Cancel',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
+      ).animate().fadeIn(duration: 300.ms),
+    );
+  }
+
+  // Consolidated Button Style Method 🎨
+  ButtonStyle _getButtonStyle({
+    Color? backgroundColor,
+    double elevation = 2,
+    EdgeInsetsGeometry? padding,
+    double borderRadius = 20,
+  }) {
+    return ElevatedButton.styleFrom(
+      backgroundColor: backgroundColor ?? Colors.blue[600],
+      foregroundColor: Colors.white,
+      padding: padding ?? const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
       ),
-    ).animate().fadeIn(duration: 300.ms);
+      elevation: elevation,
+    );
+  }
+
+  Widget _buildInfoBox(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(26),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.info_outline,
+              size: 16, color: Colors.white.withAlpha(204)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.white.withAlpha(204),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performHapticFeedback(HapticsType type) {
+    switch (type) {
+      case HapticsType.light:
+        HapticFeedback.lightImpact();
+        break;
+      case HapticsType.medium:
+        HapticFeedback.mediumImpact();
+        break;
+      case HapticsType.heavy:
+        HapticFeedback.heavyImpact();
+        break;
+      case HapticsType.success:
+        HapticFeedback.vibrate();
+        break;
+      case HapticsType.warning:
+        HapticFeedback.vibrate();
+        break;
+      case HapticsType.error:
+        HapticFeedback.vibrate();
+        break;
+      case HapticsType.selection:
+        HapticFeedback.selectionClick();
+        break;
+      case HapticsType.rigid:
+        HapticFeedback.vibrate();
+        break;
+    }
   }
 
   @override
@@ -1167,456 +1260,31 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     );
   }
 
-  Widget _buildCurrentInputWidget() {
-    if (_selectedAmount == null) {
-      return _buildAmountSelection();
-    } else if (_selectedSpeed == null) {
-      return _buildSpeedSelection();
-    } else if (_selectedDate == null) {
-      return _buildDateSelection();
-    } else {
-      return _buildConfirmation();
-    }
-  }
+  // Removed the following duplicated methods:
+  // _buildQuickActionButton()
+  // _buildAnimatedButton()
+  // _buildConfirmationButtons()
+  // _buildCurrentInputWidget()
 
-  Widget _buildAmountSelection() {
-    return Center(
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.center,
-        children: _amountOptions.map((amount) {
-          return _buildAnimatedButton(
-            onPressed: () => _handleAmountSelection(amount.toString()),
-            child: Text(
-              '\$$amount',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-            backgroundColor: kPrimaryColor,
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedButton({
-    required VoidCallback onPressed,
-    required Widget child,
-    required Color backgroundColor,
-  }) {
-    return AnimatedButton(
-      onPressed: () {
-        _performHapticFeedback(HapticsType.light);
-        onPressed();
-      },
-      backgroundColor: backgroundColor,
-      child: child,
-    )
-        .animate()
-        .fadeIn(duration: 300.ms, delay: 100.ms)
-        .scale(begin: Offset(0.8, 0.8), end: Offset(1, 1))
-        .then()
-        .shimmer(duration: 1200.ms, delay: 600.ms);
-  }
-
-  Widget _buildSpeedSelection() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildSpeedButton(
-                speed: TransferSpeed.instant,
-                title: 'For now',
-                subtitle: 'Instant',
-                fee: 8.99,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-                ),
-                textColor: Colors.white,
-                emoji: AnimatedEmoji(AnimatedEmojis.electricity, size: 28),
-                particles: true,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: _buildSpeedButton(
-                speed: TransferSpeed.standard,
-                title: 'For tomorrow',
-                subtitle: 'Standard',
-                fee: 3.99,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.white, Color(0xFFF3F4F6)],
-                ),
-                textColor: kPrimaryColor,
-                emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 28),
-                particles: false,
-              ),
-            ),
-          ],
-        ),
-      ],
-    ).animate().fadeIn(duration: 300.ms, delay: 100.ms).scale(
-          begin: Offset(0.95, 0.95),
-          end: Offset(1, 1),
-        );
-  }
-
-  Widget _buildDateSelection() {
-    return SizedBox(
-      width: double.infinity,
-      child: Column(
-        children: [
-          Container(
-            margin: EdgeInsets.only(bottom: 12),
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(26),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Colors.white.withAlpha(204),
-                ),
-                SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    'Choose a repayment date within the next 30 days',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(204),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton(
-            onPressed: _showDatePicker,
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: kPrimaryColor,
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              elevation: 5,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.calendar_today, size: 20),
-                SizedBox(width: 12),
-                Text(
-                  'Select Repayment Date',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 100.ms)
-              .scale(begin: Offset(0.9, 0.9), end: Offset(1, 1))
-              .then()
-              .shimmer(duration: 1200.ms, delay: 600.ms),
-          SizedBox(height: 8),
-          Text(
-            'Repayment must be completed within 30 days',
-            style: TextStyle(
-              color: Colors.white.withAlpha(179),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConfirmation() {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () {
-              _handleConfirmation(true);
-            },
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: Colors.green,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              padding: EdgeInsets.symmetric(vertical: 12),
-              elevation: 5,
-            ),
-            child: Text('Confirm',
-                style: TextStyle(color: Colors.white, fontSize: 16)),
-          ),
-        ),
-        SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () => _handleConfirmation(false),
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              padding: EdgeInsets.symmetric(vertical: 12),
-              elevation: 5,
-            ),
-            child: Text('Cancel',
-                style: TextStyle(color: Colors.white, fontSize: 16)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickActionButton(String text, VoidCallback onTap) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blue[600]!, Colors.blue[400]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _performHapticFeedback(HapticsType type) {
-    switch (type) {
-      case HapticsType.light:
-        HapticFeedback.lightImpact();
-        break;
-      case HapticsType.medium:
-        HapticFeedback.mediumImpact();
-        break;
-      case HapticsType.heavy:
-        HapticFeedback.heavyImpact();
-        break;
-      case HapticsType.success:
-        HapticFeedback.vibrate();
-        break;
-      case HapticsType.warning:
-        HapticFeedback.vibrate();
-        break;
-      case HapticsType.error:
-        HapticFeedback.vibrate();
-        break;
-      case HapticsType.selection:
-        HapticFeedback.selectionClick();
-        break;
-      case HapticsType.rigid:
-        HapticFeedback.vibrate();
-        break;
-    }
-  }
-
-  Widget _buildAmountOptionsLayout(BoxConstraints constraints) {
-    final buttonWidth = (constraints.maxWidth - 48) / 3;
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
-      children: _amountOptions.map((amount) {
-        return SizedBox(
-          width: buttonWidth,
-          child: ElevatedButton(
-            onPressed: () {
-              _performHapticFeedback(HapticsType.medium);
-              _handleAmountSelection(amount.toString());
-            },
-            style: _quickActionButtonStyle(),
-            child: Text('\$$amount',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          ),
-        );
-      }).toList(),
-    ).animate().fadeIn(duration: 300.ms);
-  }
+  // Ensure all functionalities are now handled by their optimized layout methods.
 
   Widget _buildSpeedOptionsLayout(BoxConstraints constraints) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
-        children: [
-          Expanded(
-            child: _buildSpeedButton(
-              speed: TransferSpeed.instant,
-              title: 'Instant Transfer',
-              subtitle: '(\$8.99)',
-              fee: 8.99,
-              gradient: const LinearGradient(
-                colors: [Colors.purple, Colors.blue],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildSpeedButton(
-              speed: TransferSpeed.standard,
-              title: 'Standard Transfer',
-              subtitle: '(\$3.99)',
-              fee: 3.99,
-              gradient: const LinearGradient(
-                colors: [Colors.blue, Colors.lightBlue],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-        ],
+        children: _buildSpeedOptions(),
       ),
     ).animate().fadeIn(duration: 300.ms);
   }
 
-  Widget _buildDateOptionsLayout(BoxConstraints constraints) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildInfoBox('Choose a repayment date within the next 30 days'),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: () {
-              _performHapticFeedback(HapticsType.medium);
-              _showDatePicker();
-            },
-            style: _quickActionButtonStyle(),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.calendar_today, size: 20),
-                SizedBox(width: 12),
-                Text(
-                  'Select Repayment Date',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 300.ms)
-              .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConfirmationLayout(BoxConstraints constraints) {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () => _handleConfirmation(true),
-            style: _quickActionButtonStyle(backgroundColor: Colors.green[600]),
-            child: const Text('Confirm',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () => _handleConfirmation(false),
-            style: _quickActionButtonStyle(backgroundColor: Colors.red[600]),
-            child: const Text('Cancel',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          ),
-        ),
-      ],
+  Widget _buildAmountOptionsLayout(BoxConstraints constraints) {
+    final buttonWidth = (constraints.maxWidth - 48) / 3;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: _buildAmountOptions(),
     ).animate().fadeIn(duration: 300.ms);
-  }
-
-  ButtonStyle _quickActionButtonStyle({Color? backgroundColor}) {
-    return ElevatedButton.styleFrom(
-      backgroundColor: backgroundColor ?? Colors.blue[600],
-      foregroundColor: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      elevation: 2,
-    );
-  }
-
-  Widget _buildInfoBox(String message) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(26),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.info_outline,
-              size: 16, color: Colors.white.withAlpha(204)),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: Colors.white.withAlpha(204),
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -1730,17 +1398,24 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.emoji != null) ...[
-                        widget.emoji!,
-                        SizedBox(height: 8),
-                      ],
-                      Text(
-                        widget.message.text,
-                        style: TextStyle(
-                          color: widget.isUser ? Colors.white : null,
-                          fontSize: 16,
-                          height: 1.4,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.message.text,
+                              style: TextStyle(
+                                color: widget.isUser ? Colors.white : null,
+                                fontSize: 16,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                          if (widget.emoji != null) ...[
+                            SizedBox(width: 8),
+                            widget.emoji!,
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -1795,7 +1470,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 BoxShadow(
                   color: Colors.black.withAlpha(26),
                   blurRadius: 4,
-                  offset: const Offset(0, 2),
+                  offset: Offset(0, 2),
                 ),
               ],
             ),

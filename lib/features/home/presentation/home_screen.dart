@@ -15,10 +15,9 @@ import 'package:blink_app/features/insights/presentation/financial_insights_scre
 import 'package:animate_do/animate_do.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:fluentui_emoji_icon/fluentui_emoji_icon.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:blink_app/widgets/animated_gradient_background.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:haptic_feedback/haptic_feedback.dart';
+import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
 import 'package:blink_app/features/home/presentation/news_stories_viewer.dart';
 import 'package:blink_app/providers/theme_provider.dart';
 
@@ -90,9 +89,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     },
   ];
 
-  void _performHapticFeedback(HapticsType type) {
+  void _performHapticFeedback(haptics.HapticsType type) {
     if (_hapticFeedbackEnabled) {
-      Haptics.vibrate(type);
+      haptics.Haptics.vibrate(type);
     }
   }
 
@@ -111,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       },
       child: GestureDetector(
         onTap: () {
-          _performHapticFeedback(HapticsType.light);
+          _performHapticFeedback(haptics.HapticsType.light);
           Navigator.of(context).push(
             PageRouteBuilder(
               pageBuilder: (context, animation, secondaryAnimation) =>
@@ -214,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _viewDetails(auth.Transaction transaction) {
-    _performHapticFeedback(HapticsType.medium);
+    _performHapticFeedback(haptics.HapticsType.medium);
     // TODO: Implement view details functionality
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('View details for ${transaction.merchantName}')),
@@ -222,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _changeCategory(auth.Transaction transaction) {
-    _performHapticFeedback(HapticsType.medium);
+    _performHapticFeedback(haptics.HapticsType.medium);
     // TODO: Implement change category functionality
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -231,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _addNote(auth.Transaction transaction) {
-    _performHapticFeedback(HapticsType.medium);
+    _performHapticFeedback(haptics.HapticsType.medium);
     // TODO: Implement add note functionality
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Add note for ${transaction.merchantName}')),
@@ -334,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
             GestureDetector(
               onTap: () {
-                _performHapticFeedback(HapticsType.medium);
+                _performHapticFeedback(haptics.HapticsType.medium);
                 setState(() {
                   _isBlinkAdvanceExpanded = true;
                 });
@@ -386,7 +385,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     color: _isDarkMode ? Colors.white : Colors.blue[800],
                   ),
                   onPressed: () {
-                    _performHapticFeedback(HapticsType.light);
+                    _performHapticFeedback(haptics.HapticsType.light);
                     setState(() {
                       _isBlinkAdvanceExpanded = false;
                     });
@@ -481,7 +480,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
-                _performHapticFeedback(HapticsType.medium);
+                _performHapticFeedback(haptics.HapticsType.medium);
                 // TODO: Implement contact support functionality
               },
               style: ElevatedButton.styleFrom(
@@ -497,7 +496,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _handleBlinkAdvanceTap() {
-    _performHapticFeedback(HapticsType.medium);
+    _performHapticFeedback(haptics.HapticsType.medium);
     if (_hasActiveAdvance) {
       // TODO: Navigate to active Blink Advance details screen
       ScaffoldMessenger.of(context).showSnackBar(
@@ -936,7 +935,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 GestureDetector(
                   onTap: () {
-                    _performHapticFeedback(HapticsType.medium);
+                    _performHapticFeedback(haptics.HapticsType.medium);
                     Navigator.of(context).push(
                       MaterialPageRoute(
                           builder: (context) => const AccountScreen()),
@@ -1016,7 +1015,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         size: 28,
                       ),
                       onPressed: () {
-                        _performHapticFeedback(HapticsType.light);
+                        _performHapticFeedback(haptics.HapticsType.light);
                         // TODO: Implement notification screen navigation
                       },
                     ),
@@ -1058,7 +1057,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     size: 24,
                   ),
                   onPressed: () {
-                    _performHapticFeedback(HapticsType.light);
+                    _performHapticFeedback(haptics.HapticsType.light);
                     final themeProvider =
                         Provider.of<ThemeProvider>(context, listen: false);
                     themeProvider.setThemeMode(
@@ -1123,7 +1122,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     onPressed: () {
-                      _performHapticFeedback(HapticsType.light);
+                      _performHapticFeedback(haptics.HapticsType.light);
                       setState(() {
                         _isChartExpanded = !_isChartExpanded;
                       });
@@ -1303,7 +1302,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        _performHapticFeedback(HapticsType.medium);
+                        _performHapticFeedback(haptics.HapticsType.medium);
                         // TODO: Implement repayment functionality
                       },
                       child: ClipRRect(
@@ -1358,7 +1357,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        _performHapticFeedback(HapticsType.medium);
+                        _performHapticFeedback(haptics.HapticsType.medium);
                         Navigator.of(context).push(
                           MaterialPageRoute(
                               builder: (context) =>
@@ -1653,7 +1652,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
             TextButton(
               onPressed: () {
-                _performHapticFeedback(HapticsType.light);
+                _performHapticFeedback(haptics.HapticsType.light);
                 // TODO: Implement navigation to all transactions
               },
               child: Text(
@@ -1711,7 +1710,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
             TextButton(
               onPressed: () {
-                _performHapticFeedback(HapticsType.light);
+                _performHapticFeedback(haptics.HapticsType.light);
                 // TODO: Implement navigation to all news
               },
               child: Text(
@@ -1936,7 +1935,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: () async {
-                      _performHapticFeedback(HapticsType.medium);
+                      _performHapticFeedback(haptics.HapticsType.medium);
                       await Future.wait([
                         _loadData(),
                         _loadBlinkAdvanceStatus(),
