@@ -15,6 +15,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:blink_app/providers/financial_data_provider.dart';
 import 'package:blink_app/providers/theme_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,53 +30,62 @@ void main() async {
   final storageService = StorageService();
   await storageService.init();
   final authService = AuthService(storageService: storageService);
-  final themeProvider = ThemeProvider();
+  final prefs = await SharedPreferences.getInstance();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
         Provider<AuthService>(create: (_) => authService),
         Provider<StorageService>(create: (_) => storageService),
         ChangeNotifierProvider(
             create: (_) => FinancialDataProvider(authService)),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) {
-          return MaterialApp(
-            title: 'Blink',
-            debugShowCheckedModeBanner: false,
-            theme: ThemeData.light(),
-            darkTheme: ThemeData.dark(),
-            themeMode: themeProvider.themeMode,
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            supportedLocales: const [
-              Locale('en', ''),
-              Locale('es', ''),
-            ],
-            initialRoute: '/',
-            routes: {
-              '/': (context) => const SplashScreen(),
-              '/onboarding': (context) => const OnboardingScreen(),
-              '/login': (context) => const LoginScreen(),
-              '/signup': (context) => const SignUpScreen(),
-              '/home': (context) => const HomeScreen(),
-              '/insights': (context) => const FinancialInsightsScreen(),
-            },
-            onGenerateRoute: (settings) {
-              return MaterialPageRoute(
-                builder: (_) =>
-                    ErrorScreen(message: "Route not found: ${settings.name}"),
-              );
-            },
-          );
-        },
-      ),
+      child: const MyApp(),
     ),
   );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'Blink',
+          debugShowCheckedModeBanner: false,
+          theme: themeProvider.lightTheme,
+          darkTheme: themeProvider.darkTheme,
+          themeMode: themeProvider.themeMode,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en', ''),
+            Locale('es', ''),
+          ],
+          initialRoute: '/',
+          routes: {
+            '/': (context) => const SplashScreen(),
+            '/onboarding': (context) => const OnboardingScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/signup': (context) => const SignUpScreen(),
+            '/home': (context) => const HomeScreen(),
+            '/insights': (context) => const FinancialInsightsScreen(),
+          },
+          onGenerateRoute: (settings) {
+            return MaterialPageRoute(
+              builder: (_) =>
+                  ErrorScreen(message: "Route not found: ${settings.name}"),
+            );
+          },
+        );
+      },
+    );
+  }
 }

@@ -41,7 +41,8 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
 
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF0A0E21) : Colors.white,

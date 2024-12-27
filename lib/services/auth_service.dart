@@ -8,17 +8,17 @@ import 'package:intl/intl.dart';
 class Transaction {
   final String id;
   final String merchantName;
-  final String? category;
-  final DateTime date;
+  String? category;
   final double amount;
+  final DateTime date;
   final bool isOutflow;
 
   Transaction({
     required this.id,
     required this.merchantName,
     this.category,
-    required this.date,
     required this.amount,
+    required this.date,
     required this.isOutflow,
   });
 
