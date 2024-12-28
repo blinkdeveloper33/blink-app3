@@ -94,6 +94,11 @@ class AuthService {
       headers['Authorization'] = 'Bearer $token';
     }
 
+    // Check if this is a profile picture upload
+    if (endpoint == '/api/users/profile-picture') {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    }
+
     final url = Uri.parse('$_baseUrl$endpoint');
     try {
       _logger.i('Request to $endpoint: ${jsonEncode(body)}');
@@ -101,8 +106,11 @@ class AuthService {
       late http.Response response;
 
       if (method.toUpperCase() == 'POST') {
-        response =
-            await http.post(url, headers: headers, body: jsonEncode(body));
+        final encodedBody =
+            headers['Content-Type'] == 'application/x-www-form-urlencoded'
+                ? body
+                : jsonEncode(body);
+        response = await http.post(url, headers: headers, body: encodedBody);
       } else if (method.toUpperCase() == 'GET') {
         final Uri finalUrl = body is Map
             ? url.replace(
@@ -836,6 +844,22 @@ class AuthService {
 
   Future<void> init() async {
     _logger.i('AuthService initialized.');
+  }
+
+  Future<Map<String, dynamic>> updateProfilePicture(String base64Image) async {
+    // Make sure the base64 string includes the data URI prefix if not present
+    final imageData = base64Image.startsWith('data:image')
+        ? base64Image
+        : 'data:image/jpeg;base64,$base64Image';
+
+    return _makeRequest(
+      endpoint: '/api/users/profile-picture',
+      body: {
+        'file': imageData
+      }, // Changed from 'image' to 'file' to match backend
+      method: 'POST',
+      requireAuth: true,
+    );
   }
 }
 

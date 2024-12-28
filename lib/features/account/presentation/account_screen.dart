@@ -7,6 +7,9 @@ import 'package:blink_app/features/auth/presentation/login_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:blink_app/providers/theme_provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
+import 'dart:io';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({Key? key}) : super(key: key);
@@ -20,6 +23,7 @@ class _AccountScreenState extends State<AccountScreen>
   late TabController _tabController;
   late Future<Map<String, dynamic>> _accountDataFuture;
   bool isDarkMode = false;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -68,6 +72,64 @@ class _AccountScreenState extends State<AccountScreen>
     }
   }
 
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      setState(() {
+        _isUploadingImage = true;
+      });
+
+      // Read the image file and convert to base64
+      final bytes = await image.readAsBytes();
+      final base64Image = base64Encode(bytes);
+      final mimeType = image.mimeType ?? 'image/jpeg';
+      final formattedBase64 = 'data:$mimeType;base64,$base64Image';
+
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final response = await authService.updateProfilePicture(formattedBase64);
+
+      if (response['success'] == true) {
+        // Refresh account data to show new profile picture
+        setState(() {
+          _accountDataFuture = _fetchAccountData();
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Profile picture updated successfully')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update profile picture')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error uploading profile picture')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+      }
+    }
+  }
+
   Widget _buildUserProfile(Map<String, dynamic> data) {
     final userProfile = data['userProfile'] ?? {};
     final name =
@@ -75,6 +137,7 @@ class _AccountScreenState extends State<AccountScreen>
             .trim();
     final email = userProfile['email'] ?? '';
     final createdAt = userProfile['created_at'] ?? DateTime.now().toString();
+    final profilePictureUrl = userProfile['profile_picture_url'];
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -95,13 +158,71 @@ class _AccountScreenState extends State<AccountScreen>
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundColor: isDarkMode ? Colors.white24 : Colors.grey[200],
-                child: Icon(
-                  Icons.person,
-                  size: 30,
-                  color: isDarkMode ? Colors.white : Colors.black54,
+              GestureDetector(
+                onTap: _isUploadingImage ? null : _pickAndUploadImage,
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor:
+                          isDarkMode ? Colors.white24 : Colors.grey[200],
+                      backgroundImage: profilePictureUrl != null
+                          ? NetworkImage(profilePictureUrl)
+                          : null,
+                      child: profilePictureUrl == null
+                          ? Icon(
+                              Icons.person,
+                              size: 30,
+                              color: isDarkMode ? Colors.white : Colors.black54,
+                            )
+                          : null,
+                    ),
+                    if (_isUploadingImage)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black45,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? const Color(0xFF1D1E33)
+                              : Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.camera_alt,
+                          size: 14,
+                          color: isDarkMode ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 16),

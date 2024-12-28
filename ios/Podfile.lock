@@ -6,6 +6,8 @@ PODS:
     - Flutter
   - haptic_feedback (0.5.1):
     - Flutter
+  - image_picker_ios (0.0.1):
+    - Flutter
   - package_info_plus (0.4.5):
     - Flutter
   - path_provider_foundation (0.0.1):
@@ -17,11 +19,11 @@ PODS:
     - Plaid (= 5.6.1)
   - rive_common (0.0.1):
     - Flutter
-  - Sentry/HybridSDK (8.40.1)
-  - sentry_flutter (8.10.1):
+  - Sentry/HybridSDK (8.42.0)
+  - sentry_flutter (8.12.0):
     - Flutter
     - FlutterMacOS
-    - Sentry/HybridSDK (= 8.40.1)
+    - Sentry/HybridSDK (= 8.42.0)
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -36,6 +38,7 @@ DEPENDENCIES:
   - flutter_haptic (from `.symlinks/plugins/flutter_haptic/ios`)
   - flutter_localization (from `.symlinks/plugins/flutter_localization/ios`)
   - haptic_feedback (from `.symlinks/plugins/haptic_feedback/ios`)
+  - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - plaid_flutter (from `.symlinks/plugins/plaid_flutter/ios`)
@@ -59,6 +62,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_localization/ios"
   haptic_feedback:
     :path: ".symlinks/plugins/haptic_feedback/ios"
+  image_picker_ios:
+    :path: ".symlinks/plugins/image_picker_ios/ios"
   package_info_plus:
     :path: ".symlinks/plugins/package_info_plus/ios"
   path_provider_foundation:
@@ -81,17 +86,18 @@ SPEC CHECKSUMS:
   flutter_haptic: 69ea6e5e1e478c19b2bec98a9a445bcc6525fcde
   flutter_localization: f43b18844a2b3d2c71fd64f04ffd6b1e64dd54d4
   haptic_feedback: 8cb3ee0cb6b797946c2b0df9c99ebc8f7ed79c71
+  image_picker_ios: c560581cceedb403a6ff17f2f816d7fea1421fc1
   package_info_plus: c0502532a26c7662a62a356cebe2692ec5fe4ec4
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   Plaid: 93c9e80b93f5cea960a1120047ef2b689394ff91
   plaid_flutter: b60dc1bcb779c05656a8a61109f9b38ee379a19c
   rive_common: 4743dbfd2911c99066547a3c6454681e0fa907df
-  Sentry: e9215d7b17f7902692b4f8700e061e4f853e3521
-  sentry_flutter: 927eed60d66951d1b0f1db37fe94ff5cb7c80231
+  Sentry: 38ed8bf38eab5812787274bf591e528074c19e02
+  sentry_flutter: 7d1f1df30f3768c411603ed449519bbb90a7d87b
   shared_preferences_foundation: fcdcbc04712aee1108ac7fda236f363274528f78
   sqflite_darwin: 5a7236e3b501866c1c9befc6771dfd73ffb8702d
   url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 
-PODFILE CHECKSUM: 819463e6a0290f5a72f145ba7cde16e8b6ef0796
+PODFILE CHECKSUM: de97cdd71230554f2f9175b64953d8f22054f2bf
 
 COCOAPODS: 1.16.2
