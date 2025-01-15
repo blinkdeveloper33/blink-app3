@@ -12,6 +12,8 @@ class ThemeProvider with ChangeNotifier {
 
   ThemeMode get themeMode => _isDarkMode ? ThemeMode.dark : ThemeMode.light;
 
+  ThemeData get currentTheme => _isDarkMode ? darkTheme : lightTheme;
+
   void toggleTheme() {
     _isDarkMode = !_isDarkMode;
     _prefs.setBool(_themeKey, _isDarkMode);

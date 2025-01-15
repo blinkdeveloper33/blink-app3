@@ -4,8 +4,7 @@ import 'package:blink_app/models/transaction.dart';
 import 'package:blink_app/services/storage_service.dart';
 
 class ApiService {
-  final String baseUrl =
-      'https://5000-idx-blinkbackend2-1731939610309.cluster-fnjdffmttjhy2qqdugh3yehhs2.cloudworkstations.dev';
+  final String baseUrl = 'https://1f33-12-162-124-34.ngrok-free.app';
   final StorageService _storageService;
 
   ApiService(this._storageService);

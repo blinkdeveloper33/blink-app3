@@ -5,12 +5,14 @@ import 'package:blink_app/services/auth_service.dart'
     show AuthService, TransferSpeed;
 import 'package:intl/intl.dart';
 import 'package:blink_app/features/home/presentation/home_screen.dart';
-import 'dart:math' show pi, sin;
+import 'dart:math' show pi, sin, cos, Random;
 import 'package:blink_app/widgets/confetti_overlay.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animated_emoji/animated_emoji.dart';
 import 'package:blink_app/widgets/typing_indicator.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui';
+import 'package:blink_app/providers/profile_provider.dart';
 
 const Color kPrimaryColor = Color(0xFF0E6BA8);
 const Color kSecondaryColor = Color(0xFF1A237E);
@@ -38,1254 +40,185 @@ enum HapticsType {
   rigid,
 }
 
-class AnimatedBackground extends StatelessWidget {
+class AnimatedBackground extends StatefulWidget {
   final Widget child;
 
-  const AnimatedBackground({super.key, required this.child});
+  const AnimatedBackground({
+    Key? key,
+    required this.child,
+  }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0A2472), Color(0xFF0E6BA8)],
-        ),
-      ),
-      child: child,
-    );
-  }
+  State<AnimatedBackground> createState() => _AnimatedBackgroundState();
 }
 
-class BlinkAdvanceScreen extends StatefulWidget {
-  final String bankAccountId;
-
-  const BlinkAdvanceScreen({super.key, required this.bankAccountId});
-
-  @override
-  State<BlinkAdvanceScreen> createState() => _BlinkAdvanceScreenState();
-}
-
-class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
-    with TickerProviderStateMixin {
-  ConversationState _conversationState = ConversationState.initial;
-  final List<ChatMessage> _messages = [];
-  String _userName = '';
-  String? _selectedAmount;
-  TransferSpeed? _selectedSpeed;
-  DateTime? _selectedDate;
-  late ScrollController _scrollController;
-  int? _animatingMessageIndex;
-  bool _isTyping = false;
-  final GlobalKey _confettiKey = GlobalKey();
-  final List<int> _amountOptions = [300, 275, 250, 225, 200, 175, 150];
-  late AnimationController _fadeController;
-  late AnimationController _inputSectionController;
-  late Animation<Offset> _inputSectionAnimation;
-  String? _bankAccountId = '';
-  bool _showQuickActions = false;
-  bool _isLoading = false;
-  late AnimationController _confettiController;
+class _AnimatedBackgroundState extends State<AnimatedBackground>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late List<Particle> particles;
+  final int numberOfParticles = 50;
 
   @override
   void initState() {
     super.initState();
-    _bankAccountId = widget.bankAccountId;
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 200),
+    _controller = AnimationController(
+      duration: const Duration(seconds: 15),
       vsync: this,
-    );
-    _inputSectionController = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-    _inputSectionAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _inputSectionController,
-      curve: Curves.easeOut,
-    ));
-    _loadUserName();
-    _addInitialMessage();
-    _fadeController.forward();
-    _scrollController = ScrollController();
+    )..repeat();
 
-    // Initialize the input section animation after a delay
-    Future.delayed(Duration(milliseconds: 500), () {
-      if (mounted) {
-        _inputSectionController.forward();
-        setState(() {
-          _showQuickActions = true;
-        });
-      }
-    });
-
-    _confettiController = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 2000),
+    particles = List.generate(
+      numberOfParticles,
+      (index) => Particle.random(),
     );
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
-    _inputSectionController.dispose();
-    _scrollController.dispose();
-    _confettiController.dispose();
+    _controller.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadUserName() async {
-    final storageService = Provider.of<StorageService>(context, listen: false);
-    final firstName = storageService.getFirstName() ?? 'User';
-    if (!mounted) return;
-    setState(() {
-      _userName = firstName;
-    });
-  }
-
-  void _addInitialMessage() {
-    Future.delayed(Duration(milliseconds: 1000), () {
-      setState(() {
-        _conversationState = ConversationState.initial;
-      });
-
-      _addMessage(ChatMessage(
-        text: 'Hi $_userName!',
-        isUser: false,
-        timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
-      ));
-
-      Future.delayed(Duration(milliseconds: 2500), () {
-        setState(() {
-          _conversationState = ConversationState.amountSelection;
-        });
-
-        _addMessage(ChatMessage(
-          text: 'How much do you need today? Choose between \$150-\$300',
-          isUser: false,
-          timestamp: DateTime.now(),
-          emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
-        ));
-
-        Future.delayed(Duration(milliseconds: 1000), () {
-          if (mounted &&
-              _conversationState == ConversationState.amountSelection) {
-            _showQuickActionsWithAnimation();
-          }
-        });
-      });
-    });
-  }
-
-  void _showQuickActionsWithAnimation() {
-    if (!mounted) return;
-
-    setState(() {
-      _showQuickActions = true;
-    });
-
-    _inputSectionController.forward();
-  }
-
-  void _addMessage(ChatMessage message) {
-    if (!mounted) return;
-
-    setState(() {
-      _messages.add(message);
-      _animatingMessageIndex = _messages.length - 1;
-      if (_showQuickActions) _showQuickActions = false;
-    });
-
-    Future.delayed(Duration(milliseconds: 100), () {
-      if (!mounted) return;
-      _scrollToBottom();
-    });
-
-    // Remove automatic quick actions show
-    Future.delayed(Duration(milliseconds: 1500), () {
-      if (mounted) {
-        setState(() {
-          _animatingMessageIndex = null;
-        });
-      }
-    });
-  }
-
-  void _showTypingIndicator() {
-    if (!mounted) return;
-
-    setState(() {
-      _isTyping = true;
-      _showQuickActions = false;
-    });
-    Future.delayed(Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isTyping = false;
-        });
-      }
-    });
-  }
-
-  void _handleAmountSelection(String amount) {
-    _performHapticFeedback(HapticsType.medium);
-    if (!mounted) return;
-
-    setState(() {
-      _selectedAmount = amount;
-      _showQuickActions = false;
-      _conversationState = ConversationState.speedSelection;
-    });
-    _inputSectionController.reverse();
-
-    _addMessage(ChatMessage(
-      text: 'I need \$$amount',
-      isUser: true,
-      timestamp: DateTime.now(),
-    ));
-
-    _showTypingIndicator();
-
-    Future.delayed(Duration(milliseconds: 2000), () {
-      if (!mounted) return;
-
-      _addMessage(ChatMessage(
-        text: 'When do you need these funds?',
-        isUser: false,
-        timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(AnimatedEmojis.sparkles, size: 24),
-      ));
-
-      Future.delayed(Duration(milliseconds: 1000), () {
-        if (mounted) {
-          _showQuickActionsWithAnimation();
-        }
-      });
-    });
-  }
-
-  void _handleSpeedSelection(TransferSpeed speed) {
-    if (!mounted) return;
-
-    setState(() {
-      _selectedSpeed = speed;
-      _showQuickActions = false;
-      _conversationState = ConversationState.dateSelection;
-    });
-
-    _addMessage(ChatMessage(
-      text: 'I prefer the ${speed.toString().split('.').last} transfer option.',
-      isUser: true,
-      timestamp: DateTime.now(),
-    ));
-
-    _showTypingIndicator();
-
-    Future.delayed(Duration(milliseconds: 2000), () {
-      if (!mounted) return;
-
-      final speedEmoji = speed == TransferSpeed.instant
-          ? AnimatedEmoji(AnimatedEmojis.electricity, size: 24)
-          : AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24);
-
-      _addMessage(ChatMessage(
-        text: speed == TransferSpeed.instant
-            ? 'Your money will arrive in minutes!'
-            : 'Your money will arrive in 1-2 business days.',
-        isUser: false,
-        timestamp: DateTime.now(),
-        emoji: speedEmoji,
-      ));
-
-      Future.delayed(Duration(milliseconds: 1500), () {
-        _addMessage(ChatMessage(
-          text: 'When would you like to repay your \$$_selectedAmount advance?',
-          isUser: false,
-          timestamp: DateTime.now(),
-          emoji: AnimatedEmoji(AnimatedEmojis.thinkingFace, size: 24),
-        ));
-
-        Future.delayed(Duration(milliseconds: 1000), () {
-          if (mounted) {
-            setState(() {
-              _conversationState = ConversationState.dateSelection;
-            });
-            _showQuickActionsWithAnimation();
-          }
-        });
-      });
-    });
-  }
-
-  Future<void> _showDatePicker() async {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now().add(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Colors.blue[600]!,
-              onPrimary: Colors.white,
-              surface: isDarkMode ? Colors.grey[900]! : Colors.white,
-              onSurface: isDarkMode ? Colors.white : Colors.black87,
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blue[600],
-                textStyle: const TextStyle(
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      _handleDateSelection(picked);
-    }
-  }
-
-  void _handleDateSelection(DateTime date) {
-    setState(() {
-      _selectedDate = date;
-      _showQuickActions = false;
-      _conversationState = ConversationState.summary;
-    });
-
-    final formattedDate = DateFormat('MMMM d, yyyy').format(date);
-
-    _addMessage(ChatMessage(
-      text: 'I\'ll repay on $formattedDate.',
-      isUser: true,
-      timestamp: DateTime.now(),
-    ));
-
-    _showTypingIndicator();
-
-    Future.delayed(const Duration(milliseconds: 2000), () {
-      if (!mounted) return;
-
-      _addMessage(ChatMessage(
-        text: 'Got it! Let me prepare your summary.',
-        isUser: false,
-        timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24),
-      ));
-
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        if (!mounted) return;
-        _showAdvanceSummary();
-      });
-    });
-  }
-
-  void _showAdvanceSummary() {
-    final fee = _selectedSpeed == TransferSpeed.instant ? 8.99 : 3.99;
-    _addMessage(ChatMessage(
-      text: 'Here\'s your advance details:\n\n'
-          '• Amount: \$$_selectedAmount\n'
-          '• Transfer: ${_selectedSpeed == TransferSpeed.instant ? 'Instant' : 'Standard'}\n'
-          '• Fee: \$${fee.toStringAsFixed(2)}\n'
-          '• Repayment: ${DateFormat('MMMM d, yyyy').format(_selectedDate!)}\n\n'
-          'Ready to proceed?',
-      isUser: false,
-      timestamp: DateTime.now(),
-      emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
-    ));
-
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted) {
-        setState(() {
-          _conversationState = ConversationState.summary;
-        });
-        _showQuickActionsWithAnimation();
-      }
-    });
-  }
-
-  void _handleConfirmation(bool confirmed) {
-    _performHapticFeedback(HapticsType.heavy);
-
-    if (!confirmed) {
-      _handleCancellation();
-      return;
-    }
-
-    setState(() {
-      _showQuickActions = false;
-      _isLoading = true;
-    });
-
-    // Process the advance
-    _createBlinkAdvance();
-  }
-
-  Future<void> _createBlinkAdvance() async {
-    final List<String> missingFields = [];
-
-    if (_selectedAmount == null) missingFields.add('Amount');
-    if (_selectedSpeed == null) missingFields.add('Transfer Speed');
-    if (_selectedDate == null) missingFields.add('Repayment Date');
-
-    if (missingFields.isNotEmpty) {
-      _showErrorMessage(
-        'Missing required information: ${missingFields.join(', ')}. Please complete all fields.',
-      );
-      return;
-    }
-
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final storageService = Provider.of<StorageService>(context, listen: false);
-    final userId = storageService.getUserId();
-    final bankAccountId = _bankAccountId;
-
-    if (userId == null) {
-      _showErrorMessage('User ID not found. Please log in again.');
-      return;
-    }
-
-    if (bankAccountId == null || bankAccountId.isEmpty) {
-      _showErrorMessage(
-          'Bank account ID not found. Please link your bank account again.');
-      return;
-    }
-
-    try {
-      final response = await authService.createBlinkAdvance(
-        userId: userId,
-        requestedAmount: double.parse(_selectedAmount!),
-        transferSpeed: _selectedSpeed!,
-        repayDate: _selectedDate!,
-        bankAccountId: bankAccountId,
-      );
-
-      if (response['success'] == true) {
-        if (mounted) {
-          _showSuccessMessage();
-        }
-      } else {
-        if (mounted) {
-          _showErrorMessage(response['message'] ??
-              'Failed to create Blink Advance. Please try again.');
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        _showErrorMessage('An unexpected error occurred. Please try again.');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  void _showSuccessMessage() {
-    if (!mounted) return;
-
-    // First haptic feedback for success
-    _performHapticFeedback(HapticsType.success);
-
-    // Show success popup with logo
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: Container(
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 16,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Success checkmark animation
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.green.withOpacity(0.1),
-                  ),
-                  child: Icon(
-                    Icons.check_circle,
-                    color: Colors.green,
-                    size: 60,
-                  ),
-                ).animate().scale(
-                      begin: Offset(0.5, 0.5),
-                      end: Offset(1, 1),
-                      duration: 500.ms,
-                      curve: Curves.elasticOut,
-                    ),
-                SizedBox(height: 24),
-                // Blink logo
-                Image.asset(
-                  'assets/images/blink_logo.png',
-                  height: 40,
-                  fit: BoxFit.contain,
-                ).animate().fadeIn(duration: 600.ms).scale(
-                      begin: Offset(0.8, 0.8),
-                      end: Offset(1, 1),
-                      duration: 600.ms,
-                    ),
-                SizedBox(height: 24),
-                Text(
-                  'Advance Processed!',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0),
-                SizedBox(height: 8),
-                Text(
-                  'Your funds are on the way',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
-                  ),
-                ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2, end: 0),
-              ],
-            ),
-          ).animate().scale(
-                begin: Offset(0.8, 0.8),
-                end: Offset(1, 1),
-                duration: 400.ms,
-                curve: Curves.easeOut,
-              ),
-        );
-      },
-    );
-
-    // Second haptic feedback after a short delay
-    Future.delayed(Duration(milliseconds: 300), () {
-      _performHapticFeedback(HapticsType.medium);
-    });
-
-    // Third haptic feedback for extra satisfaction
-    Future.delayed(Duration(milliseconds: 600), () {
-      _performHapticFeedback(HapticsType.light);
-    });
-
-    // Show confetti effect
-    if (_confettiKey.currentContext != null) {
-      ConfettiOverlay.of(_confettiKey.currentContext!)?.showConfetti();
-    }
-
-    // Add the final message
-    _addMessage(ChatMessage(
-      text: 'Your advance is on its way! Check your account shortly.',
-      isUser: false,
-      timestamp: DateTime.now(),
-      emoji: AnimatedEmoji(AnimatedEmojis.rocket, size: 24),
-    ));
-
-    // Automatically close popup and return to home screen after a delay
-    Future.delayed(Duration(milliseconds: 3000), () {
-      if (mounted) {
-        Navigator.of(context).pop(); // Close the popup
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                HomeScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
-            transitionDuration: Duration(milliseconds: 500),
-          ),
-        );
-      }
-    });
-  }
-
-  void _showErrorMessage(String message) {
-    if (!mounted) return;
-
-    _addMessage(ChatMessage(
-      text:
-          'I\'m sorry, but there was an error processing your Blink Advance: $message',
-      isUser: false,
-      timestamp: DateTime.now(),
-      emoji: AnimatedEmoji(AnimatedEmojis.sad, size: 24),
-    ));
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _handleCancellation() {
-    setState(() {
-      _showQuickActions = false;
-      _conversationState = ConversationState.completed;
-    });
-
-    _inputSectionController.reverse();
-
-    _addMessage(ChatMessage(
-      text: 'I want to cancel the Blink Advance.',
-      isUser: true,
-      timestamp: DateTime.now(),
-    ));
-
-    _showTypingIndicator();
-
-    Future.delayed(Duration(milliseconds: 2000), () {
-      if (!mounted) return;
-
-      _addMessage(ChatMessage(
-        text: 'No worries! Let me know if you need anything else.',
-        isUser: false,
-        timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
-      ));
-
-      Future.delayed(Duration(milliseconds: 2000), () {
-        if (!mounted) return;
-
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                HomeScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
-            transitionDuration: Duration(milliseconds: 500),
-          ),
-        );
-      });
-    });
-  }
-
-  List<Widget> _buildAmountOptions() {
-    return _amountOptions.map((amount) {
-      return SizedBox(
-        width: 95, // Fixed width for amount buttons
-        child: ElevatedButton(
-          onPressed: () {
-            _performHapticFeedback(HapticsType.medium);
-            _handleAmountSelection(amount.toString());
-          },
-          style: _getButtonStyle(
-            backgroundColor: Colors.blue[600],
-            borderRadius: 20,
-            elevation: 2,
-            padding: EdgeInsets.symmetric(vertical: 12),
-          ),
-          child: Text('\$$amount',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        ),
-      );
-    }).toList();
-  }
-
-  List<Widget> _buildSpeedOptions() {
-    return [
-      SizedBox(
-        width: MediaQuery.of(context).size.width * 0.43,
-        child: _buildSpeedButton(
-          speed: TransferSpeed.instant,
-          title: 'For Now',
-          subtitle: 'Instant Transfer',
-          fee: 8.99,
-          gradient: const LinearGradient(
-            colors: [Colors.purple, Colors.blue],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          textColor: Colors.white,
-          emoji: AnimatedEmoji(AnimatedEmojis.rocket, size: 24),
-          particles: true,
-        ),
-      ),
-      SizedBox(
-        width: MediaQuery.of(context).size.width * 0.43,
-        child: _buildSpeedButton(
-          speed: TransferSpeed.standard,
-          title: 'For Tomorrow',
-          subtitle: 'Standard Transfer',
-          fee: 3.99,
-          gradient: const LinearGradient(
-            colors: [Colors.blue, Colors.lightBlue],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          textColor: Colors.white,
-          emoji: AnimatedEmoji(AnimatedEmojis.snail, size: 24),
-          particles: false,
-        ),
-      ),
-    ];
-  }
-
-  Widget _buildSpeedButton({
-    required TransferSpeed speed,
-    required String title,
-    required String subtitle,
-    required double fee,
-    required Gradient gradient,
-    required Color textColor,
-    required Widget emoji,
-    required bool particles,
-  }) {
-    return GestureDetector(
-      onTap: () => _handleSpeedSelection(speed),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha((0.1 * 255).round()),
-              blurRadius: 8,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        padding: EdgeInsets.symmetric(
-            vertical: 20.8,
-            horizontal: 12), // Increased vertical padding by 1.3 times
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                emoji,
-                SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 6.5), // Increased from 6 to 6.5
-            Text(
-              subtitle,
-              style: TextStyle(
-                color: Colors.white.withAlpha((0.8 * 255).round()),
-                fontSize: 14,
-              ),
-            ),
-            SizedBox(height: 6.5), // Increased from 6 to 6.5
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: textColor.withAlpha((0.15 * 255).round()),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '\$${fee.toStringAsFixed(2)} fee',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 300.ms, delay: 150.ms)
-        .scale(begin: Offset(0.95, 0.95), end: Offset(1, 1))
-        .then()
-        .shimmer(duration: 1200.ms, delay: 300.ms);
-  }
-
-  List<Widget> _buildConfirmationOptions() {
-    return [
-      Expanded(
-        child: ElevatedButton(
-          onPressed: () => _handleConfirmation(true),
-          style: _getButtonStyle(
-            backgroundColor: Colors.green,
-            borderRadius: 30,
-            elevation: 5,
-            padding: EdgeInsets.symmetric(vertical: 12),
-          ),
-          child: Text('Confirm',
-              style: TextStyle(color: Colors.white, fontSize: 16)),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: ElevatedButton(
-          onPressed: _handleCancellation,
-          style: _getButtonStyle(
-            backgroundColor: Colors.grey[300],
-            borderRadius: 20,
-            elevation: 2,
-            padding: EdgeInsets.symmetric(vertical: 12),
-          ),
-          child: const Text('Cancel'),
-        ),
-      ),
-    ];
-  }
-
-  List<Widget> _buildDateOptions() {
-    return [
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: ElevatedButton.icon(
-          onPressed: () {
-            _performHapticFeedback(HapticsType.medium);
-            _showDatePicker();
-          },
-          icon: const Icon(Icons.calendar_today, color: Colors.white),
-          label: const Text('Select Repayment Date',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          style: _getButtonStyle(
-            backgroundColor: Colors.blue[600],
-            borderRadius: 20,
-            elevation: 2,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          ),
-        ),
-      ),
-    ];
-  }
-
-  Widget _buildDateOptionsLayout(BoxConstraints constraints) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildInfoBox('Choose a repayment date within the next 30 days'),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: () {
-              _performHapticFeedback(HapticsType.medium);
-              _showDatePicker();
-            },
-            style: _getButtonStyle(),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.calendar_today, size: 20),
-                SizedBox(width: 12),
-                Text(
-                  'Select Repayment Date',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 300.ms)
-              .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
-          SizedBox(height: 8),
-          Text(
-            'Repayment must be completed within 30 days',
-            style: TextStyle(
-              color: Colors.white.withAlpha(179),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConfirmationLayout(BoxConstraints constraints) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => _handleConfirmation(true),
-              style: _getButtonStyle(
-                backgroundColor: Colors.green[600],
-                borderRadius: 20,
-                elevation: 2,
-                padding: EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Text('Confirm',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => _handleConfirmation(false),
-              style: _getButtonStyle(
-                backgroundColor: Colors.red[400],
-                borderRadius: 20,
-                elevation: 2,
-                padding: EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Text('Cancel',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ],
-      ).animate().fadeIn(duration: 300.ms),
-    );
-  }
-
-  // Consolidated Button Style Method 🎨
-  ButtonStyle _getButtonStyle({
-    Color? backgroundColor,
-    double elevation = 2,
-    EdgeInsetsGeometry? padding,
-    double borderRadius = 20,
-  }) {
-    return ElevatedButton.styleFrom(
-      backgroundColor: backgroundColor ?? Colors.blue[600],
-      foregroundColor: Colors.white,
-      padding: padding ?? const EdgeInsets.symmetric(vertical: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
-      ),
-      elevation: elevation,
-    );
-  }
-
-  Widget _buildInfoBox(String message) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(26),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.info_outline,
-              size: 16, color: Colors.white.withAlpha(204)),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: Colors.white.withAlpha(204),
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _performHapticFeedback(HapticsType type) {
-    switch (type) {
-      case HapticsType.light:
-        HapticFeedback.lightImpact();
-        break;
-      case HapticsType.medium:
-        HapticFeedback.mediumImpact();
-        break;
-      case HapticsType.heavy:
-        HapticFeedback.heavyImpact();
-        break;
-      case HapticsType.success:
-        HapticFeedback.vibrate();
-        break;
-      case HapticsType.warning:
-        HapticFeedback.vibrate();
-        break;
-      case HapticsType.error:
-        HapticFeedback.vibrate();
-        break;
-      case HapticsType.selection:
-        HapticFeedback.selectionClick();
-        break;
-      case HapticsType.rigid:
-        HapticFeedback.vibrate();
-        break;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final storageService = Provider.of<StorageService>(context, listen: false);
-    final bankAccountName =
-        storageService.getBankAccountName() ?? 'Your Bank Account';
-
-    return AnimatedBackground(
-      child: ConfettiOverlay(
-        key: _confettiKey,
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            automaticallyImplyLeading: false,
-            flexibleSpace: SafeArea(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon:
-                          const Icon(Icons.arrow_back_ios, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    CircleAvatar(
-                      backgroundColor: Colors.white,
-                      radius: 20,
-                      child: ClipOval(
-                        child: Image.network(
-                          'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Robot.png',
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Blinky',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              height: 1.2,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Online',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white.withOpacity(0.8),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.info_outline, color: Colors.white),
-                      onPressed: () {
-                        // Show info about Blink Advance
-                      },
-                    ),
-                  ],
-                ),
+    return Stack(
+      children: [
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            return CustomPaint(
+              painter: ParticlePainter(
+                particles: particles,
+                animation: _controller,
               ),
-            ),
-          ),
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Theme.of(context).scaffoldBackgroundColor,
-                  Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
-                ],
-              ),
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: Offset(0, -2),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(30)),
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.only(top: 20, bottom: 20),
-                        itemCount: _messages.length + (_isTyping ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == _messages.length && _isTyping) {
-                            return _buildTypingIndicator();
-                          }
-                          final message = _messages[index];
-                          return CustomChatBubble(
-                            message: message,
-                            isUser: message.isUser,
-                            timestamp: message.timestamp,
-                            isAnimating: _animatingMessageIndex == index &&
-                                !message.isUser,
-                            emoji: message.emoji,
-                          )
-                              .animate()
-                              .fadeIn(duration: 300.ms)
-                              .slideY(begin: 0.2, end: 0);
-                        },
-                      ),
-                    ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF0E6BA8).withOpacity(0.8),
+                      Color(0xFF1A237E).withOpacity(0.6),
+                    ],
+                    stops: [
+                      0.0,
+                      _controller.value,
+                    ],
                   ),
                 ),
-                if (_showQuickActions && !_isTyping)
-                  SlideTransition(
-                    position: _inputSectionAnimation,
-                    child: _buildQuickActionsSection(),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypingIndicator() {
-    return const Align(
-      alignment: Alignment.centerLeft,
-      child: TypingIndicator(),
-    );
-  }
-
-  Widget _buildQuickActionsSection() {
-    if (!_showQuickActions) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(26),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            switch (_conversationState) {
-              case ConversationState.amountSelection:
-                return _buildAmountOptionsLayout(constraints);
-              case ConversationState.speedSelection:
-                return _buildSpeedOptionsLayout(constraints);
-              case ConversationState.dateSelection:
-                return _buildDateOptionsLayout(constraints);
-              case ConversationState.summary:
-                return _buildConfirmationLayout(constraints);
-              default:
-                return const SizedBox.shrink();
-            }
+              ),
+            );
           },
         ),
-      ),
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+          child: widget.child,
+        ),
+      ],
+    );
+  }
+}
+
+class Particle {
+  double x;
+  double y;
+  double speed;
+  double theta;
+  double radius;
+  Color color;
+  double opacity;
+  double velocityX;
+  double velocityY;
+  final random = Random();
+
+  Particle({
+    required this.x,
+    required this.y,
+    required this.speed,
+    required this.theta,
+    required this.radius,
+    required this.color,
+    required this.opacity,
+    required this.velocityX,
+    required this.velocityY,
+  });
+
+  factory Particle.random() {
+    final random = Random();
+    return Particle(
+      x: random.nextDouble(),
+      y: random.nextDouble(),
+      speed: random.nextDouble() * 0.2 + 0.1,
+      theta: random.nextDouble() * 2 * pi,
+      radius: random.nextDouble() * 2 + 1,
+      color: Colors.white.withOpacity(random.nextDouble() * 0.2),
+      opacity: random.nextDouble() * 0.5,
+      velocityX: (random.nextDouble() - 0.5) * 0.02,
+      velocityY: (random.nextDouble() - 0.5) * 0.02,
     );
   }
 
-  // Removed the following duplicated methods:
-  // _buildQuickActionButton()
-  // _buildAnimatedButton()
-  // _buildConfirmationButtons()
-  // _buildCurrentInputWidget()
+  void update(double animation) {
+    x += velocityX;
+    y += velocityY;
+    opacity += (random.nextDouble() - 0.5) * 0.01;
+    opacity = opacity.clamp(0.1, 0.5);
 
-  // Ensure all functionalities are now handled by their optimized layout methods.
+    if (x < 0) {
+      x = 1;
+      velocityX = -velocityX;
+    } else if (x > 1) {
+      x = 0;
+      velocityX = -velocityX;
+    }
 
-  Widget _buildSpeedOptionsLayout(BoxConstraints constraints) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: _buildSpeedOptions(),
-      ),
-    ).animate().fadeIn(duration: 300.ms);
+    if (y < 0) {
+      y = 1;
+      velocityY = -velocityY;
+    } else if (y > 1) {
+      y = 0;
+      velocityY = -velocityY;
+    }
+  }
+}
+
+class ParticlePainter extends CustomPainter {
+  final List<Particle> particles;
+  final Animation<double> animation;
+  final random = Random();
+
+  ParticlePainter({
+    required this.particles,
+    required this.animation,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (var particle in particles) {
+      particle.update(animation.value);
+      paint.color = Colors.white.withOpacity(particle.opacity);
+
+      final glowPaint = Paint()
+        ..color = Colors.white.withOpacity(particle.opacity * 0.3)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, particle.radius * 2);
+
+      canvas.drawCircle(
+        Offset(particle.x * size.width, particle.y * size.height),
+        particle.radius * 2,
+        glowPaint,
+      );
+
+      canvas.drawCircle(
+        Offset(particle.x * size.width, particle.y * size.height),
+        particle.radius,
+        paint,
+      );
+    }
   }
 
-  Widget _buildAmountOptionsLayout(BoxConstraints constraints) {
-    final buttonWidth = (constraints.maxWidth - 48) / 3;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
-      children: _buildAmountOptions(),
-    ).animate().fadeIn(duration: 300.ms);
-  }
+  @override
+  bool shouldRepaint(ParticlePainter oldDelegate) => true;
 }
 
 class ChatMessage {
@@ -1326,234 +259,44 @@ class CustomChatBubble extends StatefulWidget {
 
 class _CustomChatBubbleState extends State<CustomChatBubble>
     with SingleTickerProviderStateMixin {
-  late AnimationController _shakeController;
-  late Animation<double> _shakeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _shakeController = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-    _shakeAnimation =
-        Tween<double>(begin: 0.0, end: 0.1).animate(_shakeController);
-  }
-
-  @override
-  void dispose() {
-    _shakeController.dispose();
-    super.dispose();
-  }
-
-  void shake() {
-    _shakeController.forward().then((_) => _shakeController.reverse());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: widget.isUser ? 64 : 16,
-        right: widget.isUser ? 16 : 64,
-        top: 8,
-        bottom: 8,
-      ),
-      child: Column(
-        crossAxisAlignment:
-            widget.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment:
-                widget.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (!widget.isUser) _buildAvatar(),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: widget.isUser
-                        ? Colors.blue[600]
-                        : isDarkMode
-                            ? Colors.grey[800]
-                            : Colors.grey[100],
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
-                      bottomLeft: Radius.circular(widget.isUser ? 20 : 4),
-                      bottomRight: Radius.circular(widget.isUser ? 4 : 20),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              widget.message.text,
-                              style: TextStyle(
-                                color: widget.isUser ? Colors.white : null,
-                                fontSize: 16,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                          if (widget.emoji != null) ...[
-                            SizedBox(width: 8),
-                            widget.emoji!,
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (widget.isUser) ...[
-                const SizedBox(width: 8),
-                _buildAvatar(),
-              ],
-            ],
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-                top: 4,
-                left: !widget.isUser ? 48 : 0,
-                right: widget.isUser ? 48 : 0),
-            child: Text(
-              DateFormat('h:mm a').format(widget.timestamp),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar() {
-    return AnimatedBuilder(
-      animation: _shakeAnimation,
-      builder: (context, child) {
-        return Transform.rotate(
-          angle: _shakeAnimation.value,
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  widget.isUser ? Colors.grey[300]! : Colors.white,
-                  widget.isUser
-                      ? Colors.grey[400]!
-                      : Colors.white.withAlpha(204),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(26),
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: widget.isUser
-                ? Icon(Icons.person, color: Colors.grey[600], size: 20)
-                : ClipOval(
-                    child: Image.network(
-                      'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smilies/Robot.png',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class BlinkyAvatar extends StatelessWidget {
-  final double size;
-
-  const BlinkyAvatar({
-    super.key,
-    required this.size,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(26),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: Image.asset(
-          'assets/images/blinky-avatar.png',
-          fit: BoxFit.cover,
-        ),
-      ),
-    );
-  }
-}
-
-class AnimatedButton extends StatefulWidget {
-  final Widget child;
-  final Color backgroundColor;
-  final VoidCallback onPressed;
-
-  const AnimatedButton({
-    super.key,
-    required this.child,
-    required this.backgroundColor,
-    required this.onPressed,
-  });
-
-  @override
-  _AnimatedButtonState createState() => _AnimatedButtonState();
-}
-
-class _AnimatedButtonState extends State<AnimatedButton>
-    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _blurAnimation;
+  late Animation<double> _opacityAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
+      duration: const Duration(milliseconds: 500),
       vsync: this,
-      duration: Duration(milliseconds: 200),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.elasticOut,
+    ));
+
+    _blurAnimation = Tween<double>(
+      begin: 0.0,
+      end: 10.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
+
+    _opacityAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
+
+    _controller.forward();
   }
 
   @override
@@ -1564,32 +307,1500 @@ class _AnimatedButtonState extends State<AnimatedButton>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _controller.forward(),
-      onTapUp: (_) {
-        _controller.reverse();
-        widget.onPressed();
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Opacity(
+            opacity: _opacityAnimation.value,
+            child: Container(
+              margin: EdgeInsets.fromLTRB(
+                widget.isUser ? 64 : 0,
+                4,
+                widget.isUser ? 0 : 64,
+                4,
+              ),
+              child: Row(
+                mainAxisAlignment: widget.isUser
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+                children: [
+                  Flexible(
+                    child: Transform(
+                      transform: Matrix4.identity()
+                        ..setEntry(3, 2, 0.001)
+                        ..rotateX(0.05)
+                        ..rotateY(widget.isUser ? -0.05 : 0.05),
+                      alignment: widget.isUser
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  (widget.isUser ? Colors.blue : Colors.white)
+                                      .withOpacity(0.08),
+                              offset: Offset(0, 4),
+                              blurRadius: 12,
+                              spreadRadius: 1,
+                            ),
+                            BoxShadow(
+                              color:
+                                  (widget.isUser ? Colors.blue : Colors.white)
+                                      .withOpacity(0.05),
+                              offset: Offset(0, 2),
+                              blurRadius: 4,
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(
+                              sigmaX: _blurAnimation.value,
+                              sigmaY: _blurAnimation.value,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: widget.isUser
+                                      ? [
+                                          Colors.blue.withOpacity(0.95),
+                                          Colors.blue.withOpacity(0.75),
+                                        ]
+                                      : [
+                                          Color(0xFF42A5F5).withOpacity(0.25),
+                                          Color(0xFF1976D2).withOpacity(0.15),
+                                        ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: widget.isUser
+                                      ? Colors.white.withOpacity(0.2)
+                                      : Color(0xFF90CAF9).withOpacity(0.3),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          widget.message.text,
+                                          style: TextStyle(
+                                            color: widget.isUser
+                                                ? Colors.white
+                                                : Colors.white
+                                                    .withOpacity(0.95),
+                                            fontSize: 16,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ),
+                                      if (widget.emoji != null) ...[
+                                        const SizedBox(width: 8),
+                                        widget.emoji!,
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    DateFormat('HH:mm')
+                                        .format(widget.timestamp),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (widget.isUser) ...[
+                    const SizedBox(width: 8),
+                    _buildAvatar(),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
       },
-      onTapCancel: () => _controller.reverse(),
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Container(
+    );
+  }
+
+  Widget _buildAvatar() {
+    if (!widget.isUser) return const SizedBox(width: 32);
+
+    return Consumer<ProfileProvider>(
+      builder: (context, profileProvider, child) {
+        final profilePictureUrl = profileProvider.profilePictureUrl;
+
+        return Container(
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
-            color: widget.backgroundColor,
-            borderRadius: BorderRadius.circular(30),
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.grey[300]!,
+                Colors.grey[400]!,
+              ],
+            ),
             boxShadow: [
               BoxShadow(
-                color: widget.backgroundColor.withAlpha((0.3 * 255).round()),
-                blurRadius: 8,
-                offset: Offset(0, 4),
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          padding: EdgeInsets.symmetric(
-              horizontal: 20, vertical: 15.6), // Increased by 1.3 times
-          child: widget.child,
+          child: ClipOval(
+            child: profilePictureUrl != null
+                ? Image.network(
+                    profilePictureUrl,
+                    fit: BoxFit.cover,
+                    width: 32,
+                    height: 32,
+                    errorBuilder: (context, error, stackTrace) => Icon(
+                      Icons.person,
+                      color: Colors.grey[600],
+                      size: 20,
+                    ),
+                  )
+                : Icon(
+                    Icons.person,
+                    color: Colors.grey[600],
+                    size: 20,
+                  ),
+          ),
+        );
+      },
+    )
+        .animate(target: widget.isAnimating ? 1 : 0)
+        .shake(duration: 400.ms, rotation: 0.1)
+        .scale(
+          begin: const Offset(0.8, 0.8),
+          end: const Offset(1.0, 1.0),
+          duration: 200.ms,
+        );
+  }
+}
+
+class BlinkAdvanceScreen extends StatefulWidget {
+  final String bankAccountId;
+
+  const BlinkAdvanceScreen({super.key, required this.bankAccountId});
+
+  @override
+  State<BlinkAdvanceScreen> createState() => _BlinkAdvanceScreenState();
+}
+
+class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
+    with TickerProviderStateMixin {
+  ConversationState _conversationState = ConversationState.initial;
+  final List<ChatMessage> _messages = [];
+  String _userName = '';
+  String? _selectedAmount;
+  TransferSpeed? _selectedSpeed;
+  DateTime? _selectedDate;
+  late ScrollController _scrollController;
+  int? _animatingMessageIndex;
+  bool _isTyping = false;
+  final GlobalKey _confettiKey = GlobalKey();
+  final List<int> _amountOptions = [300, 250, 200, 175, 150, 125, 100];
+  late AnimationController _fadeController;
+  late AnimationController _inputSectionController;
+  late Animation<Offset> _inputSectionAnimation;
+  String? _bankAccountId = '';
+  bool _showQuickActions = false;
+  bool _isLoading = false;
+  late AnimationController _confettiController;
+  late AnimationController _backgroundController;
+  late Animation<double> _gradientAnimation;
+  late List<BackgroundParticle> _particles;
+  final _random = Random();
+  double _scrollBlur = 0.0;
+  final _maxBlur = 10.0;
+  Offset? _touchPosition;
+  double _touchIntensity = 0.0;
+  final _maxTouchIntensity = 0.8;
+
+  @override
+  void initState() {
+    super.initState();
+    _bankAccountId = widget.bankAccountId;
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _inputSectionController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _inputSectionAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _inputSectionController,
+      curve: Curves.easeOut,
+    ));
+    _loadUserName();
+    _addInitialMessage();
+    _fadeController.forward();
+    _scrollController = ScrollController();
+
+    _confettiController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 2000),
+    );
+
+    _backgroundController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat();
+
+    _gradientAnimation = Tween<double>(
+      begin: 0.0,
+      end: 2 * pi,
+    ).animate(_backgroundController);
+
+    _particles = List.generate(
+      20,
+      (index) => BackgroundParticle(
+        x: _random.nextDouble(),
+        y: _random.nextDouble(),
+        dx: _random.nextDouble() * 0.2 - 0.1,
+        dy: _random.nextDouble() * 0.2 - 0.1,
+        size: _random.nextDouble() * 2 + 1,
+        alpha: _random.nextDouble() * 0.5 + 0.1,
+      ),
+    );
+
+    _scrollController.addListener(_handleScroll);
+  }
+
+  void _handleScroll() {
+    final velocity = _scrollController.position.activity?.velocity ?? 0.0;
+    setState(() {
+      _scrollBlur = (velocity.abs() / 1000).clamp(0.0, _maxBlur);
+    });
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    setState(() {
+      _touchPosition = details.localPosition;
+      _touchIntensity = _maxTouchIntensity;
+    });
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    setState(() {
+      _touchPosition = null;
+      _touchIntensity = 0.0;
+    });
+  }
+
+  void _handleTapCancel() {
+    setState(() {
+      _touchPosition = null;
+      _touchIntensity = 0.0;
+    });
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _inputSectionController.dispose();
+    _scrollController.dispose();
+    _confettiController.dispose();
+    _backgroundController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          GestureDetector(
+            onTapDown: _handleTapDown,
+            onTapUp: _handleTapUp,
+            onTapCancel: _handleTapCancel,
+            child: AnimatedBuilder(
+              animation: _backgroundController,
+              builder: (context, child) {
+                return BackdropFilter(
+                  filter: ImageFilter.blur(
+                    sigmaX: _scrollBlur,
+                    sigmaY: _scrollBlur,
+                  ),
+                  child: CustomPaint(
+                    painter: BackgroundPainter(
+                      gradientAngle: _gradientAnimation.value,
+                      particles: _particles,
+                      isDarkMode:
+                          Theme.of(context).brightness == Brightness.dark,
+                      touchPosition: _touchPosition,
+                      touchIntensity: _touchIntensity,
+                    ),
+                    size: Size.infinite,
+                  ),
+                );
+              },
+            ),
+          ),
+          ConfettiOverlay(
+            key: _confettiKey,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              body: SafeArea(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                        itemCount: _messages.length + (_isTyping ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == _messages.length && _isTyping) {
+                            return _buildTypingIndicator();
+                          }
+                          final message = _messages[index];
+                          return CustomChatBubble(
+                            message: message,
+                            isUser: message.isUser,
+                            timestamp: message.timestamp,
+                            isAnimating: _animatingMessageIndex == index &&
+                                !message.isUser,
+                            emoji: message.emoji,
+                          )
+                              .animate()
+                              .fadeIn(duration: 300.ms)
+                              .slideY(begin: 0.2, end: 0);
+                        },
+                      ),
+                    ),
+                    if (_showQuickActions && !_isTyping)
+                      SlideTransition(
+                        position: _inputSectionAnimation,
+                        child: _buildQuickActionsSection(),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadUserName() async {
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    final firstName = storageService.getFirstName() ?? 'User';
+    if (!mounted) return;
+    setState(() {
+      _userName = firstName;
+    });
+  }
+
+  void _addInitialMessage() {
+    Future.delayed(Duration(milliseconds: 1000), () {
+      if (!mounted) return;
+      setState(() {
+        _conversationState = ConversationState.initial;
+      });
+
+      _addMessage(ChatMessage(
+        text: 'Hi $_userName!',
+        isUser: false,
+        timestamp: DateTime.now(),
+        emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
+      ));
+
+      Future.delayed(Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        _addMessage(ChatMessage(
+          text: 'How much would you like to borrow today?',
+          isUser: false,
+          timestamp: DateTime.now(),
+          emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
+        ));
+
+        Future.delayed(Duration(milliseconds: 500), () {
+          if (!mounted) return;
+          setState(() {
+            _conversationState = ConversationState.amountSelection;
+            _showQuickActions = true;
+            _inputSectionController.forward();
+          });
+        });
+      });
+    });
+  }
+
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: List.generate(3, (index) {
+                return Container(
+                  margin: EdgeInsets.only(right: index < 2 ? 4 : 0),
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                )
+                    .animate(
+                      onPlay: (controller) => controller.repeat(),
+                    )
+                    .scale(
+                      duration: 600.ms,
+                      delay: (index * 200).ms,
+                      begin: Offset(0.5, 0.5),
+                      end: Offset(1, 1),
+                    );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsSection() {
+    if (!_showQuickActions) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_conversationState == ConversationState.amountSelection)
+              _buildAmountOptions(),
+            if (_conversationState == ConversationState.speedSelection)
+              _buildSpeedOptions(),
+            if (_conversationState == ConversationState.dateSelection)
+              _buildDateOptions(),
+            if (_conversationState == ConversationState.summary)
+              _buildConfirmationOptions(),
+          ],
         ),
       ),
     );
   }
+
+  void _addMessage(ChatMessage message) {
+    setState(() {
+      _messages.add(message);
+      _animatingMessageIndex = _messages.length - 1;
+    });
+    _scrollToBottom();
+  }
+
+  Widget _buildAmountOptions() {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        ..._amountOptions.map((amount) {
+          return MouseRegion(
+            onEnter: (_) => HapticFeedback.lightImpact(),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _handleAmountSelection(amount.toString()),
+                  borderRadius: BorderRadius.circular(24),
+                  splashColor: Colors.white.withOpacity(0.1),
+                  highlightColor: Colors.white.withOpacity(0.2),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.blue.withOpacity(0.8),
+                          Colors.blue.shade600.withOpacity(0.9),
+                          Colors.blue.shade800.withOpacity(0.8),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '\$',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                        Text(
+                          amount.toString(),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+                  .animate()
+                  .scale(
+                    duration: 200.ms,
+                    curve: Curves.easeOut,
+                    begin: Offset(0.95, 0.95),
+                    end: Offset(1, 1),
+                  )
+                  .fadeIn(duration: 200.ms, curve: Curves.easeOut),
+            ),
+          );
+        }).toList(),
+        // Info Button
+        MouseRegion(
+          onEnter: (_) => HapticFeedback.lightImpact(),
+          child: Container(
+            width: 108, // Match amount button width
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: Colors.grey[900],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      title: Text(
+                        'Blink Advance Information',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      content: Text(
+                        'Blink Advance allows you to access funds before your next paycheck. The amount you can borrow depends on your account history and available balance.',
+                        style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text('Got it'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(24),
+                splashColor: Colors.white.withOpacity(0.1),
+                highlightColor: Colors.white.withOpacity(0.2),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.orange.withOpacity(0.8),
+                        Colors.orange.shade600.withOpacity(0.9),
+                        Colors.deepOrange.shade700.withOpacity(0.8),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            )
+                .animate()
+                .scale(
+                  duration: 200.ms,
+                  curve: Curves.easeOut,
+                  begin: Offset(0.95, 0.95),
+                  end: Offset(1, 1),
+                )
+                .fadeIn(duration: 200.ms, curve: Curves.easeOut),
+          ),
+        ),
+        // Cancel Button
+        MouseRegion(
+          onEnter: (_) => HapticFeedback.lightImpact(),
+          child: Container(
+            width: 108, // Match amount button width
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  Navigator.of(context).pop();
+                },
+                borderRadius: BorderRadius.circular(24),
+                splashColor: Colors.white.withOpacity(0.1),
+                highlightColor: Colors.white.withOpacity(0.2),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.red.withOpacity(0.8),
+                        Colors.red.shade600.withOpacity(0.9),
+                        Colors.red.shade800.withOpacity(0.8),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            )
+                .animate()
+                .scale(
+                  duration: 200.ms,
+                  curve: Curves.easeOut,
+                  begin: Offset(0.95, 0.95),
+                  end: Offset(1, 1),
+                )
+                .fadeIn(duration: 200.ms, curve: Curves.easeOut),
+          ),
+        ),
+      ],
+    )
+        .animate()
+        .slideY(
+          begin: 0.2,
+          duration: 600.ms,
+          curve: Curves.easeOutQuart,
+        )
+        .fadeIn(duration: 400.ms);
+  }
+
+  Widget _buildSpeedOptions() {
+    return Row(
+      children: [
+        Expanded(
+          child: MouseRegion(
+            onEnter: (_) => HapticFeedback.lightImpact(),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple.withOpacity(0.2),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _handleSpeedSelection(TransferSpeed.instant),
+                  borderRadius: BorderRadius.circular(24),
+                  splashColor: Colors.white.withOpacity(0.1),
+                  highlightColor: Colors.white.withOpacity(0.2),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.purple.withOpacity(0.8),
+                          Colors.purple.shade600.withOpacity(0.9),
+                          Colors.deepPurple.shade700.withOpacity(0.8),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AnimatedEmoji(AnimatedEmojis.electricity, size: 24),
+                            SizedBox(width: 8),
+                            Text(
+                              'Instant',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          '\$8.99',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'In minutes',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+                  .animate()
+                  .scale(
+                    duration: 200.ms,
+                    curve: Curves.easeOut,
+                    begin: Offset(0.95, 0.95),
+                    end: Offset(1, 1),
+                  )
+                  .fadeIn(duration: 200.ms, curve: Curves.easeOut),
+            ),
+          ),
+        ),
+        SizedBox(width: 16),
+        Expanded(
+          child: MouseRegion(
+            onEnter: (_) => HapticFeedback.lightImpact(),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.2),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _handleSpeedSelection(TransferSpeed.standard),
+                  borderRadius: BorderRadius.circular(24),
+                  splashColor: Colors.white.withOpacity(0.1),
+                  highlightColor: Colors.white.withOpacity(0.2),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.blue.withOpacity(0.8),
+                          Colors.blue.shade600.withOpacity(0.9),
+                          Colors.blue.shade800.withOpacity(0.8),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24),
+                            SizedBox(width: 8),
+                            Text(
+                              'Standard',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          '\$3.99',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          '1-3 business days',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+                  .animate()
+                  .scale(
+                    duration: 200.ms,
+                    curve: Curves.easeOut,
+                    begin: Offset(0.95, 0.95),
+                    end: Offset(1, 1),
+                  )
+                  .fadeIn(duration: 200.ms, curve: Curves.easeOut),
+            ),
+          ),
+        ),
+      ],
+    )
+        .animate()
+        .slideY(
+          begin: 0.2,
+          duration: 600.ms,
+          curve: Curves.easeOutQuart,
+        )
+        .fadeIn(duration: 400.ms);
+  }
+
+  Widget _buildDateOptions() {
+    return Column(
+      children: [
+        MouseRegion(
+          onEnter: (_) => HapticFeedback.lightImpact(),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.purple.withOpacity(0.2),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _showDatePicker,
+                borderRadius: BorderRadius.circular(24),
+                splashColor: Colors.white.withOpacity(0.1),
+                highlightColor: Colors.white.withOpacity(0.2),
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.purple.withOpacity(0.8),
+                        Colors.purple.shade600.withOpacity(0.9),
+                        Colors.deepPurple.shade700.withOpacity(0.8),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24),
+                          SizedBox(width: 12),
+                          Text(
+                            'Choose Repayment Date',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Select a date within 30 days',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )
+              .animate()
+              .scale(
+                duration: 200.ms,
+                curve: Curves.easeOut,
+                begin: Offset(0.95, 0.95),
+                end: Offset(1, 1),
+              )
+              .fadeIn(duration: 200.ms, curve: Curves.easeOut),
+        ),
+        SizedBox(height: 12),
+        MouseRegion(
+          onEnter: (_) => HapticFeedback.lightImpact(),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                Navigator.of(context).pop();
+              },
+              borderRadius: BorderRadius.circular(24),
+              splashColor: Colors.white.withOpacity(0.1),
+              highlightColor: Colors.white.withOpacity(0.2),
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white.withOpacity(0.9),
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Return to Home',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    )
+        .animate()
+        .slideY(
+          begin: 0.2,
+          duration: 600.ms,
+          curve: Curves.easeOutQuart,
+        )
+        .fadeIn(duration: 400.ms);
+  }
+
+  Widget _buildConfirmationOptions() {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () => _handleConfirmation(true),
+            child: Text('Confirm'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.withOpacity(0.8),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () => _handleConfirmation(false),
+            child: Text('Cancel'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.withOpacity(0.8),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _handleAmountSelection(String amount) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selectedAmount = amount;
+      _showQuickActions = false;
+      _inputSectionController.reverse();
+    });
+
+    _addMessage(ChatMessage(
+      text: 'I need \$$amount',
+      isUser: true,
+      timestamp: DateTime.now(),
+    ));
+
+    Future.delayed(Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      _addMessage(ChatMessage(
+        text: 'When do you need these funds?',
+        isUser: false,
+        timestamp: DateTime.now(),
+        emoji: AnimatedEmoji(AnimatedEmojis.sparkles, size: 24),
+      ));
+
+      Future.delayed(Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        setState(() {
+          _conversationState = ConversationState.speedSelection;
+          _showQuickActions = true;
+          _inputSectionController.forward();
+        });
+      });
+    });
+  }
+
+  void _handleSpeedSelection(TransferSpeed speed) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selectedSpeed = speed;
+      _showQuickActions = false;
+      _inputSectionController.reverse();
+    });
+
+    _addMessage(ChatMessage(
+      text: 'I prefer the ${speed.toString().split('.').last} transfer option.',
+      isUser: true,
+      timestamp: DateTime.now(),
+    ));
+
+    Future.delayed(Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      _addMessage(ChatMessage(
+        text: speed == TransferSpeed.instant
+            ? 'Your money will arrive in minutes!'
+            : 'Your money will arrive in 1-2 business days.',
+        isUser: false,
+        timestamp: DateTime.now(),
+        emoji: speed == TransferSpeed.instant
+            ? AnimatedEmoji(AnimatedEmojis.electricity, size: 24)
+            : AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24),
+      ));
+
+      Future.delayed(Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        _addMessage(ChatMessage(
+          text: 'When would you like to repay this advance?',
+          isUser: false,
+          timestamp: DateTime.now(),
+          emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24),
+        ));
+
+        Future.delayed(Duration(milliseconds: 500), () {
+          if (!mounted) return;
+          setState(() {
+            _conversationState = ConversationState.dateSelection;
+            _showQuickActions = true;
+            _inputSectionController.forward();
+          });
+        });
+      });
+    });
+  }
+
+  Future<void> _showDatePicker() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(Duration(days: 1)),
+      firstDate: DateTime.now().add(Duration(days: 1)),
+      lastDate: DateTime.now().add(Duration(days: 30)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: Colors.blue,
+              onPrimary: Colors.white,
+              surface: Colors.grey[900]!,
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      _handleDateSelection(picked);
+    }
+  }
+
+  void _handleDateSelection(DateTime date) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selectedDate = date;
+      _showQuickActions = false;
+      _inputSectionController.reverse();
+    });
+
+    _addMessage(ChatMessage(
+      text: 'I\'ll repay on ${DateFormat('MMMM d, yyyy').format(date)}',
+      isUser: true,
+      timestamp: DateTime.now(),
+    ));
+
+    Future.delayed(Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      _showAdvanceSummary();
+
+      Future.delayed(Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        setState(() {
+          _conversationState = ConversationState.summary;
+          _showQuickActions = true;
+          _inputSectionController.forward();
+        });
+      });
+    });
+  }
+
+  void _handleConfirmation(bool confirmed) {
+    if (confirmed) {
+      setState(() {
+        _isLoading = true;
+      });
+      _processAdvance();
+    } else {
+      _handleCancellation();
+    }
+  }
+
+  void _handleCancellation() {
+    _addMessage(ChatMessage(
+      text: 'I want to cancel this advance request.',
+      isUser: true,
+      timestamp: DateTime.now(),
+    ));
+
+    Future.delayed(Duration(milliseconds: 1000), () {
+      if (!mounted) return;
+      _addMessage(ChatMessage(
+        text: 'No problem! Let me know if you need anything else.',
+        isUser: false,
+        timestamp: DateTime.now(),
+        emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
+      ));
+
+      Future.delayed(Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+      });
+    });
+  }
+
+  Future<void> _processAdvance() async {
+    try {
+      // Simulate API call
+      await Future.delayed(Duration(seconds: 2));
+
+      if (!mounted) return;
+
+      _addMessage(ChatMessage(
+        text: 'Your advance has been processed successfully!',
+        isUser: false,
+        timestamp: DateTime.now(),
+        emoji: AnimatedEmoji(AnimatedEmojis.partyPopper, size: 24),
+      ));
+
+      Future.delayed(Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      _addMessage(ChatMessage(
+        text:
+            'Sorry, there was an error processing your advance. Please try again.',
+        isUser: false,
+        timestamp: DateTime.now(),
+        emoji: AnimatedEmoji(AnimatedEmojis.thinkingFace, size: 24),
+      ));
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showAdvanceSummary() {
+    final fee = _selectedSpeed == TransferSpeed.instant ? 8.99 : 3.99;
+
+    _addMessage(ChatMessage(
+      text: '''Here's your advance summary:
+      
+Amount: \$$_selectedAmount
+Transfer: ${_selectedSpeed == TransferSpeed.instant ? 'Instant' : 'Standard'}
+Fee: \$${fee.toStringAsFixed(2)}
+Repayment: ${DateFormat('MMMM d, yyyy').format(_selectedDate!)}
+
+Would you like to proceed?''',
+      isUser: false,
+      timestamp: DateTime.now(),
+      emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
+    ));
+  }
+}
+
+class BackgroundParticle {
+  double x;
+  double y;
+  double dx;
+  double dy;
+  double size;
+  double alpha;
+
+  BackgroundParticle({
+    required this.x,
+    required this.y,
+    required this.dx,
+    required this.dy,
+    required this.size,
+    required this.alpha,
+  });
+
+  void update() {
+    x = (x + dx).clamp(0.0, 1.0);
+    y = (y + dy).clamp(0.0, 1.0);
+
+    if (x <= 0 || x >= 1) dx = -dx;
+    if (y <= 0 || y >= 1) dy = -dy;
+  }
+}
+
+class BackgroundPainter extends CustomPainter {
+  final double gradientAngle;
+  final List<BackgroundParticle> particles;
+  final bool isDarkMode;
+  final Offset? touchPosition;
+  final double touchIntensity;
+
+  BackgroundPainter({
+    required this.gradientAngle,
+    required this.particles,
+    required this.isDarkMode,
+    this.touchPosition,
+    this.touchIntensity = 0.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+
+    // Draw dynamic gradient background with seamless transition
+    final gradient = LinearGradient(
+      begin: Alignment(
+        cos(gradientAngle),
+        sin(gradientAngle),
+      ),
+      end: Alignment(
+        cos(gradientAngle + pi),
+        sin(gradientAngle + pi),
+      ),
+      colors: isDarkMode
+          ? [
+              const Color(0xFF1A237E),
+              const Color(0xFF0D47A1),
+              const Color(0xFF1565C0),
+              const Color(0xFF1A237E),
+            ]
+          : [
+              const Color(0xFF90CAF9),
+              const Color(0xFF64B5F6),
+              const Color(0xFF42A5F5),
+              const Color(0xFF90CAF9),
+            ],
+      stops: [0.0, 0.3, 0.7, 1.0],
+      tileMode: TileMode.mirror,
+    );
+
+    paint.shader = gradient.createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, paint);
+
+    // Draw particles
+    for (final particle in particles) {
+      paint.color = Colors.white.withOpacity(particle.alpha);
+      canvas.drawCircle(
+        Offset(
+          particle.x * size.width,
+          particle.y * size.height,
+        ),
+        particle.size,
+        paint,
+      );
+      particle.update();
+    }
+
+    // Draw touch effect
+    if (touchPosition != null && touchIntensity > 0) {
+      final touchPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withOpacity(touchIntensity),
+            Colors.white.withOpacity(0),
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: touchPosition!,
+            radius: 100,
+          ),
+        );
+
+      canvas.drawCircle(
+        touchPosition!,
+        100,
+        touchPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(BackgroundPainter oldDelegate) =>
+      gradientAngle != oldDelegate.gradientAngle ||
+      touchPosition != oldDelegate.touchPosition ||
+      touchIntensity != oldDelegate.touchIntensity;
 }

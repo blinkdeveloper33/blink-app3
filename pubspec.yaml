@@ -52,6 +52,9 @@ dependencies:
   flutter_slidable: ^3.1.2
   haptic_feedback: ^0.5.1+1
   image_picker: ^1.0.7
+  supabase_flutter: ^2.3.4
+  image_cropper: ^8.1.0
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +72,8 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/blink-logo2.svg
+    - assets/images/blink-logo3.svg
     - assets/animations/
     # Animated Emoji Assets
     - packages/animated_emoji/lottie/moneyWithWings.json
@@ -95,6 +100,7 @@ flutter:
     - packages/animated_emoji/lottie/robot.json
     - .env
     - assets/images/blink_logo.png
+    - assets/animations/success.json
 
   fonts:
     - family: Roboto

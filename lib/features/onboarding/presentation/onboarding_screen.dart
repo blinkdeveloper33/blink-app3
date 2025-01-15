@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lottie/lottie.dart';
 import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -26,57 +26,68 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   void initState() {
     super.initState();
-    _initPages();
-    _backgroundAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _backgroundColorAnimation = ColorTween(
-      begin: _pages[0].gradientStart,
-      end: _pages[1].gradientStart,
-    ).animate(_backgroundAnimationController);
 
-    _cardAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-    _cardAnimation = CurvedAnimation(
-      parent: _cardAnimationController,
-      curve: Curves.easeInOut,
-    );
+    try {
+      _initPages();
 
-    _cardAnimationController.forward();
+      _backgroundAnimationController = AnimationController(
+        duration: const Duration(milliseconds: 600),
+        vsync: this,
+      );
+      _backgroundColorAnimation = ColorTween(
+        begin: _pages[0].gradientStart,
+        end: _pages[1].gradientStart,
+      ).animate(CurvedAnimation(
+        parent: _backgroundAnimationController,
+        curve: Curves.easeInOut,
+      ));
+
+      _cardAnimationController = AnimationController(
+        duration: const Duration(milliseconds: 600),
+        vsync: this,
+      );
+      _cardAnimation = CurvedAnimation(
+        parent: _cardAnimationController,
+        curve: Curves.easeOutCubic,
+      );
+
+      Future.microtask(() {
+        if (mounted) {
+          _cardAnimationController.forward();
+        }
+      });
+    } catch (e) {
+      debugPrint('Error initializing OnboardingScreen: $e');
+    }
   }
 
   void _initPages() {
     _pages = [
       OnboardingPage(
         animation: 'assets/animations/instant_cash.json',
-        image: 'assets/images/OBJECTS.svg',
-        title: 'Instant Cash Access',
+        title: 'Get a Blink Cash Advance',
         subtitle:
-            'Get BlinkAdvance cash advances from \$150 to \$300, no credit check required.',
-        gradientStart: Color(0xFF1E88E5),
-        gradientEnd: Color(0xFF64B5F6),
+            'Access up to \$300 instantly when you need it most. Fast, transparent, and hassle-free with no credit check required.',
+        gradientStart: const Color(0xFF1E3A8A),
+        gradientEnd: const Color(0xFF2563EB),
         icon: Icons.attach_money,
       ),
       OnboardingPage(
         animation: 'assets/animations/money_management.json',
-        image: 'assets/images/OBJECTS-2.svg',
-        title: 'Smart Money Management',
+        title: 'Smart Financial Wellness',
         subtitle:
-            'Track spending, set budgets, and make informed financial decisions.',
-        gradientStart: Color(0xFF43A047),
-        gradientEnd: Color(0xFF81C784),
+            'Take control of your finances with personalized insights, budgeting tools, and responsible borrowing features. We help you make better financial decisions.',
+        gradientStart: const Color(0xFF064E3B),
+        gradientEnd: const Color(0xFF059669),
         icon: Icons.insert_chart,
       ),
       OnboardingPage(
         animation: 'assets/animations/transparency.json',
-        image: 'assets/images/OBJECTS-1.svg',
-        title: 'Transparent & Fair',
-        subtitle: 'No hidden fees, automatic repayment on your chosen date.',
-        gradientStart: Color(0xFF5E35B1),
-        gradientEnd: Color(0xFF9575CD),
+        title: 'Simple & Transparent',
+        subtitle:
+            'One flat fee, no hidden charges, no rollovers. Choose your repayment date within 31 days and we handle the rest.',
+        gradientStart: const Color(0xFF312E81),
+        gradientEnd: const Color(0xFF4F46E5),
         icon: Icons.visibility,
       ),
     ];
@@ -85,30 +96,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final l10n = AppLocalizations.of(context)!;
-    _updatePagesWithLocalizations(l10n);
-  }
-
-  void _updatePagesWithLocalizations(AppLocalizations l10n) {
-    _pages[0] = _pages[0].copyWith(
-      title: l10n.onboardingTitle1,
-      subtitle: l10n.onboardingSubtitle1,
-    );
-    _pages[1] = _pages[1].copyWith(
-      title: l10n.onboardingTitle2,
-      subtitle: l10n.onboardingSubtitle2,
-    );
-    _pages[2] = _pages[2].copyWith(
-      title: l10n.onboardingTitle3,
-      subtitle: l10n.onboardingSubtitle3,
-    );
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
-    _backgroundAnimationController.dispose();
-    _cardAnimationController.dispose();
+    try {
+      _pageController.dispose();
+      _backgroundAnimationController.dispose();
+      _cardAnimationController.dispose();
+    } catch (e) {
+      debugPrint('Error disposing OnboardingScreen controllers: $e');
+    }
     super.dispose();
   }
 
@@ -135,7 +133,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _backgroundColorAnimation = ColorTween(
       begin: _pages[_currentPage].gradientStart,
       end: _pages[(_currentPage + 1) % _pages.length].gradientStart,
-    ).animate(_backgroundAnimationController);
+    ).animate(CurvedAnimation(
+      parent: _backgroundAnimationController,
+      curve: Curves.easeInOut,
+    ));
     _backgroundAnimationController.forward();
     _cardAnimationController.reset();
     _cardAnimationController.forward();
@@ -163,14 +164,30 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: SafeArea(
               child: Stack(
                 children: [
+                  // Logo with enhanced size and positioning
                   Positioned(
                     top: 16,
-                    left: 16,
-                    child: SvgPicture.asset(
-                      'assets/images/blink_logo1.svg',
-                      width: 24,
-                      height: 24,
-                      fit: BoxFit.contain,
+                    left: 24,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Hero(
+                        tag: 'logo',
+                        child: Image.asset(
+                          'assets/images/blink_logo_white.png',
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   Column(
@@ -185,7 +202,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               opacity: _cardAnimation,
                               child: SlideTransition(
                                 position: Tween<Offset>(
-                                  begin: const Offset(0.25, 0.0),
+                                  begin: const Offset(0.2, 0.0),
                                   end: Offset.zero,
                                 ).animate(_cardAnimation),
                                 child:
@@ -207,6 +224,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           padding: const EdgeInsets.all(24.0),
                           child: Column(
                             children: [
+                              // Progress Indicator
                               SizedBox(
                                 width: double.infinity,
                                 height: 4,
@@ -221,8 +239,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                                   _pages.length -
                                               8,
                                       height: 4,
-                                      margin:
-                                          EdgeInsets.symmetric(horizontal: 4),
+                                      margin: const EdgeInsets.symmetric(
+                                          horizontal: 4),
                                       decoration: BoxDecoration(
                                         color: _currentPage == index
                                             ? Colors.white
@@ -234,6 +252,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 ),
                               ),
                               const SizedBox(height: 32),
+                              // Navigation Buttons
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
@@ -243,52 +262,68 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                       onPressed: () {
                                         _pageController.previousPage(
                                           duration:
-                                              const Duration(milliseconds: 300),
+                                              const Duration(milliseconds: 600),
                                           curve: Curves.easeInOut,
                                         );
                                       },
                                       style: TextButton.styleFrom(
                                         foregroundColor: Colors.white,
-                                        padding: EdgeInsets.symmetric(
+                                        padding: const EdgeInsets.symmetric(
                                             horizontal: 16, vertical: 8),
                                       ),
                                       child: Text(
                                         l10n.back,
-                                        style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     )
                                   else
-                                    SizedBox(width: 80),
-                                  ElevatedButton(
-                                    onPressed: _currentPage == _pages.length - 1
-                                        ? _navigateToSignUp
-                                        : () {
-                                            _pageController.nextPage(
-                                              duration: const Duration(
-                                                  milliseconds: 300),
-                                              curve: Curves.easeInOut,
-                                            );
-                                          },
-                                    style: ElevatedButton.styleFrom(
-                                      foregroundColor:
-                                          _pages[_currentPage].gradientStart,
-                                      backgroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 32, vertical: 16),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(30),
-                                      ),
-                                      elevation: 2,
+                                    const SizedBox(width: 80),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(30),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.1),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
                                     ),
-                                    child: Text(
-                                      _currentPage == _pages.length - 1
-                                          ? l10n.getStarted
-                                          : l10n.next,
-                                      style: TextStyle(
+                                    child: ElevatedButton(
+                                      onPressed:
+                                          _currentPage == _pages.length - 1
+                                              ? _navigateToSignUp
+                                              : () {
+                                                  _pageController.nextPage(
+                                                    duration: const Duration(
+                                                        milliseconds: 600),
+                                                    curve: Curves.easeInOut,
+                                                  );
+                                                },
+                                      style: ElevatedButton.styleFrom(
+                                        foregroundColor:
+                                            _pages[_currentPage].gradientStart,
+                                        backgroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 32, vertical: 16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(30),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      child: Text(
+                                        _currentPage == _pages.length - 1
+                                            ? l10n.getStarted
+                                            : l10n.next,
+                                        style: GoogleFonts.inter(
                                           fontSize: 18,
-                                          fontWeight: FontWeight.bold),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -299,6 +334,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       ),
                     ],
                   ),
+                  // Skip button
                   Positioned(
                     top: 16,
                     right: 16,
@@ -306,13 +342,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       onPressed: _navigateToSignUp,
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                       ),
                       child: Text(
                         l10n.skip,
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -328,7 +366,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
 class OnboardingPage {
   final String animation;
-  final String image;
   final String title;
   final String subtitle;
   final Color gradientStart;
@@ -337,7 +374,6 @@ class OnboardingPage {
 
   OnboardingPage({
     required this.animation,
-    required this.image,
     required this.title,
     required this.subtitle,
     required this.gradientStart,
@@ -351,7 +387,6 @@ class OnboardingPage {
   }) {
     return OnboardingPage(
       animation: this.animation,
-      image: this.image,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
       gradientStart: this.gradientStart,
@@ -392,21 +427,28 @@ class _OnboardingPageWidgetState extends State<OnboardingPageWidget>
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 32.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 240,
-            height: 240,
+            width: 280,
+            height: 280,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
             ),
             child: Lottie.asset(
               widget.page.animation,
-              width: 200,
-              height: 200,
+              width: 240,
+              height: 240,
               fit: BoxFit.contain,
               controller: _lottieController,
               onLoaded: (composition) {
@@ -416,30 +458,32 @@ class _OnboardingPageWidgetState extends State<OnboardingPageWidget>
               },
             ),
           ),
-          SizedBox(height: 40),
+          const SizedBox(height: 48),
           Text(
             widget.page.title,
-            style: TextStyle(
+            style: GoogleFonts.inter(
               fontSize: 32,
               fontWeight: FontWeight.bold,
               color: Colors.white,
+              height: 1.2,
               shadows: [
                 Shadow(
-                  blurRadius: 2,
-                  color: Colors.black.withOpacity(0.1),
-                  offset: Offset(1, 1),
+                  blurRadius: 8,
+                  color: Colors.black.withOpacity(0.2),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             widget.page.subtitle,
-            style: TextStyle(
+            style: GoogleFonts.inter(
               fontSize: 18,
               color: Colors.white.withOpacity(0.9),
               height: 1.5,
+              fontWeight: FontWeight.w400,
             ),
             textAlign: TextAlign.center,
           ),

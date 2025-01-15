@@ -6,6 +6,9 @@ import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:logger/logger.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:blink_app/models/transaction.dart';
+import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:path/path.dart' as path;
 
 class StorageKeys {
   static const String firstName = 'firstName';
@@ -20,43 +23,40 @@ class StorageKeys {
   static const String transactions = 'transactions';
   static const String lastUpdated = 'lastUpdated';
   static const String createdAt = 'createdAt';
+  static const String encryptionKey = 'encryptionKey';
 }
 
 class StorageService {
   static final StorageService _instance = StorageService._internal();
   final Logger _logger = Logger();
-  late SharedPreferences _prefs;
-  late encrypt.Key _encryptionKey;
+  late final SharedPreferences _prefs;
+  late final encrypt.Key _encryptionKey;
   final encrypt.IV _iv = encrypt.IV.fromLength(16);
-  late encrypt.Encrypter _encrypter;
+  late final encrypt.Encrypter _encrypter;
   bool _isInitialized = false;
+  late final SupabaseClient _supabase;
 
-  factory StorageService() {
+  factory StorageService(SharedPreferences prefs) {
+    _instance._prefs = prefs;
+    _instance._supabase = Supabase.instance.client;
+    _instance._init();
     return _instance;
   }
 
   StorageService._internal();
 
-  Future<void> init() async {
-    if (_isInitialized) return;
-
-    try {
-      _prefs = await SharedPreferences.getInstance();
-      _logger.i('SharedPreferences initialized successfully.');
-
-      final keyString = dotenv.env['ENCRYPTION_KEY'];
-      if (keyString == null || keyString.length != 32) {
-        throw Exception('Invalid or missing ENCRYPTION_KEY in .env file.');
+  void _init() {
+    if (!_isInitialized) {
+      final key = _prefs.getString(StorageKeys.encryptionKey);
+      if (key != null) {
+        _encryptionKey = encrypt.Key.fromBase64(key);
+        _encrypter = encrypt.Encrypter(encrypt.AES(_encryptionKey));
+      } else {
+        _encryptionKey = encrypt.Key.fromSecureRandom(32);
+        _prefs.setString(StorageKeys.encryptionKey, _encryptionKey.base64);
+        _encrypter = encrypt.Encrypter(encrypt.AES(_encryptionKey));
       }
-
-      _encryptionKey = encrypt.Key.fromUtf8(keyString);
-      _encrypter = encrypt.Encrypter(encrypt.AES(_encryptionKey));
       _isInitialized = true;
-
-      _logger.i('Encryption key initialized successfully.');
-    } catch (e) {
-      _logger.e('Failed to initialize StorageService: $e');
-      throw Exception('Failed to initialize StorageService');
     }
   }
 
@@ -441,6 +441,40 @@ class StorageService {
       return createdAtString != null ? DateTime.parse(createdAtString) : null;
     } catch (e) {
       _logger.e('Failed to get created at date: $e');
+      return null;
+    }
+  }
+
+  Future<String?> uploadProfilePicture(String userId, File imageFile) async {
+    try {
+      final fileExt = path.extension(imageFile.path);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = '$userId-$timestamp$fileExt';
+
+      _logger.i('Uploading profile picture: $fileName');
+
+      await _supabase.storage.from('profiles').upload(fileName, imageFile,
+          fileOptions: const FileOptions(upsert: true));
+
+      final imageUrl =
+          _supabase.storage.from('profiles').getPublicUrl(fileName);
+
+      _logger.i('Profile picture uploaded successfully: $imageUrl');
+      return imageUrl;
+    } catch (e) {
+      _logger.e('Error uploading profile picture', error: e);
+      return null;
+    }
+  }
+
+  String? getProfilePictureUrl(String userId) {
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      return _supabase.storage
+          .from('profiles')
+          .getPublicUrl('$userId-$timestamp.jpg');
+    } catch (e) {
+      _logger.e('Error getting profile picture URL', error: e);
       return null;
     }
   }

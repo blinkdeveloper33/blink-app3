@@ -9,7 +9,8 @@ class TransactionService {
 
   TransactionService({http.Client? client})
       : client = client ?? http.Client(),
-        baseUrl = dotenv.env['API_URL'] ?? 'http://localhost:3000';
+        baseUrl = dotenv.env['API_URL'] ??
+            'https://1f33-12-162-124-34.ngrok-free.app';
 
   Future<void> updateTransactionCategory({
     required String transactionId,

@@ -7,37 +7,82 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lottie/lottie.dart';
+import 'dart:math' as math;
 
-class BackgroundPainter extends CustomPainter {
-  final Color startColor;
-  final Color endColor;
+class AnimatedBubble extends StatefulWidget {
+  final double size;
+  final double initialX;
+  final double initialY;
+  final Duration duration;
 
-  BackgroundPainter({required this.startColor, required this.endColor});
+  const AnimatedBubble({
+    Key? key,
+    required this.size,
+    required this.initialX,
+    required this.initialY,
+    required this.duration,
+  }) : super(key: key);
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [startColor, endColor],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+  State<AnimatedBubble> createState() => _AnimatedBubbleState();
+}
 
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+class _AnimatedBubbleState extends State<AnimatedBubble>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _positionAnimation;
+  late Animation<double> _opacityAnimation;
 
-    final circlePaint = Paint()
-      ..color = Colors.white.withAlpha(25)
-      ..style = PaintingStyle.fill;
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: widget.duration,
+      vsync: this,
+    )..repeat(reverse: true);
 
-    canvas.drawCircle(
-        Offset(size.width * 0.8, size.height * 0.2), 100, circlePaint);
-    canvas.drawCircle(
-        Offset(size.width * 0.2, size.height * 0.8), 150, circlePaint);
+    _positionAnimation = Tween<double>(
+      begin: -10.0,
+      end: 10.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    ));
+
+    _opacityAnimation = Tween<double>(
+      begin: 0.3,
+      end: 0.5,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    ));
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Positioned(
+          left: widget.initialX + _positionAnimation.value,
+          top: widget.initialY + _positionAnimation.value,
+          child: Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(_opacityAnimation.value * 0.1),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -122,27 +167,22 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
 
   late AnimationController _animationController;
   late Animation<double> _fadeInAnimation;
-  late AnimationController _backgroundAnimationController;
-  late Animation<Color?> _backgroundColorAnimation;
 
   final List<Color> _stepColors = [
-    const Color(0xFF1E88E5),
-    const Color(0xFF43A047),
-    const Color(0xFF5E35B1),
+    const Color(0xFF1E3A8A),
+    const Color(0xFF2563EB),
+  ];
+
+  final List<String> animations = [
+    'assets/animations/personal_info.json',
+    'assets/animations/location.json',
+    'assets/animations/confirmation.json',
   ];
 
   @override
   void initState() {
     super.initState();
     _storageService = Provider.of<StorageService>(context, listen: false);
-    _backgroundAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _backgroundColorAnimation = ColorTween(
-      begin: _stepColors[0],
-      end: _stepColors[1],
-    ).animate(_backgroundAnimationController);
 
     _animationController = AnimationController(
       vsync: this,
@@ -160,7 +200,6 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
     _lastNameController.dispose();
     _zipCodeController.dispose();
     _animationController.dispose();
-    _backgroundAnimationController.dispose();
     super.dispose();
   }
 
@@ -191,33 +230,51 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
           validator: validator,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontFamily: 'Onest',
+            fontWeight: FontWeight.w500,
+          ),
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white.withOpacity(0.1),
             hintText: hintText,
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+            hintStyle: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 16,
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w500,
+            ),
             prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, color: Colors.white70)
+                ? Icon(prefixIcon, color: Colors.white.withOpacity(0.7))
                 : null,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF2196F3), width: 2),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.5),
+                width: 1.5,
+              ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Colors.redAccent),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.all(20),
           ),
         ),
       ],
@@ -241,91 +298,151 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
         Container(
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withOpacity(0.2),
+              width: 1,
             ),
           ),
-          child: DropdownButtonFormField<String>(
-            value: _selectedState,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please select your state';
-              }
-              return null;
-            },
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              prefixIcon: Icon(Icons.location_on, color: Colors.white70),
-            ),
-            dropdownColor: const Color(0xFF061535),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontFamily: 'Onest',
-            ),
-            iconEnabledColor: const Color(0xFF2196F3),
-            hint: Text(
-              'Select State',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 16,
-                fontFamily: 'Onest',
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              inputDecorationTheme: InputDecorationTheme(
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.all(20),
+              ),
+              dropdownMenuTheme: DropdownMenuThemeData(
+                textStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.w500,
+                ),
+                menuStyle: MenuStyle(
+                  backgroundColor:
+                      MaterialStateProperty.all(const Color(0xFF1E3A8A)),
+                  elevation: MaterialStateProperty.all(8),
+                  shape: MaterialStateProperty.all(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  padding: MaterialStateProperty.all(
+                    const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
               ),
             ),
-            items: _states.map((String state) {
-              return DropdownMenuItem<String>(
-                value: state,
-                child: Text(state),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _selectedState = newValue;
-              });
-            },
+            child: DropdownButtonFormField<String>(
+              value: _selectedState,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please select your state';
+                }
+                return null;
+              },
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.all(20),
+                prefixIcon: Icon(
+                  Icons.location_on,
+                  color: Colors.white.withOpacity(0.7),
+                ),
+                suffixIcon: Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.white.withOpacity(0.7),
+                  size: 28,
+                ),
+              ),
+              dropdownColor: const Color(0xFF1E3A8A),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w500,
+              ),
+              icon: const SizedBox.shrink(), // Hide default icon
+              hint: Text(
+                'Select State',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 16,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              menuMaxHeight: 300,
+              isExpanded: true,
+              items: _states.map((String state) {
+                return DropdownMenuItem<String>(
+                  value: state,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      state,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                setState(() {
+                  _selectedState = newValue;
+                });
+              },
+            ),
           ),
         ),
       ],
     );
   }
 
-  void _submitForm() async {
-    if (_formKey.currentState!.validate()) {
-      if (!_acknowledgeAccuracy) {
-        _showSnackBar('Please acknowledge the accuracy of your information.',
-            isError: true);
-        return;
-      }
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      setState(() {
-        _isSubmitting = true;
-      });
+    if (!_acknowledgeAccuracy) {
+      _showErrorDialog(
+          'Please acknowledge that the information provided is accurate.');
+      return;
+    }
 
-      try {
-        await _storageService.setFirstName(_firstNameController.text.trim());
-        await _storageService.setLastName(_lastNameController.text.trim());
-        await _storageService.setState(_selectedState!);
-        await _storageService.setZipcode(_zipCodeController.text.trim());
-        await _storageService.setEmail(widget.email);
+    setState(() {
+      _isSubmitting = true;
+    });
 
+    try {
+      await _storageService.setFirstName(_firstNameController.text.trim());
+      await _storageService.setLastName(_lastNameController.text.trim());
+      await _storageService.setState(_selectedState!);
+      await _storageService.setZipcode(_zipCodeController.text.trim());
+      await _storageService.setEmail(widget.email);
+
+      if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => CreatePasswordScreen(email: widget.email),
+            builder: (context) => CreatePasswordScreen(
+              email: widget.email,
+            ),
           ),
         );
-      } catch (e, stackTrace) {
-        _logger.e('Error submitting form', error: e, stackTrace: stackTrace);
-        if (mounted) {
-          _showErrorDialog('An unexpected error occurred. Please try again.');
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isSubmitting = false;
-          });
-        }
+      }
+    } catch (e) {
+      _logger.e('Error saving user data', error: e);
+      if (mounted) {
+        _showErrorDialog('An error occurred while saving your information.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
       }
     }
   }
@@ -385,72 +502,117 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   }
 
   Widget _buildCheckbox() {
-    return Row(
-      children: [
-        SizedBox(
-          height: 24,
-          width: 24,
-          child: Checkbox(
-            value: _acknowledgeAccuracy,
-            onChanged: (bool? value) {
-              setState(() {
-                _acknowledgeAccuracy = value ?? false;
-              });
-            },
-            fillColor: WidgetStateProperty.resolveWith<Color>(
-              (Set<WidgetState> states) {
-                if (states.contains(WidgetState.selected)) {
-                  return const Color(0xFF2196F3);
-                }
-                return Colors.white.withOpacity(0.1);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Container(
+            height: 24,
+            width: 24,
+            decoration: BoxDecoration(
+              color: _acknowledgeAccuracy
+                  ? const Color(0xFF2196F3)
+                  : Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _acknowledgeAccuracy
+                    ? const Color(0xFF2196F3)
+                    : Colors.white.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Checkbox(
+              value: _acknowledgeAccuracy,
+              onChanged: (bool? value) {
+                setState(() {
+                  _acknowledgeAccuracy = value ?? false;
+                });
               },
+              fillColor: MaterialStateProperty.resolveWith<Color>(
+                (Set<MaterialState> states) {
+                  if (states.contains(MaterialState.selected)) {
+                    return const Color(0xFF2196F3);
+                  }
+                  return Colors.transparent;
+                },
+              ),
+              checkColor: Colors.white,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
-            checkColor: Colors.white,
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'I acknowledge that all information provided is accurate and true.',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
-              fontFamily: 'Onest',
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'I acknowledge that all information provided is accurate and true.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 14,
+                fontFamily: 'Onest',
+                height: 1.5,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildContinueButton() {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _submitForm,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF2196F3),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: Colors.white.withOpacity(0.1),
+          foregroundColor: Colors.white,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Colors.white.withOpacity(0.3),
+              width: 1,
+            ),
           ),
-          disabledBackgroundColor: Colors.grey,
-          elevation: 5,
+          padding: const EdgeInsets.symmetric(vertical: 16),
         ),
         child: _isSubmitting
-            ? const SizedBox(
-                height: 24,
+            ? SizedBox(
                 width: 24,
+                height: 24,
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  strokeWidth: 2,
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.white.withOpacity(0.8),
+                  ),
                 ),
               )
             : const Text(
                 'Continue',
                 style: TextStyle(
-                  fontSize: 18,
                   fontFamily: 'Onest',
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -459,20 +621,24 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   }
 
   Widget _buildProgressIndicator() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        3,
-        (index) => AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: index == _currentStep ? 30 : 10,
-          height: 10,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(5),
-            color: index == _currentStep
-                ? Colors.white
-                : Colors.white.withOpacity(0.3),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(
+          3,
+          (index) => Container(
+            width: index == _currentStep ? 32 : 8,
+            height: 8,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              color: index == _currentStep
+                  ? Colors.white
+                  : index < _currentStep
+                      ? Colors.white.withOpacity(0.5)
+                      : Colors.white.withOpacity(0.2),
+            ),
           ),
         ),
       ),
@@ -480,12 +646,6 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   }
 
   Widget _buildStepContent() {
-    final List<String> animations = [
-      'assets/animations/personal_info.json',
-      'assets/animations/location.json',
-      'assets/animations/confirmation.json',
-    ];
-
     return FadeTransition(
       opacity: _fadeInAnimation,
       child: SlideTransition(
@@ -586,47 +746,88 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
               setState(() {
                 _currentStep--;
               });
-              _backgroundAnimationController.reverse();
             },
-            child: const Text(
-              'Previous',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontFamily: 'Onest',
-                fontWeight: FontWeight.w600,
-              ),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.arrow_back,
+                  color: Colors.white.withOpacity(0.9),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Previous',
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           )
         else
           const SizedBox(width: 80),
-        ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              if (_currentStep < 2) {
-                setState(() {
-                  _currentStep++;
-                });
-                _backgroundAnimationController.forward();
-              } else {
-                _submitForm();
-              }
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: _stepColors[_currentStep],
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-            elevation: 5,
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: Text(
-            _currentStep == 2 ? 'Submit' : 'Next',
-            style: TextStyle(
-              fontSize: 16,
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.w600,
+          child: ElevatedButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                if (_currentStep < 2) {
+                  setState(() {
+                    _currentStep++;
+                  });
+                } else {
+                  _submitForm();
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.1),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _currentStep == 2 ? 'Submit' : 'Next',
+                  style: const TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (_currentStep < 2) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -636,70 +837,183 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
 
   @override
   Widget build(BuildContext context) {
+    final bubbles = _generateBubbles();
     return Scaffold(
-      backgroundColor:
-          _backgroundColorAnimation.value ?? _stepColors[_currentStep],
-      body: AnimatedBuilder(
-        animation: _backgroundColorAnimation,
-        builder: (context, child) {
-          return CustomPaint(
-            painter: BackgroundPainter(
-              startColor:
-                  _backgroundColorAnimation.value ?? _stepColors[_currentStep],
-              endColor: _stepColors[_currentStep],
-            ),
-            child: Container(
-              height: MediaQuery.of(context).size.height,
-              width: MediaQuery.of(context).size.width,
-              child: SafeArea(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0, vertical: 16.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              IconButton(
-                                icon: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    shape: BoxShape.circle,
+      extendBody: true,
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
+      body: Container(
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1E3A8A),
+              Color(0xFF2563EB),
+            ],
+          ),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Animated Bubbles
+            ...bubbles,
+            // Main Content
+            SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              icon: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1,
                                   ),
-                                  child: const Icon(Icons.arrow_back,
-                                      color: Colors.white),
                                 ),
-                                onPressed: () => Navigator.of(context).pop(),
-                                tooltip: 'Go Back',
+                                child: const Icon(Icons.arrow_back,
+                                    color: Colors.white),
                               ),
-                              Image.asset(
-                                'assets/images/blink_logo.png',
-                                height: 30,
+                              onPressed: () => Navigator.of(context).pop(),
+                              tooltip: 'Go Back',
+                            ),
+                            Hero(
+                              tag: 'logo',
+                              child: Image.asset(
+                                'assets/images/blink_logo_white.png',
+                                height: 42,
                                 fit: BoxFit.contain,
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 40),
+                        FadeInLeft(
+                          duration: const Duration(milliseconds: 600),
+                          child: Text(
+                            _getStepTitle(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.bold,
+                              height: 1.2,
+                            ),
                           ),
-                          const SizedBox(height: 24),
-                          _buildStepContent(),
-                          const SizedBox(height: 32),
-                          _buildProgressIndicator(),
-                          const SizedBox(height: 24),
-                          _buildNavigationButtons(),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 12),
+                        FadeInLeft(
+                          duration: const Duration(milliseconds: 600),
+                          delay: const Duration(milliseconds: 200),
+                          child: Text(
+                            _getStepSubtitle(),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 16,
+                              fontFamily: 'Onest',
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                        FadeInUp(
+                          duration: const Duration(milliseconds: 600),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(24),
+                            child: _buildStepContent(),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        FadeInUp(
+                          duration: const Duration(milliseconds: 600),
+                          delay: const Duration(milliseconds: 200),
+                          child: _buildProgressIndicator(),
+                        ),
+                        const SizedBox(height: 24),
+                        FadeInUp(
+                          duration: const Duration(milliseconds: 600),
+                          delay: const Duration(milliseconds: 400),
+                          child: _buildNavigationButtons(),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
+  }
+
+  String _getStepTitle() {
+    switch (_currentStep) {
+      case 0:
+        return 'Personal Information';
+      case 1:
+        return 'Location Details';
+      case 2:
+        return 'Almost Done';
+      default:
+        return '';
+    }
+  }
+
+  String _getStepSubtitle() {
+    switch (_currentStep) {
+      case 0:
+        return 'Tell us a bit about yourself';
+      case 1:
+        return 'Where are you located?';
+      case 2:
+        return 'Just a few more details to complete your profile';
+      default:
+        return '';
+    }
+  }
+
+  List<Widget> _generateBubbles() {
+    final List<Widget> bubbles = [];
+    final random = math.Random();
+
+    for (int i = 0; i < 10; i++) {
+      final size = 40 + random.nextDouble() * 20;
+      final initialX = random.nextDouble() * MediaQuery.of(context).size.width;
+      final initialY = random.nextDouble() * MediaQuery.of(context).size.height;
+      final duration = Duration(seconds: 5 + random.nextInt(10));
+
+      bubbles.add(
+        AnimatedBubble(
+          size: size,
+          initialX: initialX,
+          initialY: initialY,
+          duration: duration,
+        ),
+      );
+    }
+
+    return bubbles;
   }
 }

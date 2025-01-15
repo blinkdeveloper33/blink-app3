@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Transaction {
   final String id;
@@ -69,147 +70,173 @@ enum TransferSpeed {
 }
 
 class AuthService {
-  final String _baseUrl = dotenv.env['BACKEND_URL'] ??
-      'https://5000-idx-blinkbackend2-1731939610309.cluster-fnjdffmttjhy2qqdugh3yehhs2.cloudworkstations.dev';
-  final Logger _logger;
+  final String _baseUrl =
+      dotenv.env['BACKEND_URL'] ?? 'https://1f33-12-162-124-34.ngrok-free.app';
+  final Logger _logger = Logger();
   final StorageService _storageService;
+  final SupabaseClient _supabase = Supabase.instance.client;
+  User? _currentUser;
+  final http.Client _client = http.Client();
 
-  AuthService({Logger? logger, required StorageService storageService})
-      : _logger = logger ?? Logger(),
-        _storageService = storageService;
+  AuthService(this._storageService);
+
+  User? get currentUser => _currentUser;
+
+  Future<void> init() async {
+    try {
+      _currentUser = _supabase.auth.currentUser;
+      _supabase.auth.onAuthStateChange.listen((data) {
+        _currentUser = data.session?.user;
+      });
+    } catch (e) {
+      _logger.e('Error initializing auth service', error: e);
+    }
+  }
 
   Future<Map<String, dynamic>> _makeRequest({
     required String endpoint,
-    required dynamic body,
     required String method,
-    bool requireAuth = false,
+    Map<String, dynamic>? body,
+    bool requireAuth = true,
   }) async {
-    final headers = {'Content-Type': 'application/json'};
-
-    if (requireAuth) {
-      final token = await _storageService.getToken();
-      if (token == null) {
-        throw ApiException(message: 'User not authenticated', statusCode: 401);
-      }
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    // Check if this is a profile picture upload
-    if (endpoint == '/api/users/profile-picture') {
-      headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    }
-
-    final url = Uri.parse('$_baseUrl$endpoint');
     try {
-      _logger.i('Request to $endpoint: ${jsonEncode(body)}');
+      final baseUrl = dotenv.env['API_URL'] ??
+          dotenv.env['BACKEND_URL'] ??
+          'https://1f33-12-162-124-34.ngrok-free.app';
 
-      late http.Response response;
-
-      if (method.toUpperCase() == 'POST') {
-        final encodedBody =
-            headers['Content-Type'] == 'application/x-www-form-urlencoded'
-                ? body
-                : jsonEncode(body);
-        response = await http.post(url, headers: headers, body: encodedBody);
-      } else if (method.toUpperCase() == 'GET') {
-        final Uri finalUrl = body is Map
-            ? url.replace(
-                queryParameters:
-                    body.map((key, value) => MapEntry(key, value.toString())))
-            : url;
-        response = await http.get(finalUrl, headers: headers);
-      } else if (method.toUpperCase() == 'PATCH') {
-        response =
-            await http.patch(url, headers: headers, body: jsonEncode(body));
-      } else if (method.toUpperCase() == 'DELETE') {
-        response = await http.delete(url, headers: headers);
-      } else {
-        throw UnsupportedMethodException('Unsupported HTTP method: $method');
+      // Handle query parameters for GET requests
+      var uri = Uri.parse('$baseUrl$endpoint');
+      if (method == 'GET' && body != null && body.isNotEmpty) {
+        uri = uri.replace(
+            queryParameters:
+                body.map((key, value) => MapEntry(key, value.toString())));
       }
 
-      _logger.i(
-          'Response from $endpoint: ${response.statusCode} - ${response.body}');
+      final headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (requireAuth) {
+        final token = await _storageService.getToken();
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+      }
+
+      _logger.i('Making request to: $uri');
+      _logger.i('Method: $method');
+      _logger.i('Headers: $headers');
+      if (body != null) _logger.i('Body: $body');
+
+      http.Response response;
+      switch (method) {
+        case 'GET':
+          response = await _client.get(uri, headers: headers);
+          break;
+        case 'POST':
+          response = await _client.post(
+            uri,
+            headers: headers,
+            body: body != null ? json.encode(body) : null,
+          );
+          break;
+        case 'PUT':
+          response = await _client.put(
+            uri,
+            headers: headers,
+            body: body != null ? json.encode(body) : null,
+          );
+          break;
+        case 'DELETE':
+          response = await _client.delete(uri, headers: headers);
+          break;
+        default:
+          throw UnsupportedMethodException('Method $method not supported');
+      }
+
+      _logger.i('Response status code: ${response.statusCode}');
+      _logger.i('Response body: ${response.body}');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          return decoded;
-        } else if (decoded is Map) {
-          return Map<String, dynamic>.from(decoded);
-        } else {
-          throw ApiException(
-              message: 'Unexpected response format',
-              statusCode: response.statusCode);
-        }
+        return json.decode(response.body);
       } else {
-        final error = jsonDecode(response.body);
-        if (error is Map<String, dynamic>) {
-          throw ApiException(
-            message: error['error'] ?? 'Unknown error',
-            statusCode: response.statusCode,
-          );
-        } else {
-          throw ApiException(
-              message: 'Unexpected error format',
-              statusCode: response.statusCode);
-        }
+        throw ApiException(
+          message: response.body,
+          statusCode: response.statusCode,
+        );
       }
     } catch (e) {
-      _logger.e('Error in API call to $endpoint: $e');
-      throw ApiException(
-        message: 'Failed to connect to API: $e',
-        statusCode: 500,
-      );
+      _logger.e('Error in _makeRequest:', error: e);
+      rethrow;
     }
   }
 
   // User Registration & Authentication methods
 
   Future<Map<String, dynamic>> registerInitial(String email) async {
-    return _makeRequest(
-      endpoint: '/api/users/register-initial',
-      body: {'email': email},
-      method: 'POST',
-    );
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/register-initial',
+        body: {'email': email},
+        method: 'POST',
+        requireAuth: false,
+      );
+
+      _logger.i('Initial registration response: $response');
+      return response;
+    } catch (e) {
+      _logger.e('Error in registerInitial:', error: e);
+      if (e is ApiException && e.statusCode == 400) {
+        return {
+          'success': false,
+          'error': 'User already exists with this email.'
+        };
+      }
+      return {
+        'success': false,
+        'error': 'Failed to initiate registration: ${e.toString()}'
+      };
+    }
   }
 
   Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
-    return _makeRequest(
-      endpoint: '/api/users/verify-otp',
-      body: {'email': email, 'otp': otp},
-      method: 'POST',
-    );
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/verify-otp',
+        body: {'email': email, 'otp': otp},
+        method: 'POST',
+        requireAuth: false,
+      );
+
+      _logger.i('OTP verification response: $response');
+      return response;
+    } catch (e) {
+      _logger.e('Error in verifyOtp:', error: e);
+      if (e is ApiException && e.statusCode == 400) {
+        return {'success': false, 'error': 'Invalid OTP or OTP has expired.'};
+      }
+      return {
+        'success': false,
+        'error': 'Failed to verify OTP: ${e.toString()}'
+      };
+    }
   }
 
   Future<Map<String, dynamic>> sendOtp(String email) async {
-    return _makeRequest(
-      endpoint: '/api/users/resend-otp',
-      body: {'email': email},
-      method: 'POST',
-      requireAuth: false,
-    );
-  }
+    try {
+      final response = await _makeRequest(
+        endpoint: '/resend-otp',
+        body: {'email': email},
+        method: 'POST',
+        requireAuth: false,
+      );
 
-  Future<Map<String, dynamic>> completeRegistration({
-    required String email,
-    required String password,
-    required String firstName,
-    required String lastName,
-    required String state,
-    required String zipcode,
-  }) async {
-    return _makeRequest(
-      endpoint: '/api/users/register-complete',
-      body: {
-        'email': email,
-        'password': password,
-        'first_name': firstName,
-        'last_name': lastName,
-        'state': state,
-        'zipcode': zipcode,
-      },
-      method: 'POST',
-    );
+      _logger.i('Resend OTP response: $response');
+      return response;
+    } catch (e) {
+      _logger.e('Error in sendOtp:', error: e);
+      return {'success': false, 'error': 'Failed to send OTP: ${e.toString()}'};
+    }
   }
 
   Future<Map<String, dynamic>> login({
@@ -840,26 +867,281 @@ class AuthService {
     );
   }
 
-  // Initialization
-
-  Future<void> init() async {
-    _logger.i('AuthService initialized.');
+  Future<TransactionDetail> getTransactionDetails(String transactionId) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/$transactionId',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+      if (response['success'] == true) {
+        return TransactionDetail.fromJson(response['data']);
+      } else {
+        throw ApiException(
+            message: response['error'] ?? 'Failed to fetch transaction details',
+            statusCode: 400);
+      }
+    } catch (e) {
+      _logger.e('Error fetching transaction details: $e');
+      rethrow;
+    }
   }
 
-  Future<Map<String, dynamic>> updateProfilePicture(String base64Image) async {
-    // Make sure the base64 string includes the data URI prefix if not present
-    final imageData = base64Image.startsWith('data:image')
-        ? base64Image
-        : 'data:image/jpeg;base64,$base64Image';
+  Future<Map<String, dynamic>> updateProfilePicture(
+      String userId, String pictureUrl) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/profile-picture',
+        body: {
+          'userId': userId,
+          'profilePictureUrl': pictureUrl,
+          'updatedAt': DateTime.now().toIso8601String(),
+        },
+        method: 'PUT',
+        requireAuth: true,
+      );
 
-    return _makeRequest(
-      endpoint: '/api/users/profile-picture',
-      body: {
-        'file': imageData
-      }, // Changed from 'image' to 'file' to match backend
-      method: 'POST',
-      requireAuth: true,
-    );
+      if (response['success'] == true) {
+        _logger.i('Profile picture URL updated successfully');
+        return {'success': true};
+      } else {
+        _logger
+            .e('Failed to update profile picture URL: ${response['message']}');
+        return {
+          'success': false,
+          'message': response['message'] ?? 'Failed to update profile picture'
+        };
+      }
+    } catch (e) {
+      _logger.e('Error updating profile picture URL', error: e);
+      return {
+        'success': false,
+        'message': 'Error updating profile picture: $e'
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getSpendingAnalysis(String timeFrame) async {
+    try {
+      _logger.i('Making spending analysis request for timeFrame: $timeFrame');
+
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/spending-analysis',
+        body: {'timeFrame': timeFrame},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      _logger.d('Raw spending analysis response: $response');
+
+      if (response['success'] == true) {
+        if (response['data'] == null) {
+          _logger.w('Spending analysis response missing data field');
+          throw ApiException(
+              message: 'Invalid response format: missing data field',
+              statusCode: 500);
+        }
+
+        final data = response['data'] as Map<String, dynamic>;
+        final responseTimeFrame = data['timeFrame'] as String;
+
+        // Verify if the response timeFrame matches the requested timeFrame
+        if (responseTimeFrame != timeFrame) {
+          _logger.e(
+              'Server returned mismatched timeFrame. Requested: $timeFrame, Received: $responseTimeFrame');
+          throw ApiException(
+            message: 'Server returned incorrect time frame data',
+            statusCode: 500,
+          );
+        }
+
+        _logger.i('Successfully fetched spending analysis data');
+        _logger.d(
+            'Categories count: ${(data['categories'] as List?)?.length ?? 0}');
+        _logger.d('Total spending: ${data['totalSpending']}');
+
+        return response;
+      } else {
+        final errorMsg =
+            response['error'] ?? 'Failed to fetch spending analysis';
+        _logger.e('Spending analysis request failed: $errorMsg');
+        throw ApiException(message: errorMsg, statusCode: 500);
+      }
+    } catch (e) {
+      _logger.e('Error fetching spending analysis', error: e);
+      throw ApiException(
+          message: 'Failed to fetch spending analysis: ${e.toString()}',
+          statusCode: 500);
+    }
+  }
+
+  Future<Map<String, dynamic>> getHistoricalSpending() async {
+    try {
+      _logger.i('Fetching historical spending data');
+
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/historical-spending',
+        body: {},
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      _logger.d('Raw historical spending response: $response');
+
+      if (response['success'] == true) {
+        if (response['data'] == null || response['data']['periods'] == null) {
+          _logger
+              .w('Historical spending response missing data or periods field');
+          throw ApiException(
+              message: 'Invalid response format: missing required fields',
+              statusCode: 500);
+        }
+
+        final data = response['data'] as Map<String, dynamic>;
+        final periods = data['periods'] as Map<String, dynamic>;
+
+        // Validate the periods data
+        _validateHistoricalSpendingData(periods);
+
+        _logger.i('Successfully fetched historical spending data');
+        return response;
+      } else {
+        final errorMsg =
+            response['error'] ?? 'Failed to fetch historical spending';
+        _logger.e('Historical spending request failed: $errorMsg');
+        throw ApiException(message: errorMsg, statusCode: 500);
+      }
+    } catch (e) {
+      _logger.e('Error fetching historical spending: $e');
+      throw ApiException(
+          message: 'Failed to fetch historical spending: ${e.toString()}',
+          statusCode: 500);
+    }
+  }
+
+  void _validateHistoricalSpendingData(Map<String, dynamic> periods) {
+    final requiredPeriods = [
+      'lastWeek',
+      'lastMonth',
+      'lastQuarter',
+      'lastYear'
+    ];
+
+    for (final period in requiredPeriods) {
+      if (!periods.containsKey(period)) {
+        _logger.w('Missing $period period in response');
+        continue;
+      }
+
+      final periodData = periods[period] as Map<String, dynamic>?;
+      if (periodData == null) {
+        _logger.w('Invalid $period period data format');
+        continue;
+      }
+
+      if (periodData['start'] == null || periodData['end'] == null) {
+        _logger.w('Missing date range for $period period');
+      }
+
+      if (periodData['totalSpending'] == null) {
+        _logger.w('Missing totalSpending for $period period');
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> registerCompleteWithLogin({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    required String state,
+    required String zipcode,
+  }) async {
+    try {
+      _logger.i('Starting registration completion...');
+      final response = await _makeRequest(
+        endpoint: '/api/users/register-complete-with-login',
+        body: {
+          'email': email,
+          'password': password,
+          'first_name': firstName,
+          'last_name': lastName,
+          'state': state,
+          'zipcode': zipcode,
+        },
+        method: 'POST',
+        requireAuth: false,
+      );
+
+      _logger.i('Registration completion response: $response');
+
+      if (response['success'] == true && response['token'] != null) {
+        await _storageService.setToken(response['token']);
+        final userId = response['userId'];
+        if (userId != null) {
+          await _storageService.setUserId(userId);
+
+          // Store user profile data
+          await _storageService.setFirstName(firstName);
+          await _storageService.setLastName(lastName);
+          await _storageService.setState(state);
+          await _storageService.setZipcode(zipcode);
+          await _storageService.setEmail(email);
+
+          // Set full name
+          final fullName = '$firstName $lastName'.trim();
+          await _storageService.setFullName(fullName);
+
+          _logger.i('User registration and login successful');
+          return {
+            'success': true,
+            'token': response['token'],
+            'userId': userId,
+            'message': 'Registration successful'
+          };
+        }
+      }
+
+      return {
+        'success': false,
+        'error': response['error'] ?? 'Registration failed'
+      };
+    } catch (e) {
+      _logger.e('Error in registerCompleteWithLogin:', error: e);
+      if (e is ApiException) {
+        if (e.statusCode == 400) {
+          return {
+            'success': false,
+            'error': 'Invalid registration data or email not verified.'
+          };
+        }
+      }
+      return {
+        'success': false,
+        'error': 'Failed to complete registration: ${e.toString()}'
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getRecurringExpenses(String timeFrame) async {
+    try {
+      final response = await _makeRequest(
+        method: 'GET',
+        endpoint: '/api/plaid/recurring-expenses',
+        body: {'timeFrame': timeFrame},
+      );
+
+      if (response['success'] == true) {
+        return response['data'];
+      } else {
+        throw Exception(
+            response['message'] ?? 'Failed to fetch recurring expenses');
+      }
+    } catch (e) {
+      _logger.e('Error fetching recurring expenses: $e');
+      rethrow;
+    }
   }
 }
 
@@ -897,4 +1179,33 @@ class InvalidOtpException implements Exception {
 
   @override
   String toString() => 'InvalidOtpException: $message';
+}
+
+class TransactionDetail {
+  final String id;
+  final String? merchantName;
+  final double amount;
+  final DateTime date;
+  final String? category;
+  final Map<String, dynamic>? metadata;
+
+  TransactionDetail({
+    required this.id,
+    this.merchantName,
+    required this.amount,
+    required this.date,
+    this.category,
+    this.metadata,
+  });
+
+  factory TransactionDetail.fromJson(Map<String, dynamic> json) {
+    return TransactionDetail(
+      id: json['id'] as String,
+      merchantName: json['merchantName'] as String?,
+      amount: (json['amount'] as num).toDouble(),
+      date: DateTime.parse(json['date'] as String),
+      category: json['category'] as String?,
+      metadata: json['metadata'] as Map<String, dynamic>?,
+    );
+  }
 }
