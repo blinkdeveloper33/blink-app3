@@ -100,9 +100,14 @@ class AuthService {
     bool requireAuth = true,
   }) async {
     try {
-      final baseUrl = dotenv.env['API_URL'] ??
+      var baseUrl = dotenv.env['API_URL'] ??
           dotenv.env['BACKEND_URL'] ??
           'https://1f33-12-162-124-34.ngrok-free.app';
+
+      // Ensure baseUrl has https:// prefix
+      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        baseUrl = 'https://$baseUrl';
+      }
 
       // Handle query parameters for GET requests
       var uri = Uri.parse('$baseUrl$endpoint');
@@ -1140,6 +1145,38 @@ class AuthService {
       }
     } catch (e) {
       _logger.e('Error fetching recurring expenses: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getTransactionAnalysis() async {
+    try {
+      _logger.i('Making request to transaction analysis endpoint');
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/transaction-analysis',
+        method: 'GET',
+        body: {},
+        requireAuth: true,
+      );
+
+      _logger.d('Raw transaction analysis response: $response');
+
+      // The response is already the data we need, no need to check success flag
+      final result = {
+        'topMerchants':
+            List<Map<String, dynamic>>.from(response['topMerchants'] ?? []),
+        'inflowProviders':
+            List<Map<String, dynamic>>.from(response['inflowProviders'] ?? []),
+        'mostExpensiveCategory': response['mostExpensiveCategory'] != null
+            ? Map<String, dynamic>.from(response['mostExpensiveCategory'])
+            : null,
+      };
+
+      _logger.i('Successfully parsed transaction analysis data');
+      _logger.d('Parsed result: $result');
+      return result;
+    } catch (e) {
+      _logger.e('Error fetching transaction analysis', error: e);
       rethrow;
     }
   }

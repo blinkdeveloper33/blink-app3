@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:blink_app/services/auth_service.dart';
+import 'package:blink_app/services/biometric_service.dart';
 import 'package:blink_app/features/onboarding/presentation/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -43,25 +46,75 @@ class _SplashScreenState extends State<SplashScreen>
           _mainController.forward();
         }
       });
+
+      _initializeApp();
     } catch (e) {
       debugPrint('Error initializing SplashScreen: $e');
     }
+  }
 
-    Future.delayed(const Duration(seconds: 3), () {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const OnboardingScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 800),
-        ),
-      );
-    });
+  Future<void> _initializeApp() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final biometricService =
+        Provider.of<BiometricService>(context, listen: false);
+
+    // Wait for minimum splash screen duration
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    if (authService.currentUser == null) {
+      // No user logged in, go to onboarding
+      _navigateToOnboarding();
+      return;
+    }
+
+    final bool isBiometricEnabled = await biometricService.isBiometricEnabled();
+    final bool hasTimedOut = await biometricService.hasSessionTimedOut();
+
+    if (!mounted) return;
+
+    if (isBiometricEnabled && hasTimedOut) {
+      try {
+        // Show Face ID prompt with native UI
+        final bool authenticated = await biometricService.authenticate();
+        if (!mounted) return;
+
+        if (authenticated) {
+          // Authentication successful, go to home
+          await biometricService.updateLastActiveTime();
+          Navigator.of(context).pushReplacementNamed('/home');
+        } else {
+          // Authentication failed or cancelled, go to login
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
+      } catch (e) {
+        // Handle any authentication errors
+        debugPrint('Authentication error: $e');
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
+      }
+    } else {
+      // No biometric needed or timeout hasn't occurred, go to home
+      Navigator.of(context).pushReplacementNamed('/home');
+    }
+  }
+
+  void _navigateToOnboarding() {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const OnboardingScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
   }
 
   @override

@@ -3,12 +3,88 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path/path.dart' as path;
 import 'package:logger/logger.dart';
 
+// Add this class at the top of the file, before SupabaseStorageService
+class ProfileImageCache {
+  final String url;
+  final DateTime timestamp;
+  final String etag;
+
+  ProfileImageCache({
+    required this.url,
+    required this.timestamp,
+    required this.etag,
+  });
+}
+
 class SupabaseStorageService {
   final SupabaseClient _supabase;
   final Logger _logger = Logger();
   static const String _bucketName = 'profiles';
 
+  // Cache to store profile picture URLs with timestamps
+  final Map<String, ProfileImageCache> _profilePictureCache = {};
+
   SupabaseStorageService(this._supabase);
+
+  String _generateCacheBustingUrl(String baseUrl) {
+    return '$baseUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  Future<String?> getLatestProfilePictureUrl(String userId) async {
+    try {
+      // Check if we have a valid cached URL that's less than 5 minutes old
+      final cachedData = _profilePictureCache[userId];
+      final cacheExpiration = Duration(minutes: 5);
+
+      if (cachedData != null &&
+          DateTime.now().difference(cachedData.timestamp) < cacheExpiration) {
+        return cachedData.url;
+      }
+
+      // Clear any existing cache for this user
+      await clearCache(userId);
+
+      // Get the latest profile picture
+      final existingFiles = await listFiles(userId);
+      String? latestProfilePic;
+      DateTime latestTimestamp = DateTime(1970);
+
+      for (final file in existingFiles) {
+        if (file.name.startsWith('profile_')) {
+          final timestamp = int.tryParse(file.name.split('_')[1].split('.')[0]);
+          if (timestamp != null) {
+            final fileTimestamp =
+                DateTime.fromMillisecondsSinceEpoch(timestamp);
+            if (fileTimestamp.isAfter(latestTimestamp)) {
+              latestTimestamp = fileTimestamp;
+              latestProfilePic = file.name;
+            }
+          }
+        }
+      }
+
+      if (latestProfilePic != null) {
+        final baseUrl = _supabase.storage
+            .from(_bucketName)
+            .getPublicUrl('$userId/$latestProfilePic');
+        final cacheBustedUrl = _generateCacheBustingUrl(baseUrl);
+
+        // Store in cache with current timestamp and etag
+        _profilePictureCache[userId] = ProfileImageCache(
+          url: cacheBustedUrl,
+          timestamp: DateTime.now(),
+          etag: DateTime.now().millisecondsSinceEpoch.toString(),
+        );
+
+        return cacheBustedUrl;
+      }
+
+      return null;
+    } catch (e) {
+      _logger.e('Error getting latest profile picture URL: $e');
+      return null;
+    }
+  }
 
   Future<String?> uploadProfilePicture(String userId, File imageFile) async {
     try {
@@ -108,5 +184,24 @@ class SupabaseStorageService {
   bool _isValidImageExtension(String extension) {
     final validExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
     return validExtensions.contains(extension.toLowerCase());
+  }
+
+  Future<void> clearCache(String userId) async {
+    try {
+      // Remove from in-memory cache
+      _profilePictureCache.remove(userId);
+
+      // Clear network image cache if available
+      try {
+        // This would be implemented if using cached_network_image package
+        // await DefaultCacheManager().removeFile(getProfilePictureUrl(userId, '*'));
+      } catch (e) {
+        _logger.w('Error clearing network cache: $e');
+      }
+
+      _logger.i('Cleared cache for user: $userId');
+    } catch (e) {
+      _logger.e('Error clearing cache for user $userId: $e');
+    }
   }
 }

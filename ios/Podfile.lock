@@ -6,6 +6,8 @@ PODS:
     - Flutter
   - flutter_localization (0.0.1):
     - Flutter
+  - flutter_secure_storage (6.0.0):
+    - Flutter
   - haptic_feedback (0.5.1):
     - Flutter
   - image_cropper (0.0.4):
@@ -13,6 +15,9 @@ PODS:
     - TOCropViewController (~> 2.7.4)
   - image_picker_ios (0.0.1):
     - Flutter
+  - local_auth_darwin (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - package_info_plus (0.4.5):
     - Flutter
   - path_provider_foundation (0.0.1):
@@ -35,6 +40,8 @@ PODS:
   - sqflite_darwin (0.0.4):
     - Flutter
     - FlutterMacOS
+  - teller_connect_flutter (0.0.1):
+    - Flutter
   - TOCropViewController (2.7.4)
   - url_launcher_ios (0.0.1):
     - Flutter
@@ -44,9 +51,11 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_haptic (from `.symlinks/plugins/flutter_haptic/ios`)
   - flutter_localization (from `.symlinks/plugins/flutter_localization/ios`)
+  - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - haptic_feedback (from `.symlinks/plugins/haptic_feedback/ios`)
   - image_cropper (from `.symlinks/plugins/image_cropper/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
+  - local_auth_darwin (from `.symlinks/plugins/local_auth_darwin/darwin`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - plaid_flutter (from `.symlinks/plugins/plaid_flutter/ios`)
@@ -54,6 +63,7 @@ DEPENDENCIES:
   - sentry_flutter (from `.symlinks/plugins/sentry_flutter/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
+  - teller_connect_flutter (from `.symlinks/plugins/teller_connect_flutter/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
 SPEC REPOS:
@@ -71,12 +81,16 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_haptic/ios"
   flutter_localization:
     :path: ".symlinks/plugins/flutter_localization/ios"
+  flutter_secure_storage:
+    :path: ".symlinks/plugins/flutter_secure_storage/ios"
   haptic_feedback:
     :path: ".symlinks/plugins/haptic_feedback/ios"
   image_cropper:
     :path: ".symlinks/plugins/image_cropper/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
+  local_auth_darwin:
+    :path: ".symlinks/plugins/local_auth_darwin/darwin"
   package_info_plus:
     :path: ".symlinks/plugins/package_info_plus/ios"
   path_provider_foundation:
@@ -91,6 +105,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
   sqflite_darwin:
     :path: ".symlinks/plugins/sqflite_darwin/darwin"
+  teller_connect_flutter:
+    :path: ".symlinks/plugins/teller_connect_flutter/ios"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
@@ -99,9 +115,11 @@ SPEC CHECKSUMS:
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   flutter_haptic: 69ea6e5e1e478c19b2bec98a9a445bcc6525fcde
   flutter_localization: f43b18844a2b3d2c71fd64f04ffd6b1e64dd54d4
+  flutter_secure_storage: d33dac7ae2ea08509be337e775f6b59f1ff45f12
   haptic_feedback: 8cb3ee0cb6b797946c2b0df9c99ebc8f7ed79c71
   image_cropper: 37d40f62177c101ff4c164906d259ea2c3aa70cf
   image_picker_ios: c560581cceedb403a6ff17f2f816d7fea1421fc1
+  local_auth_darwin: 66e40372f1c29f383a314c738c7446e2f7fdadc3
   package_info_plus: c0502532a26c7662a62a356cebe2692ec5fe4ec4
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   Plaid: 93c9e80b93f5cea960a1120047ef2b689394ff91
@@ -111,6 +129,7 @@ SPEC CHECKSUMS:
   sentry_flutter: 7d1f1df30f3768c411603ed449519bbb90a7d87b
   shared_preferences_foundation: fcdcbc04712aee1108ac7fda236f363274528f78
   sqflite_darwin: 5a7236e3b501866c1c9befc6771dfd73ffb8702d
+  teller_connect_flutter: 9d1ff6c71e577a0af5e8ef4202a14361e79cd986
   TOCropViewController: 80b8985ad794298fb69d3341de183f33d1853654
   url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 

@@ -4,11 +4,13 @@ import 'dart:ui';
 import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/storage_service.dart';
+import 'package:blink_app/services/biometric_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'dart:math' as math;
 import 'package:shimmer/shimmer.dart';
+import 'dart:convert';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen>
   final Logger _logger = Logger();
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _passwordFocusNode = FocusNode();
+  String? _errorMessage;
 
   bool _isGoogleHovered = false;
   bool _isAppleHovered = false;
@@ -256,12 +259,12 @@ class _LoginScreenState extends State<LoginScreen>
                         : TextInputAction.next,
                     onFieldSubmitted: (_) {
                       if (isPassword) {
-                        _submitLogin();
+                        _handleLogin();
                       } else {
                         FocusScope.of(context).requestFocus(_passwordFocusNode);
                       }
                     },
-                    onEditingComplete: isPassword ? _submitLogin : null,
+                    onEditingComplete: isPassword ? _handleLogin : null,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'This field is required';
@@ -344,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: _isSubmitting ? null : _submitLogin,
+          onTap: _isSubmitting ? null : _handleLogin,
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(
@@ -381,39 +384,191 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Future<void> _submitLogin() async {
+  Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      setState(() => _isSubmitting = true);
-      _pulseAnimationController.repeat(reverse: true);
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-
-      _logger.d('Logging in with email: $email');
+      setState(() {
+        _isSubmitting = true;
+        _errorMessage = null;
+      });
 
       try {
         final authService = Provider.of<AuthService>(context, listen: false);
-        final storageService =
-            Provider.of<StorageService>(context, listen: false);
+        final biometricService =
+            Provider.of<BiometricService>(context, listen: false);
 
-        final loginResponse = await authService.login(
-          email: email,
-          password: password,
+        final response = await authService.login(
+          email: _emailController.text,
+          password: _passwordController.text,
         );
 
-        if (mounted) {
-          setState(() {
-            _isSubmitting = false;
-            _pulseAnimationController.stop();
-          });
-          if (loginResponse['success'] == true) {
+        if (response['success'] == true) {
+          // Check if biometrics are available
+          final bool canUseBiometrics =
+              await biometricService.isBiometricsAvailable();
+
+          if (canUseBiometrics && mounted) {
+            try {
+              // Show dialog to enable biometric authentication
+              final bool? enableBiometrics = await showDialog<bool>(
+                context: context,
+                barrierDismissible: true, // Allow dismissing by tapping outside
+                barrierColor: Colors.black.withOpacity(0.5),
+                builder: (BuildContext context) {
+                  return BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: AlertDialog(
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: Row(
+                        children: [
+                          Icon(
+                            Icons.face_outlined,
+                            color: Colors.blue[700],
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Enable Face ID',
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      content: const Text(
+                        'Would you like to enable Face ID for quick and secure access to your account?',
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 16,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: Text(
+                            'Not Now',
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[700],
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Enable',
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+
+              if (enableBiometrics == true && mounted) {
+                try {
+                  // Try to authenticate with biometrics
+                  final bool authenticated =
+                      await biometricService.authenticate();
+                  if (authenticated && mounted) {
+                    await biometricService.setBiometricEnabled(true);
+                    await biometricService.updateLastActiveTime();
+
+                    // Show success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.white),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Face ID enabled successfully',
+                              style: TextStyle(fontFamily: 'Onest'),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.green,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        margin: const EdgeInsets.all(16),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  _logger.e('Error during Face ID authentication: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.error_outline,
+                                color: Colors.white),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'Failed to enable Face ID. Please try again later.',
+                                style: TextStyle(fontFamily: 'Onest'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        margin: const EdgeInsets.all(16),
+                      ),
+                    );
+                  }
+                }
+              }
+            } catch (e) {
+              _logger.e('Error showing Face ID dialog: $e');
+            }
+          }
+
+          if (mounted) {
             Navigator.of(context).pushReplacementNamed('/home');
           }
+        } else {
+          setState(() {
+            _errorMessage =
+                response['error'] ?? 'An error occurred during login';
+          });
         }
       } catch (e) {
+        _logger.e('Login error:', error: e);
+        setState(() {
+          _errorMessage = 'An error occurred during login';
+        });
+      } finally {
         if (mounted) {
           setState(() {
             _isSubmitting = false;
-            _pulseAnimationController.stop();
           });
         }
       }
@@ -493,6 +648,61 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
                       const SizedBox(height: 48),
+                      // Error Message
+                      if (_errorMessage != null)
+                        FadeInDown(
+                          duration: const Duration(milliseconds: 300),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 24),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2D1B1B),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFFF5252),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Color(0xFFFF5252),
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: const TextStyle(
+                                      fontFamily: 'Onest',
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Color(0xFFFF5252),
+                                    size: 20,
+                                  ),
+                                  onPressed: () =>
+                                      setState(() => _errorMessage = null),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       // Title
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),

@@ -17,7 +17,7 @@ class PersonalInformationScreen extends StatefulWidget {
 }
 
 class _PersonalInformationScreenState extends State<PersonalInformationScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   late TextEditingController _firstNameController;

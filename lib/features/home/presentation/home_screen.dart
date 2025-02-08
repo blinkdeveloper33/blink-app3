@@ -1,7 +1,6 @@
-import 'dart:math' show Random, max;
+import 'dart:math' show Random, max, min;
 import 'dart:math' as math;
 import 'dart:ui';
-import 'package:blink_app/models/transaction.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -14,59 +13,28 @@ import 'package:blink_app/features/blink_advance/presentation/blink_advance_scre
 import 'package:blink_app/widgets/confetti_overlay.dart';
 import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart'
     as insights;
-import 'package:animate_do/animate_do.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:fluentui_emoji_icon/fluentui_emoji_icon.dart';
-import 'package:blink_app/widgets/animated_gradient_background.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
 import 'package:blink_app/features/home/presentation/news_stories_viewer.dart';
 import 'package:blink_app/providers/theme_provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:blink_app/features/transactions/domain/models/transaction_category.dart';
 import 'package:blink_app/features/transactions/presentation/widgets/category_selector_sheet.dart';
-import '../../../features/transactions/presentation/widgets/custom_category_creator.dart';
 import '../../../features/transactions/domain/services/transaction_service.dart';
-import '../../../models/transaction.dart';
+import '../../../features/transactions/domain/models/transaction.dart';
 import 'package:blink_app/services/supabase_storage_service.dart';
 import 'package:blink_app/features/notifications/presentation/notifications_screen.dart';
 import 'package:blink_app/providers/profile_provider.dart';
 import 'package:blink_app/features/transactions/presentation/screens/all_transactions_screen.dart';
+import 'package:blink_app/features/quick_actions/presentation/screens/quick_actions_screen.dart';
+import 'package:blink_app/features/favorites/presentation/screens/favorites_screen.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class Transaction {
-  final String id;
-  final String merchantName;
-  final double amount;
-  final DateTime date;
-  TransactionCategory? category;
-  final bool isOutflow;
-
-  Transaction({
-    required this.id,
-    required this.merchantName,
-    required this.amount,
-    required this.date,
-    this.category,
-    required this.isOutflow,
-  });
-
-  // Factory constructor to convert from auth.Transaction
-  factory Transaction.fromAuthTransaction(auth.Transaction authTransaction) {
-    return Transaction(
-      id: authTransaction.id,
-      merchantName: authTransaction.merchantName,
-      amount: authTransaction.amount,
-      date: authTransaction.date,
-      isOutflow: authTransaction.isOutflow,
-    );
-  }
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
@@ -84,7 +52,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _profilePictureUrl;
   bool _isLoading = false;
   List<auth.DailyTransactionSummary> _dailyTransactionSummary = [];
-  bool _isChartExpanded = false;
   bool _isChartLoading = false;
   bool _isBlinkAdvanceApproved = false;
   String _blinkAdvanceStatus = 'On Review';
@@ -98,15 +65,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _emojiAnimation;
 
   late AnimationController _repaymentEmojiAnimationController;
-  late Animation<double> _repaymentEmojiAnimation;
   late AnimationController _insightsEmojiAnimationController;
-  late Animation<double> _insightsEmojiAnimation;
 
   late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
-  late final TransactionService _transactionService;
-
-  // Initialize controller without late
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0;
   double _blurIntensity = 0;
@@ -149,6 +112,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _flipController;
   late Animation<double> _flipAnimation;
   bool _isCardFlipped = false;
+
+  // Add new state variables for repayment card flip
+  late AnimationController _repaymentFlipController;
+  late Animation<double> _repaymentFlipAnimation;
+  bool _isRepaymentCardFlipped = false;
+
+  // Add this to the state variables at the top of _HomeScreenState
+  bool _showHistoricalDataMessage = false;
+  Timer? _messageTimer;
 
   void _performHapticFeedback(haptics.HapticsType type) {
     if (_hapticFeedbackEnabled) {
@@ -321,159 +293,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       },
     );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'groceries':
-        return Icons.shopping_cart;
-      case 'transportation':
-        return Icons.directions_car;
-      case 'finance':
-        return Icons.account_balance;
-      case 'dining':
-        return Icons.restaurant;
-      case 'utilities':
-        return Icons.power;
-      default:
-        return Icons.attach_money;
-    }
-  }
-
-  void _viewDetails(auth.Transaction transaction) {
-    _performHapticFeedback(haptics.HapticsType.medium);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => FutureBuilder<auth.TransactionDetail>(
-        future: Provider.of<auth.AuthService>(context, listen: false)
-            .getTransactionDetails(transaction.id),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            _logger.e('Error fetching transaction details: ${snapshot.error}');
-            return TransactionDetailsSheet(
-              transaction: Transaction(
-                id: transaction.id,
-                merchantName: transaction.merchantName ?? 'Unknown Merchant',
-                amount: transaction.amount,
-                date: transaction.date,
-                category: transaction.category != null
-                    ? TransactionCategory(
-                        id: transaction.category!,
-                        name: transaction.category!,
-                        color: Colors.blue,
-                        icon: _getCategoryIcon(transaction.category!),
-                      )
-                    : null,
-                isOutflow: transaction.amount > 0,
-              ),
-              isDarkMode: _isDarkMode,
-            );
-          }
-
-          final detailedTransaction = snapshot.data!;
-          return TransactionDetailsSheet(
-            transaction: Transaction(
-              id: detailedTransaction.id,
-              merchantName:
-                  detailedTransaction.merchantName ?? 'Unknown Merchant',
-              amount: detailedTransaction.amount,
-              date: detailedTransaction.date,
-              category: detailedTransaction.category != null
-                  ? TransactionCategory(
-                      id: detailedTransaction.category!,
-                      name: detailedTransaction.category!,
-                      color: Colors.blue,
-                      icon: _getCategoryIcon(detailedTransaction.category!),
-                    )
-                  : null,
-              isOutflow: detailedTransaction.amount > 0,
-            ),
-            isDarkMode: _isDarkMode,
-            metadata: detailedTransaction.metadata,
-          );
-        },
-      ),
-    );
-  }
-
-  void _changeCategory(auth.Transaction transaction) {
-    _performHapticFeedback(haptics.HapticsType.medium);
-
-    // Find current category if exists
-    final currentCategory = TransactionCategory.defaultCategories.firstWhere(
-      (category) => category.id == transaction.category?.toLowerCase(),
-      orElse: () => TransactionCategory.defaultCategories.first,
-    );
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => CategorySelectorSheet(
-          initialCategory: currentCategory,
-          onCategorySelected: (category) {
-            // TODO: Call backend API to update category
-            setState(() {
-              transaction.category = category.name;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Category updated to ${category.name}'),
-                backgroundColor: category.color,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                action: SnackBarAction(
-                  label: 'Undo',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    setState(() {
-                      transaction.category = currentCategory.name;
-                    });
-                  },
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  void _addNote(auth.Transaction transaction) {
-    _performHapticFeedback(haptics.HapticsType.medium);
-    // TODO: Implement add note functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Add note for ${transaction.merchantName}')),
-    );
-  }
-
-  Widget _getStatusEmoji() {
-    if (_hasActiveAdvance) {
-      return const Text('✅', style: TextStyle(fontSize: 16));
-    }
-    switch (_blinkAdvanceStatus.toLowerCase()) {
-      case 'on review':
-        return const Text('🕒', style: TextStyle(fontSize: 16));
-      case 'approved':
-        return const Text('✅', style: TextStyle(fontSize: 16));
-      case 'rejected':
-        return const Text('❌', style: TextStyle(fontSize: 16));
-      default:
-        return const SizedBox.shrink();
-    }
   }
 
   Widget _buildCollapsedBlinkAdvanceContent() {
@@ -830,9 +649,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _performHapticFeedback(haptics.HapticsType.medium);
             if (_hasActiveAdvance || _isBlinkAdvanceApproved) {
               Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) =>
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) =>
                       BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  // Disable swipe back gesture
+                  settings: const RouteSettings(name: '/blink-advance'),
+                  opaque: true,
+                  barrierDismissible: false,
                 ),
               );
             }
@@ -896,12 +723,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
 
     if (_hasActiveAdvance) {
-      // TODO: Navigate to active Blink Advance details screen
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'You have an active Blink Advance. Repayment details coming soon.'),
-          backgroundColor: Colors.blue,
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) =>
+              BlinkAdvanceScreen(bankAccountId: _bankAccountId),
         ),
       );
     } else if (_isBlinkAdvanceApproved) {
@@ -914,295 +739,203 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Bank account ID not found. Please link your bank account.'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Bank account ID not found. Please link your bank account.',
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            _blinkAdvanceStatus == 'On Review'
-                ? 'Your Blink Advance application is still under review. Please check back later.'
-                : 'You are not currently eligible for Blink Advance. Please check back later or contact support for more information.',
+          content: Row(
+            children: [
+              Icon(
+                _blinkAdvanceStatus.toLowerCase() == 'on review'
+                    ? Icons.pending_outlined
+                    : Icons.info_outline,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _blinkAdvanceStatus.toLowerCase() == 'on review'
+                      ? 'Your \$200 Blink Advance application is currently under review. This typically takes 1-2 business days. We\'ll notify you once a decision has been made.'
+                      : 'You are not currently eligible for a \$200 Blink Advance. Our system will automatically notify you when you become eligible.',
+                  style: const TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: _blinkAdvanceStatus.toLowerCase() == 'on review'
+              ? Colors.orange[700]
+              : Colors.red[700],
+          duration: const Duration(seconds: 6),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          action: _blinkAdvanceStatus.toLowerCase() == 'on review'
+              ? SnackBarAction(
+                  label: 'Got it',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                )
+              : null,
         ),
       );
     }
   }
 
-  void _handleTransactionCategorization(Transaction transaction) {
+  void _changeCategory(Transaction transaction) {
+    _performHapticFeedback(haptics.HapticsType.medium);
+
+    // Find current category if exists
+    final currentCategory = TransactionCategory.defaultCategories.firstWhere(
+      (category) => category.id == transaction.category?.toLowerCase(),
+      orElse: () => TransactionCategory.defaultCategories.first,
+    );
+
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      backgroundColor: _isDarkMode ? const Color(0xFF1D1E33) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return SingleChildScrollView(
-            controller: scrollController,
-            child: CustomCategoryCreator(
-              onCategoryCreated: (category) async {
-                try {
-                  await _transactionService.updateTransactionCategory(
-                    transactionId: transaction.id,
-                    category: category as TransactionCategory,
-                  );
-                  setState(() {
-                    transaction.category = category as TransactionCategory;
-                  });
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Transaction category updated successfully',
-                        style: TextStyle(
-                          color: _isDarkMode ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      backgroundColor: _isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.grey[200],
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      action: SnackBarAction(
-                        label: 'Dismiss',
-                        textColor: _isDarkMode ? Colors.white70 : Colors.blue,
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        },
-                      ),
-                    ),
-                  );
-                } catch (e) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to update transaction category',
-                        style: TextStyle(
-                          color: _isDarkMode ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      backgroundColor: Colors.red.withOpacity(0.1),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      action: SnackBarAction(
-                        label: 'Retry',
-                        textColor: _isDarkMode ? Colors.white70 : Colors.red,
-                        onPressed: () {
-                          _handleTransactionCategorization(transaction);
-                        },
-                      ),
-                    ),
-                  );
-                }
-              },
-              isDarkMode: _isDarkMode,
-            ),
-          );
-        },
+        builder: (context, scrollController) => CategorySelectorSheet(
+          initialCategory: currentCategory,
+          onCategorySelected: (category) {
+            // Create a new auth.Transaction with updated category
+            final updatedTransaction = auth.Transaction(
+              id: transaction.id,
+              merchantName: transaction.merchantName ?? '',
+              amount: transaction.amount,
+              date: transaction.date,
+              category: category.name,
+              isOutflow: transaction.isOutflow,
+            );
+
+            setState(() {
+              _recentTransactions = _recentTransactions
+                  .map((t) => t.id == transaction.id ? updatedTransaction : t)
+                  .toList();
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Category updated to ${category.name}'),
+                backgroundColor: category.color,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                action: SnackBarAction(
+                  label: 'Undo',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    setState(() {
+                      // Convert back to auth.Transaction for the revert
+                      final revertTransaction = auth.Transaction(
+                        id: transaction.id,
+                        merchantName: transaction.merchantName ?? '',
+                        amount: transaction.amount,
+                        date: transaction.date,
+                        category: transaction.category ?? '',
+                        isOutflow: transaction.isOutflow,
+                      );
+
+                      _recentTransactions = _recentTransactions
+                          .map((t) => t.id == updatedTransaction.id
+                              ? revertTransaction
+                              : t)
+                          .toList();
+                    });
+                  },
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildTransactionListItem(Transaction transaction) {
-    final formattedDate = DateFormat('MMM d, yyyy').format(transaction.date);
-
-    return GestureDetector(
-      onTap: () {
-        // Find the corresponding auth.Transaction from _recentTransactions
-        final authTransaction = _recentTransactions.firstWhere(
-          (t) => t.id == transaction.id,
-          orElse: () => throw Exception('Transaction not found'),
-        );
-        _viewDetails(authTransaction);
-      },
-      child: Slidable(
-        endActionPane: ActionPane(
-          motion: const BehindMotion(),
-          extentRatio: 0.25,
-          children: [
-            CustomSlidableAction(
-              onPressed: (_) {
-                _performHapticFeedback(haptics.HapticsType.medium);
-                _handleTransactionCategorization(transaction);
-              },
-              padding: EdgeInsets.zero,
-              backgroundColor: Colors.transparent,
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(0, 4, 8, 4),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      _isDarkMode ? const Color(0xFF1A2942) : Colors.white,
-                      _isDarkMode ? const Color(0xFF141B2E) : Colors.white,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _isDarkMode
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.black.withOpacity(0.05),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _isDarkMode
-                          ? Colors.black.withOpacity(0.3)
-                          : Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.orange.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _isDarkMode
-                            ? Colors.white.withOpacity(0.2)
-                            : Colors.orange.withOpacity(0.3),
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.category_rounded,
-                      color: _isDarkMode ? Colors.white : Colors.orange[700],
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-          decoration: BoxDecoration(
-            color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color:
-                  _isDarkMode ? Colors.white12 : Colors.black.withOpacity(0.05),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _isDarkMode
-                    ? Colors.black.withOpacity(0.2)
-                    : Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                if (transaction.category != null)
-                  Container(
-                    width: 48,
-                    height: 48,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: transaction.category!.color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: transaction.category!.color.withOpacity(0.2),
-                      ),
-                    ),
-                    child: Icon(
-                      transaction.category!.icon,
-                      color: transaction.category!.color,
-                      size: 24,
-                    ),
-                  )
-                else
-                  Container(
-                    width: 48,
-                    height: 48,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: _isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.black.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.1),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.category_outlined,
-                      color: _isDarkMode ? Colors.white54 : Colors.black45,
-                      size: 24,
-                    ),
-                  ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        transaction.merchantName,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: _isDarkMode ? Colors.white : Colors.black87,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        formattedDate,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _isDarkMode ? Colors.white60 : Colors.black54,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  '\$${transaction.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: transaction.isOutflow
-                        ? Colors.red[400]
-                        : (_isDarkMode ? Colors.green[400] : Colors.green[700]),
-                    fontFamily: 'Onest',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  // Convert auth.Transaction to domain Transaction
+  Transaction _convertAuthTransaction(auth.Transaction authTransaction) {
+    return Transaction(
+      id: authTransaction.id,
+      merchantName: authTransaction.merchantName,
+      amount: authTransaction.amount,
+      date: authTransaction.date,
+      category: authTransaction.category,
+      isOutflow: authTransaction.isOutflow,
+      status: 'Completed', // Default status
+      description: null,
+      metadata: null,
     );
+  }
+
+  // Update the transaction loading to use the conversion
+  Future<void> _loadRecentTransactions() async {
+    if (!mounted) return;
+
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+
+      final userId = storageService.getUserId();
+      if (userId == null) throw Exception('User ID not found');
+
+      final transactions = await authService.getRecentTransactions(userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        // Cast the list to the correct type
+        _recentTransactions = (transactions as List<dynamic>)
+            .map((t) => t as auth.Transaction)
+            .toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      _logger.e('Error loading recent transactions: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -1223,6 +956,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       );
 
+      // Initialize repayment flip controller
+      _repaymentFlipController = AnimationController(
+        duration: const Duration(milliseconds: 800),
+        vsync: this,
+      );
+      _repaymentFlipAnimation = Tween<double>(begin: 0, end: math.pi).animate(
+        CurvedAnimation(
+          parent: _repaymentFlipController,
+          curve: Curves.easeInOutBack,
+        ),
+      );
+
       _initializeControllers();
       _initializeBlinkAdvanceAnimations();
 
@@ -1237,12 +982,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _logger.e('Error in initState: $e');
     }
 
-    _loadProfilePicture();
+    // Load profile picture after a short delay to ensure proper initialization
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _loadProfilePicture();
+      }
+    });
   }
 
   @override
   void dispose() {
-    // Dispose all animation controllers
+    // Cancel timers
+    _messageTimer?.cancel();
+
+    // Dispose animation controllers
     _animationController.dispose();
     _emojiAnimationController.dispose();
     _repaymentEmojiAnimationController.dispose();
@@ -1251,12 +1004,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _blinkCardExpandController.dispose();
     _shimmerController.dispose();
     _flipController.dispose();
+    _repaymentFlipController.dispose();
 
     // Remove scroll controller listener and dispose
     _scrollController.removeListener(_updateBlurEffect);
     _scrollController.dispose();
 
-    // Always call super.dispose() last
     super.dispose();
   }
 
@@ -1374,30 +1127,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _loadRecentTransactions() async {
-    if (!mounted) return;
-
-    try {
-      final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final storageService =
-          Provider.of<StorageService>(context, listen: false);
-
-      final userId = storageService.getUserId();
-      if (userId == null) throw Exception('User ID not found');
-
-      final transactions = await authService.getRecentTransactions(userId);
-
-      if (!mounted) return;
-
-      setState(() {
-        _recentTransactions = transactions;
-      });
-    } catch (e) {
-      _logger.e('Error loading recent transactions: $e');
-      rethrow;
-    }
-  }
-
   Future<void> _loadCurrentBalances() async {
     if (!mounted) return;
 
@@ -1445,16 +1174,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
 
       final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final status = await authService.getBlinkAdvanceApprovalStatus();
+
+      // First check if user has an active advance
       final activeAdvanceResponse = await authService.getActiveBlinkAdvance();
+
+      if (!mounted) return;
+
+      if (activeAdvanceResponse['hasActiveAdvance'] == true) {
+        setState(() {
+          _hasActiveAdvance = true;
+          _activeAdvance = activeAdvanceResponse['activeAdvance'];
+          _isBlinkAdvanceApproved = true;
+          _blinkAdvanceStatus = 'Active';
+          _isBlinkAdvanceLoading = false;
+        });
+        return;
+      }
+
+      // If no active advance, check approval status
+      final status = await authService.getBlinkAdvanceApprovalStatus();
 
       if (!mounted) return;
 
       setState(() {
         _isBlinkAdvanceApproved = status['isApproved'] ?? false;
-        _blinkAdvanceStatus = status['status'] ?? 'Unknown';
-        _hasActiveAdvance = activeAdvanceResponse['hasActiveAdvance'] ?? false;
-        _activeAdvance = activeAdvanceResponse['activeAdvance'];
+        _blinkAdvanceStatus = status['status'] ?? 'On Review';
+        _hasActiveAdvance = false;
+        _activeAdvance = null;
         _isBlinkAdvanceLoading = false;
       });
     } catch (e) {
@@ -1462,12 +1208,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _isBlinkAdvanceLoading = false;
-          _blinkAdvanceStatus = 'Error';
+          // Set default values instead of error state
+          _blinkAdvanceStatus = 'On Review';
           _hasActiveAdvance = false;
           _activeAdvance = null;
+          _isBlinkAdvanceApproved = false;
         });
+
+        // Show a user-friendly error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Unable to check Blink Advance status. Please try again later.',
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadBlinkAdvanceStatus(),
+            ),
+          ),
+        );
       }
-      rethrow;
     }
   }
 
@@ -1493,28 +1271,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    _repaymentEmojiAnimation = Tween<double>(begin: 1, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _repaymentEmojiAnimationController,
-        curve: Curves.easeInOut,
-      ),
-    );
-
     _insightsEmojiAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    _insightsEmojiAnimation = Tween<double>(begin: 1, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _insightsEmojiAnimationController,
-        curve: Curves.easeInOut,
-      ),
-    );
+
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 2500), // Increased duration
+      vsync: this,
+    )..repeat();
+
+    _shimmerAnimation = Tween<double>(
+      begin: -1.0,
+      end: 2.0,
+    ).animate(CurvedAnimation(
+      parent: _shimmerController,
+      curve: Curves.easeInOutSine, // Smoother curve
+    ));
 
     _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+
+    // Add a curved animation for the pulse
+    _pulseAnimation = Tween<double>(
+      begin: 0.5,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
 
     // Initialize other controllers as needed
   }
@@ -1544,16 +1331,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         curve: Curves.easeInOutBack,
       ),
     );
-
-    _shimmerController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    )..repeat();
-
-    _shimmerAnimation = Tween<double>(
-      begin: -1.0,
-      end: 2.0,
-    ).animate(_shimmerController);
   }
 
   void _updateBlurEffect() {
@@ -1569,27 +1346,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
       child: Container(
         height: 200,
-        child: Stack(
-          children: [
-            AnimatedBuilder(
-              animation: _flipAnimation,
-              builder: (context, child) {
-                return Transform(
-                  transform: Matrix4.identity()
-                    ..setEntry(3, 2, 0.001)
-                    ..rotateY(_flipAnimation.value),
-                  alignment: Alignment.center,
-                  child: _isCardFlipped && _flipAnimation.value >= math.pi / 2
-                      ? Transform(
-                          transform: Matrix4.identity()..rotateY(math.pi),
-                          alignment: Alignment.center,
-                          child: _buildBackCard(),
-                        )
-                      : _buildFrontCard(),
-                );
-              },
-            ),
-          ],
+        child: AnimatedBuilder(
+          animation: _flipAnimation,
+          builder: (context, child) {
+            final showFrontSide = _flipAnimation.value < (math.pi / 2);
+            return Transform(
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001)
+                ..rotateY(_flipAnimation.value),
+              alignment: Alignment.center,
+              child: showFrontSide
+                  ? _buildFrontCard()
+                  : Transform(
+                      transform: Matrix4.identity()..rotateY(math.pi),
+                      alignment: Alignment.center,
+                      child: _buildBackCard(),
+                    ),
+            );
+          },
         ),
       ),
     );
@@ -1597,18 +1371,229 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildFrontCard() {
     return Container(
+      height: 220,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: _isDarkMode
               ? [
-                  const Color(0xFF1A2942).withOpacity(0.9),
+                  const Color.fromARGB(255, 29, 38, 62).withOpacity(0.95),
+                  const Color.fromARGB(255, 32, 48, 75).withOpacity(0.98),
+                ]
+              : [
+                  Colors.blue[700]!.withOpacity(0.95),
+                  Colors.blue[900]!.withOpacity(0.98),
+                ],
+          stops: const [0.2, 0.8],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: _isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : Colors.white.withOpacity(0.2),
+          width: 0.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _isDarkMode
+                ? const Color(0xFF1A2942).withOpacity(0.5)
+                : Colors.blue[700]!.withOpacity(0.3),
+            blurRadius: 20,
+            spreadRadius: -5,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Logo Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Image.asset(
+                    'assets/images/blink-logo.png',
+                    height: 32,
+                    width: 120,
+                    fit: BoxFit.contain,
+                    color: Colors.white,
+                  ),
+                  _buildFlipButton(),
+                ],
+              ),
+              const Spacer(),
+              // Balance Section with reduced spacing
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Last Known Balance',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.history_rounded,
+                        size: 12,
+                        color: Colors.white.withOpacity(0.5),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Updated ${DateFormat('MMM d').format(DateTime.now())}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 12,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      final animatedBalance =
+                          _currentBalance * _animation.value;
+                      return RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '\$',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextSpan(
+                              text:
+                                  '${currencyFormatter.format(animatedBalance).split('.')[0].substring(1)}.',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextSpan(
+                              text: currencyFormatter
+                                  .format(animatedBalance)
+                                  .split('.')[1],
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 18,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Account Info
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Expanded(
+                    child: Text(
+                      _primaryAccountName ?? 'Primary Account',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 13,
+                        fontFamily: 'Onest',
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.visibility_outlined,
+                        color: Colors.white.withOpacity(0.7),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '****${_bankAccountId.substring(max(0, _bankAccountId.length - 4))}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 13,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackCard() {
+    final hasActiveAdvance = _hasActiveAdvance && _activeAdvance != null;
+    final advanceAmount =
+        hasActiveAdvance ? (_activeAdvance!['amount'] as num).toDouble() : 0.0;
+    final repaymentDate = hasActiveAdvance
+        ? DateTime.parse(_activeAdvance!['repayment_date'].toString())
+        : DateTime.now();
+    final repaymentAmount = hasActiveAdvance
+        ? (_activeAdvance!['repayment_amount'] as num).toDouble()
+        : 0.0;
+
+    final paymentHistory = [
+      {
+        'date': DateTime.now().add(const Duration(days: 7)),
+        'status': 'upcoming',
+        'amount': repaymentAmount
+      },
+      {
+        'date': DateTime.now().subtract(const Duration(days: 7)),
+        'status': 'completed',
+        'amount': 150.0
+      },
+      {
+        'date': DateTime.now().subtract(const Duration(days: 14)),
+        'status': 'completed',
+        'amount': 200.0
+      },
+    ];
+
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _isDarkMode
+              ? [
+                  const Color(0xFF1E2942).withOpacity(0.98),
                   const Color(0xFF141B2E).withOpacity(0.95),
                 ]
               : [
-                  Colors.blue[700]!.withOpacity(0.9),
-                  Colors.blue[900]!.withOpacity(0.95),
+                  Colors.blue[900]!.withOpacity(0.98),
+                  Colors.blue[800]!.withOpacity(0.95),
                 ],
         ),
         borderRadius: BorderRadius.circular(24),
@@ -1616,396 +1601,335 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           BoxShadow(
             color: _isDarkMode
                 ? Colors.black.withOpacity(0.4)
-                : Colors.blue[900]!.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+                : Colors.blue[900]!.withOpacity(0.4),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+            spreadRadius: -8,
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: _buildShimmerEffect(),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Logo and Chip Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Image.asset(
-                        'assets/images/blink-logo.png',
-                        height: 28,
-                        width: 100,
-                        fit: BoxFit.contain,
-                        color: Colors.white,
-                      ),
-                      Row(
-                        children: [
-                          Image.asset(
-                            'assets/images/chip.png',
-                            height: 32,
-                          ),
-                          const SizedBox(width: 12),
-                          _buildFlipButton(),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  // Balance Section
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Available Balance',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 14,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      AnimatedBuilder(
-                        animation: _animation,
-                        builder: (context, child) {
-                          final animatedBalance =
-                              _currentBalance * _animation.value;
-                          return RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: '\$',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 32,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text:
-                                      '${currencyFormatter.format(animatedBalance).split('.')[0].substring(1)}.',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 32,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: currencyFormatter
-                                      .format(animatedBalance)
-                                      .split('.')[1],
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.7),
-                                    fontSize: 24,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Account Info
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _primaryAccountName ?? 'Primary Account',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 14,
-                          fontFamily: 'Onest',
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.visibility_outlined,
-                            color: Colors.white.withOpacity(0.7),
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '****${_bankAccountId.substring(max(0, _bankAccountId.length - 4))}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 14,
-                              fontFamily: 'Onest',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBackCard() {
-    return GestureDetector(
-      onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: _isDarkMode
-                ? [
-                    const Color(0xFF141B2E).withOpacity(0.95),
-                    const Color(0xFF1A2942).withOpacity(0.9),
-                  ]
-                : [
-                    Colors.blue[900]!.withOpacity(0.95),
-                    Colors.blue[700]!.withOpacity(0.9),
-                  ],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: _isDarkMode
-                  ? Colors.black.withOpacity(0.4)
-                  : Colors.blue[900]!.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Positioned.fill(
-                child: _buildShimmerEffect(),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(24),
+              // Left side content
+              Expanded(
+                flex: 3,
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Transaction History',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 18,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: hasActiveAdvance || _isBlinkAdvanceApproved
+                                ? const Color(0xFF40916C)
+                                : const Color(0xFFB91C1C),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                hasActiveAdvance || _isBlinkAdvanceApproved
+                                    ? Icons.check_circle
+                                    : Icons.pending,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                hasActiveAdvance
+                                    ? 'Active'
+                                    : _isBlinkAdvanceApproved
+                                        ? 'Approved'
+                                        : 'Under Review',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontFamily: 'Onest',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         _buildFlipButton(),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    Expanded(
-                      child: _isChartLoading
-                          ? Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white.withOpacity(0.7),
+                    const SizedBox(height: 12),
+                    if (hasActiveAdvance) ...[
+                      Text(
+                        currencyFormatter.format(advanceAmount),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Available Balance',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
+                    ] else ...[
+                      Text(
+                        _isBlinkAdvanceApproved
+                            ? 'Ready for\nQuick Cash'
+                            : 'Under\nReview',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (_isBlinkAdvanceApproved)
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                const Color(0xFF40916C),
+                                const Color(0xFF40916C).withOpacity(0.9),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF40916C).withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                _performHapticFeedback(
+                                    haptics.HapticsType.medium);
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => BlinkAdvanceScreen(
+                                        bankAccountId: _bankAccountId),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Get \$200',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontFamily: 'Onest',
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Icon(
+                                        Icons.arrow_forward_rounded,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            )
-                          : _dailyTransactionSummary.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    'No transaction data available',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 14,
-                                      fontFamily: 'Onest',
-                                    ),
-                                  ),
-                                )
-                              : LineChart(
-                                  LineChartData(
-                                    gridData: FlGridData(show: false),
-                                    titlesData: FlTitlesData(
-                                      leftTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
-                                      ),
-                                      rightTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
-                                      ),
-                                      topTitles: AxisTitles(
-                                        sideTitles:
-                                            SideTitles(showTitles: false),
-                                      ),
-                                      bottomTitles: AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: true,
-                                          reservedSize: 32,
-                                          interval: 1,
-                                          getTitlesWidget: (value, meta) {
-                                            // Only show first and last dates
-                                            if (value.toInt() == 0 ||
-                                                value.toInt() ==
-                                                    _dailyTransactionSummary
-                                                            .length -
-                                                        1) {
-                                              final date =
-                                                  _dailyTransactionSummary[
-                                                          value.toInt()]
-                                                      .date;
-                                              // Ensure we're not duplicating labels
-                                              if ((value.toInt() == 0 &&
-                                                      meta.min != value) ||
-                                                  (value.toInt() ==
-                                                          _dailyTransactionSummary
-                                                                  .length -
-                                                              1 &&
-                                                      meta.max != value)) {
-                                                return const SizedBox();
-                                              }
-                                              return Padding(
-                                                padding: const EdgeInsets.only(
-                                                    top: 8.0),
-                                                child: Text(
-                                                  DateFormat('MMM d')
-                                                      .format(date),
-                                                  style: TextStyle(
-                                                    color: Colors.white
-                                                        .withOpacity(0.7),
-                                                    fontSize: 12,
-                                                    fontFamily: 'Onest',
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                            return const SizedBox();
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                    borderData: FlBorderData(show: false),
-                                    lineBarsData: [
-                                      LineChartBarData(
-                                        spots: _dailyTransactionSummary
-                                            .asMap()
-                                            .entries
-                                            .map((entry) {
-                                          return FlSpot(
-                                            entry.key.toDouble(),
-                                            entry.value.totalAmount,
-                                          );
-                                        }).toList(),
-                                        isCurved: true,
-                                        color: Colors.white.withOpacity(0.9),
-                                        barWidth: 3,
-                                        isStrokeCapRound: true,
-                                        dotData: FlDotData(
-                                          show: true,
-                                          getDotPainter:
-                                              (spot, percent, barData, index) {
-                                            return FlDotCirclePainter(
-                                              radius: 2,
-                                              color:
-                                                  Colors.white.withOpacity(0.9),
-                                              strokeWidth: 2,
-                                              strokeColor:
-                                                  Colors.white.withOpacity(0.2),
-                                            );
-                                          },
-                                        ),
-                                        belowBarData: BarAreaData(
-                                          show: true,
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: [
-                                              Colors.white.withOpacity(0.2),
-                                              Colors.white.withOpacity(0.0),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    lineTouchData: LineTouchData(
-                                      enabled: true,
-                                      touchTooltipData: LineTouchTooltipData(
-                                        fitInsideHorizontally: true,
-                                        fitInsideVertically: true,
-                                        tooltipRoundedRadius: 12,
-                                        tooltipPadding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 8,
-                                        ),
-                                        tooltipBorder: BorderSide(
-                                          color: Colors.white.withOpacity(0.2),
-                                          width: 1,
-                                        ),
-                                        tooltipMargin: 8,
-                                        rotateAngle: 0,
-                                        getTooltipItems:
-                                            (List<LineBarSpot> touchedSpots) {
-                                          return touchedSpots.map((spot) {
-                                            final date =
-                                                _dailyTransactionSummary[
-                                                        spot.x.toInt()]
-                                                    .date;
-                                            final amount =
-                                                spot.y.toStringAsFixed(2);
-                                            return LineTooltipItem(
-                                              '${DateFormat('MMM d').format(date)}',
-                                              const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                                fontFamily: 'Onest',
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              children: [
-                                                TextSpan(
-                                                  text: '\n\$${amount}',
-                                                  style: TextStyle(
-                                                    color: Colors.white
-                                                        .withOpacity(0.9),
-                                                    fontSize: 16,
-                                                    fontFamily: 'Onest',
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          }).toList();
-                                        },
-                                      ),
-                                      handleBuiltInTouches: true,
-                                      touchCallback: (event, response) {
-                                        if (event.isInterestedForInteractions &&
-                                            response?.lineBarSpots != null) {
-                                          _performHapticFeedback(
-                                              haptics.HapticsType.selection);
-                                        }
-                                      },
-                                    ),
-                                  ),
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                color: Colors.white.withOpacity(0.8),
+                                size: 14,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '1-2 business days',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 12,
+                                  fontFamily: 'Onest',
+                                  fontWeight: FontWeight.w500,
                                 ),
-                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),
+
+              // Right side - Payment Timeline
+              if (hasActiveAdvance) ...[
+                const SizedBox(width: 16),
+                Container(
+                  width: 1,
+                  height: 170,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withOpacity(0.15),
+                        Colors.white.withOpacity(0.05),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                          ),
+                        ),
+                        child: Text(
+                          'Payment Schedule',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 12,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 150,
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: paymentHistory.length,
+                          physics: const BouncingScrollPhysics(),
+                          itemBuilder: (context, index) {
+                            final payment = paymentHistory[index];
+                            final isUpcoming = payment['status'] == 'upcoming';
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isUpcoming
+                                    ? const Color(0xFF40916C).withOpacity(0.15)
+                                    : Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isUpcoming
+                                      ? const Color(0xFF40916C).withOpacity(0.2)
+                                      : Colors.white.withOpacity(0.1),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isUpcoming
+                                          ? const Color(0xFF40916C)
+                                          : Colors.white.withOpacity(0.5),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          DateFormat('MMM d').format(
+                                              payment['date'] as DateTime),
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(
+                                                isUpcoming ? 1 : 0.7),
+                                            fontSize: 11,
+                                            fontFamily: 'Onest',
+                                            fontWeight: isUpcoming
+                                                ? FontWeight.w600
+                                                : FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          currencyFormatter
+                                              .format(payment['amount']),
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(
+                                                isUpcoming ? 1 : 0.6),
+                                            fontSize: 10,
+                                            fontFamily: 'Onest',
+                                            fontWeight: isUpcoming
+                                                ? FontWeight.w600
+                                                : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -2064,6 +1988,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     setState(() {
       _isCardFlipped = !_isCardFlipped;
+    });
+    _performHapticFeedback(haptics.HapticsType.medium);
+  }
+
+  void _flipRepaymentCard() {
+    if (_isRepaymentCardFlipped) {
+      _repaymentFlipController.reverse();
+    } else {
+      _repaymentFlipController.forward();
+    }
+    setState(() {
+      _isRepaymentCardFlipped = !_isRepaymentCardFlipped;
     });
     _performHapticFeedback(haptics.HapticsType.medium);
   }
@@ -2143,192 +2079,132 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (title == 'Repayment') {
+          return GestureDetector(
+            onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
+            child: AnimatedBuilder(
+              animation: _repaymentFlipAnimation,
+              builder: (context, child) {
+                final showFrontSide =
+                    _repaymentFlipAnimation.value < (math.pi / 2);
+                return Transform(
+                  transform: Matrix4.identity()
+                    ..setEntry(3, 2, 0.001)
+                    ..rotateY(_repaymentFlipAnimation.value),
+                  alignment: Alignment.center,
+                  child: showFrontSide
+                      ? _buildRepaymentFrontCard(color, textColor)
+                      : Transform(
+                          transform: Matrix4.identity()..rotateY(math.pi),
+                          alignment: Alignment.center,
+                          child: _buildRepaymentBackCard(color, textColor),
+                        ),
+                );
+              },
+            ),
+          );
+        }
+
+        // Original implementation for non-repayment cards
         return GestureDetector(
           onTapDown: (_) {
             _performHapticFeedback(haptics.HapticsType.light);
             setState(() {
-              if (title == 'Repayment') {
-                _repaymentEmojiAnimationController.forward();
-              } else {
-                _insightsEmojiAnimationController.forward();
-              }
+              _insightsEmojiAnimationController.forward();
             });
           },
           onTapUp: (_) {
-            if (title == 'Repayment') {
-              _repaymentEmojiAnimationController.reverse();
-            } else {
-              _insightsEmojiAnimationController.reverse();
-            }
+            _insightsEmojiAnimationController.reverse();
             onTap();
           },
           onTapCancel: () {
-            if (title == 'Repayment') {
-              _repaymentEmojiAnimationController.reverse();
-            } else {
-              _insightsEmojiAnimationController.reverse();
-            }
+            _insightsEmojiAnimationController.reverse();
           },
-          child: AnimatedBuilder(
-            animation: title == 'Repayment'
-                ? _repaymentEmojiAnimationController
-                : _insightsEmojiAnimationController,
-            builder: (context, child) {
-              final scale = title == 'Repayment'
-                  ? Tween<double>(begin: 1.0, end: 0.95)
-                      .animate(CurvedAnimation(
-                        parent: _repaymentEmojiAnimationController,
-                        curve: Curves.easeInOutCubic,
-                      ))
-                      .value
-                  : Tween<double>(begin: 1.0, end: 0.95)
-                      .animate(CurvedAnimation(
-                        parent: _insightsEmojiAnimationController,
-                        curve: Curves.easeInOutCubic,
-                      ))
-                      .value;
-
-              return Transform.scale(
-                scale: scale,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        color.withOpacity(0.9),
-                        color.withOpacity(0.7),
-                      ],
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color.withOpacity(0.9),
+                  color.withOpacity(0.7),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : textColor.withOpacity(0.2),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(_isDarkMode ? 0.3 : 0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: textColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : textColor.withOpacity(0.2),
+                    child: Image.asset(
+                      'assets/images/glasses_3d.png',
+                      width: 24,
+                      height: 24,
+                      color: textColor,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withOpacity(_isDarkMode ? 0.3 : 0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                        spreadRadius: 0,
+                  ),
+                  const Spacer(),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 20,
+                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Analyze',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.7),
+                          fontSize: 14,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: textColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.arrow_forward,
+                            color: textColor,
+                            size: 14,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Stack(
-                      children: [
-                        // Shimmer effect
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: Transform.rotate(
-                              angle: -0.7853981634,
-                              child: AnimatedBuilder(
-                                animation: _shimmerAnimation,
-                                builder: (context, child) {
-                                  return Transform.translate(
-                                    offset: Offset(
-                                      0,
-                                      _shimmerAnimation.value * 200,
-                                    ),
-                                    child: Container(
-                                      width: 60,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            Colors.white.withOpacity(0),
-                                            Colors.white.withOpacity(0.1),
-                                            Colors.white.withOpacity(0),
-                                          ],
-                                          stops: const [0.0, 0.5, 1.0],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Content
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: textColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: title == 'Repayment'
-                                    ? Icon(
-                                        Icons.account_balance_wallet_rounded,
-                                        color: textColor,
-                                        size: 24,
-                                      )
-                                    : Image.asset(
-                                        'assets/images/glasses_3d.png',
-                                        width: 24,
-                                        height: 24,
-                                        color: textColor,
-                                      ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                title,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 20,
-                                  fontFamily: 'Onest',
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    title == 'Repayment'
-                                        ? 'View Details'
-                                        : 'Analyze',
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.7),
-                                      fontSize: 14,
-                                      fontFamily: 'Onest',
-                                    ),
-                                  ),
-                                  Container(
-                                    width: 24,
-                                    height: 24,
-                                    decoration: BoxDecoration(
-                                      color: textColor.withOpacity(0.1),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.arrow_forward,
-                                        color: textColor,
-                                        size: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -2336,176 +2212,353 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildRecentTransactions() {
+    if (_isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(
+              _isDarkMode ? Colors.white70 : Colors.blue[700]!,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Enhanced Header Section
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              'Recent Transactions',
-              style: TextStyle(
-                color: _isDarkMode ? Colors.white : Colors.black,
-                fontSize: 24,
-                fontFamily: 'Onest',
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                color: _isDarkMode
-                    ? const Color(0xFF1A2942).withOpacity(0.7)
-                    : Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextButton(
-                onPressed: () {
-                  _performHapticFeedback(haptics.HapticsType.light);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AllTransactionsScreen(),
-                    ),
-                  );
-                },
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  foregroundColor: _isDarkMode ? Colors.white : Colors.blue,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'View all',
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ShaderMask(
+                    shaderCallback: (bounds) => LinearGradient(
+                      colors: [
+                        Colors.blue.shade400,
+                        Colors.purple.shade400,
+                      ],
+                    ).createShader(bounds),
+                    child: Text(
+                      'Recent Transactions',
                       style: TextStyle(
-                        color: _isDarkMode ? Colors.white : Colors.blue[700],
-                        fontSize: 14,
+                        color: Colors.white,
+                        fontSize: 24,
                         fontFamily: 'Onest',
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 12,
-                      color: _isDarkMode ? Colors.white : Colors.blue[700],
+                  ),
+                  Text(
+                    'Your latest financial activities',
+                    style: TextStyle(
+                      color: _isDarkMode ? Colors.white60 : Colors.black54,
+                      fontSize: 14,
+                      fontFamily: 'Onest',
                     ),
+                  ),
+                ],
+              ),
+            ),
+            // Enhanced View All Button
+            Container(
+              margin: const EdgeInsets.only(left: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.blue.shade400.withOpacity(0.2),
+                    Colors.purple.shade400.withOpacity(0.2),
                   ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    _performHapticFeedback(haptics.HapticsType.light);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AllTransactionsScreen(),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View All',
+                          style: TextStyle(
+                            color: _isDarkMode
+                                ? Colors.white
+                                : Colors.blue.shade700,
+                            fontSize: 14,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 12,
+                          color:
+                              _isDarkMode ? Colors.white : Colors.blue.shade700,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12), // Reduced from 16 to 12
-        _isLoading
-            ? Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    _isDarkMode ? Colors.white : Colors.blue,
+
+        // Enhanced Transaction List
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: _recentTransactions.length,
+          itemBuilder: (context, index) {
+            final transaction = _recentTransactions[index];
+            return TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: Duration(milliseconds: 300 + (index * 50)),
+              curve: Curves.easeOutBack,
+              builder: (context, value, child) {
+                final safeOpacity = value.clamp(0.0, 1.0);
+                return Transform.translate(
+                  offset: Offset(0, 20 * (1 - value)),
+                  child: Opacity(
+                    opacity: safeOpacity,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: _buildEnhancedTransactionItem(transaction, index),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEnhancedTransactionItem(
+      auth.Transaction transaction, int index) {
+    final formattedDate = DateFormat('MMM d, yyyy').format(transaction.date);
+    final wholeNumber = transaction.amount.floor();
+    final decimal = ((transaction.amount - wholeNumber) * 100)
+        .toInt()
+        .toString()
+        .padLeft(2, '0');
+    final formattedWholeNumber = NumberFormat('#,###').format(wholeNumber);
+    final domainTransaction = _convertAuthTransaction(transaction);
+
+    return GestureDetector(
+      onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
+      onTap: () => _viewDetails(domainTransaction),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.white,
+              _isDarkMode
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.white.withOpacity(0.95),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isDarkMode
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Category Icon with Gradient Border
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      domainTransaction.getCategoryColor(_isDarkMode),
+                      domainTransaction
+                          .getCategoryColor(_isDarkMode)
+                          .withOpacity(0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: domainTransaction
+                        .getCategoryColor(_isDarkMode)
+                        .withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    domainTransaction.getCategoryIcon(),
+                    color: domainTransaction.getCategoryColor(_isDarkMode),
+                    size: 20,
                   ),
                 ),
-              )
-            : _recentTransactions.isEmpty
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 32, horizontal: 24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: _isDarkMode
-                            ? [
-                                const Color(0xFF1E2A45).withOpacity(0.7),
-                                const Color(0xFF1A2942).withOpacity(0.7),
-                              ]
-                            : [
-                                Colors.grey[100]!,
-                                Colors.grey[50]!,
-                              ],
+              ),
+              const SizedBox(width: 16),
+
+              // Transaction Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      transaction.merchantName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: _isDarkMode ? Colors.white : Colors.black87,
+                        fontFamily: 'Onest',
+                        letterSpacing: -0.3,
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.grey[300]!,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _isDarkMode
-                              ? Colors.black.withOpacity(0.2)
-                              : Colors.grey.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
                     ),
-                    child: Column(
+                    const SizedBox(height: 6),
+                    Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: _isDarkMode
-                                ? Colors.white.withOpacity(0.1)
-                                : Colors.white,
-                            shape: BoxShape.circle,
+                            color: domainTransaction
+                                .getCategoryColor(_isDarkMode)
+                                .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Icon(
-                            Icons.receipt_long_rounded,
-                            size: 32,
-                            color: _isDarkMode
-                                ? Colors.white.withOpacity(0.7)
-                                : Colors.grey[400],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No Recent Transactions',
-                          style: TextStyle(
-                            color: _isDarkMode ? Colors.white : Colors.black87,
-                            fontSize: 18,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
+                          child: Text(
+                            domainTransaction.displayCategory,
+                            style: TextStyle(
+                              color: domainTransaction
+                                  .getCategoryColor(_isDarkMode),
+                              fontSize: 12,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Text(
+                            '•',
+                            style: TextStyle(
+                              color:
+                                  _isDarkMode ? Colors.white38 : Colors.black38,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
                         Text(
-                          'Your recent transactions will appear here',
+                          formattedDate,
                           style: TextStyle(
-                            color: _isDarkMode
-                                ? Colors.white.withOpacity(0.7)
-                                : Colors.black54,
-                            fontSize: 14,
+                            fontSize: 12,
+                            color:
+                                _isDarkMode ? Colors.white60 : Colors.black54,
                             fontFamily: 'Onest',
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero, // Remove default padding
-                    itemCount: _recentTransactions.length,
-                    itemBuilder: (context, index) {
-                      final isLastItem =
-                          index == _recentTransactions.length - 1;
-                      return Column(
-                        children: [
-                          _buildTransactionListItem(
-                            Transaction.fromAuthTransaction(
-                                _recentTransactions[index]),
+                  ],
+                ),
+              ),
+
+              // Amount with Gradient Effect
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: transaction.isOutflow
+                        ? [Colors.red[400]!, Colors.red[300]!]
+                        : [
+                            _isDarkMode
+                                ? Colors.green[400]!
+                                : Colors.green[700]!,
+                            _isDarkMode
+                                ? Colors.green[300]!
+                                : Colors.green[600]!,
+                          ],
+                  ).createShader(bounds),
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '\$',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.3,
                           ),
-                          if (!isLastItem)
-                            const SizedBox(height: 4), // Reduced from 6 to 4
-                        ],
-                      );
-                    },
+                        ),
+                        TextSpan(
+                          text: formattedWholeNumber,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '.$decimal',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-      ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -2513,257 +2566,1431 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'News & Updates',
-              style: TextStyle(
-                color: _isDarkMode ? Colors.white : Colors.black,
-                fontSize: 20,
-                fontFamily: 'Onest',
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                color: _isDarkMode
-                    ? const Color(0xFF1A2942).withOpacity(0.7)
-                    : Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextButton(
-                onPressed: () {
-                  _performHapticFeedback(haptics.HapticsType.light);
-                  // TODO: Implement navigation to all news
-                },
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  foregroundColor: _isDarkMode ? Colors.white : Colors.blue,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'View all',
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white : Colors.blue[700],
-                        fontSize: 14,
-                        fontFamily: 'Onest',
-                        fontWeight: FontWeight.w600,
+                    ShaderMask(
+                      shaderCallback: (bounds) => LinearGradient(
+                        colors: [
+                          Colors.purple.shade400,
+                          Colors.orange.shade400,
+                          Colors.pink.shade400,
+                        ],
+                      ).createShader(bounds),
+                      child: Text(
+                        'Stories',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 12,
-                      color: _isDarkMode ? Colors.white : Colors.blue[700],
+                    Text(
+                      'Stay informed with latest updates',
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white60 : Colors.black54,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                margin: const EdgeInsets.only(left: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.purple.shade400.withOpacity(0.2),
+                      Colors.orange.shade400.withOpacity(0.2),
+                      Colors.pink.shade400.withOpacity(0.2),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _performHapticFeedback(haptics.HapticsType.light);
+                      Navigator.of(context).push(
+                        PageRouteBuilder(
+                          pageBuilder:
+                              (context, animation, secondaryAnimation) =>
+                                  FadeTransition(
+                            opacity: animation,
+                            child: NewsStoriesViewer(
+                              newsItems: _newsItems,
+                              initialIndex: 0,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View All',
+                            style: TextStyle(
+                              color: _isDarkMode
+                                  ? Colors.white
+                                  : Colors.purple.shade700,
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 12,
+                            color: _isDarkMode
+                                ? Colors.white
+                                : Colors.purple.shade700,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 220,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _newsItems.length,
+            itemBuilder: (context, index) {
+              return TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: Duration(milliseconds: 200 + (index * 100)),
+                curve: Curves.easeOutBack,
+                builder: (context, value, child) {
+                  return Transform.translate(
+                    offset: Offset(20 * (1 - value), 0),
+                    child: Opacity(
+                      opacity: value.clamp(0.0, 1.0),
+                      child: _buildEnhancedStoryCard(
+                        _newsItems[index],
+                        index,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Remove the duplicate build method and keep only one
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    _isDarkMode = themeProvider.isDarkMode;
+
+    return Scaffold(
+      backgroundColor: _isDarkMode ? const Color(0xFF0A0F1E) : Colors.white,
+      body: Stack(
+        children: [
+          NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              _updateBlurEffect();
+              return false;
+            },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 60,
+                  bottom: 32,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildFinancialSummary(),
+                    ),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildQuickActions(),
+                    ),
+                    const SizedBox(height: 32),
+                    _buildNewsAndUpdates(),
+                    const SizedBox(height: 32),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildRecentTransactions(),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 340,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: _newsItems.length,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 8),
-            itemBuilder: (context, index) {
-              return _buildNewsCard(_newsItems[index], index);
-            },
           ),
-        ),
-      ],
+          _buildGlassmorphicHeader(),
+        ],
+      ),
     );
   }
 
-  double _calculateInterval() {
-    if (_dailyTransactionSummary.isEmpty) return 1.0;
-    final values = _dailyTransactionSummary.map((e) => -e.totalAmount).toList();
-    final range = values.reduce(math.max) - values.reduce(math.min);
-    return range / 5;
-  }
-
-  double _calculateDateInterval() {
-    if (_dailyTransactionSummary.isEmpty) return 1.0;
-    return (_getMaxX() - _getMinX()) / 5;
-  }
-
-  double _getMinX() {
-    if (_dailyTransactionSummary.isEmpty) return 0;
-    return _dailyTransactionSummary.first.date.millisecondsSinceEpoch
-        .toDouble();
-  }
-
-  double _getMaxX() {
-    if (_dailyTransactionSummary.isEmpty) return 1;
-    return _dailyTransactionSummary.last.date.millisecondsSinceEpoch.toDouble();
-  }
-
-  double _getMinY() {
-    if (_dailyTransactionSummary.isEmpty) return 0;
-    return _dailyTransactionSummary.map((e) => -e.totalAmount).reduce(math.min);
-  }
-
-  double _getMaxY() {
-    if (_dailyTransactionSummary.isEmpty) return 1;
-    return _dailyTransactionSummary.map((e) => -e.totalAmount).reduce(math.max);
-  }
-
-  List<FlSpot> _getChartSpots() {
-    if (_dailyTransactionSummary.isEmpty) return [];
-    return _dailyTransactionSummary
-        .map((entry) => FlSpot(
-            entry.date.millisecondsSinceEpoch.toDouble(), -entry.totalAmount))
-        .toList();
-  }
-
-  LineTouchTooltipData _getTooltipData() {
-    return LineTouchTooltipData(
-      tooltipBorder: BorderSide(
-        color: _isDarkMode ? Colors.white : Colors.black87,
-      ),
-      fitInsideHorizontally: true,
-      fitInsideVertically: true,
-      tooltipPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      tooltipMargin: 16,
-      tooltipRoundedRadius: 8,
-      getTooltipColor: (touchedSpot) =>
-          _isDarkMode ? Colors.white : Colors.black87,
-      getTooltipItems: (touchedSpots) {
-        return touchedSpots.map((LineBarSpot touchedSpot) {
-          final date =
-              DateTime.fromMillisecondsSinceEpoch(touchedSpot.x.toInt());
-          return LineTooltipItem(
-            DateFormat('MMM d, yyyy').format(date),
-            TextStyle(
-              color: _isDarkMode ? Colors.black87 : Colors.white,
-              fontFamily: 'Onest',
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+  Widget _buildBlinkAdvanceCard() {
+    return GestureDetector(
+      onTap: () {
+        _performHapticFeedback(haptics.HapticsType.medium);
+        if (_hasActiveAdvance) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) =>
+                  BlinkAdvanceScreen(bankAccountId: _bankAccountId),
             ),
+          );
+        } else if (_isBlinkAdvanceApproved) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) =>
+                  BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                _blinkAdvanceStatus == 'On Review'
+                    ? 'Your Blink Advance application is still under review.'
+                    : 'You are not currently eligible for Blink Advance.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: _isDarkMode
+                ? [
+                    const Color(0xFF1E2A45).withOpacity(0.9),
+                    const Color(0xFF1A2942).withOpacity(0.95),
+                  ]
+                : [
+                    Colors.blue[100]!.withOpacity(0.9),
+                    Colors.blue[50]!.withOpacity(0.95),
+                  ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.blue.withOpacity(0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isDarkMode
+                  ? Colors.black.withOpacity(0.3)
+                  : Colors.blue.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const TextSpan(text: '\n'),
-              TextSpan(
-                text: currencyFormatter.format(-touchedSpot.y),
+              FluentUiEmojiIcon(
+                fl: Fluents.flHighVoltage,
+                w: 48,
+                h: 48,
+              ),
+              const Spacer(),
+              SvgPicture.asset(
+                _isDarkMode
+                    ? 'assets/images/blink-logo2.svg'
+                    : 'assets/images/blink-logo3.svg',
+                height: 28,
+                width: 100,
+                fit: BoxFit.contain,
+                colorFilter: ColorFilter.mode(
+                  Colors.white,
+                  BlendMode.srcIn,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Cash Advance',
                 style: TextStyle(
-                  color:
-                      -touchedSpot.y >= 0 ? Colors.green[400] : Colors.red[400],
+                  color: _isDarkMode ? Colors.white : Colors.blue[800],
+                  fontSize: 24,
                   fontFamily: 'Onest',
-                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Status',
+                        style: TextStyle(
+                          color:
+                              _isDarkMode ? Colors.white70 : Colors.blue[600],
+                          fontSize: 14,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            _hasActiveAdvance ? 'Active' : _blinkAdvanceStatus,
+                            style: TextStyle(
+                              color:
+                                  _isDarkMode ? Colors.white : Colors.blue[800],
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          _getStatusEmoji(),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: _isDarkMode ? Colors.white : Colors.blue[800],
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.arrow_forward,
+                        color: _isDarkMode
+                            ? const Color(0xFF141B2E)
+                            : Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
-          );
-        }).toList();
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRepaymentFrontCard(Color color, Color textColor) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withOpacity(0.9),
+            color.withOpacity(0.7),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : textColor.withOpacity(0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(_isDarkMode ? 0.3 : 0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: textColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: textColor,
+                  size: 24,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Repayment',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 20,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'View Details',
+                    style: TextStyle(
+                      color: textColor.withOpacity(0.7),
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      _flipRepaymentCard();
+                      _performHapticFeedback(haptics.HapticsType.medium);
+                    },
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: textColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: AnimatedRotation(
+                          duration: const Duration(milliseconds: 300),
+                          turns: _isRepaymentCardFlipped ? 0.5 : 0,
+                          child: Icon(
+                            Icons.chevron_right_rounded,
+                            color: textColor,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRepaymentBackCard(Color color, Color textColor) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withOpacity(0.95),
+            color.withOpacity(0.85),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(_isDarkMode ? 0.4 : 0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+            spreadRadius: -8,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: textColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_rounded,
+                          color: textColor,
+                          size: 10,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Next Payment',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 10,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      _flipRepaymentCard();
+                      _performHapticFeedback(haptics.HapticsType.medium);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: textColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: AnimatedRotation(
+                        duration: const Duration(milliseconds: 300),
+                        turns: _isRepaymentCardFlipped ? 0.5 : 0,
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: textColor.withOpacity(0.9),
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '\$224.99',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 22,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              Text(
+                'Due in 7 days',
+                style: TextStyle(
+                  color: textColor.withOpacity(0.7),
+                  fontSize: 12,
+                  fontFamily: 'Onest',
+                ),
+              ),
+              const SizedBox(height: 6),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    _performHapticFeedback(haptics.HapticsType.medium);
+                    // TODO: Implement pay now functionality
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Ink(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: textColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: textColor.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Pay Now',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 12,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          color: textColor,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadProfilePicture() async {
+    if (!mounted) return;
+
+    try {
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final supabaseStorage =
+          Provider.of<SupabaseStorageService>(context, listen: false);
+
+      // Clear existing profile picture first
+      setState(() {
+        _profilePictureUrl = null;
+      });
+
+      final userId = authService.currentUser?.id;
+      if (userId != null) {
+        final profilePicture =
+            await supabaseStorage.getLatestProfilePictureUrl(userId);
+
+        if (mounted) {
+          setState(() {
+            _profilePictureUrl = profilePicture;
+          });
+        }
+      }
+    } catch (e) {
+      _logger.e('Error in _loadProfilePicture: $e');
+      if (mounted) {
+        setState(() {
+          _profilePictureUrl = null;
+        });
+      }
+    }
+  }
+
+  Widget _buildProfileImage() {
+    if (_profilePictureUrl == null) {
+      return _buildAvatarFallback();
+    }
+
+    return Image.network(
+      _profilePictureUrl!,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        _logger.e('Error loading profile image: $error');
+        return _buildAvatarFallback();
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: CircularProgressIndicator(
+            value: loadingProgress.expectedTotalBytes != null
+                ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                : null,
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(
+                _isDarkMode ? Colors.white70 : Colors.blue[200]!),
+          ),
+        );
+      },
+      // Force image refresh by using key with URL
+      key: ValueKey(_profilePictureUrl),
+      // Disable image caching
+      cacheWidth: null,
+      cacheHeight: null,
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
     );
   }
 
-  LineChartData _getChartData() {
-    if (_dailyTransactionSummary.isEmpty) {
-      return LineChartData(
-        gridData: FlGridData(show: false),
-        titlesData: FlTitlesData(show: false),
-        borderData: FlBorderData(show: false),
-        lineBarsData: [],
-      );
-    }
+  void _showTemporaryMessage() {
+    if (!mounted) return;
+    setState(() {
+      _showHistoricalDataMessage = true;
+    });
+    _messageTimer?.cancel();
+    _messageTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _showHistoricalDataMessage = false;
+        });
+      }
+    });
+  }
 
-    return LineChartData(
-      gridData: FlGridData(
-        show: true,
-        drawVerticalLine: false,
-        horizontalInterval: _calculateInterval(),
-        getDrawingHorizontalLine: (value) {
-          return FlLine(
-            color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.black12,
-            strokeWidth: 1,
-            dashArray: [5, 5],
-          );
-        },
-      ),
-      titlesData: FlTitlesData(
-        leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      ),
-      borderData: FlBorderData(show: false),
-      minY: _getMinY(),
-      maxY: _getMaxY(),
-      minX: _getMinX(),
-      maxX: _getMaxX(),
-      lineTouchData: LineTouchData(
-        enabled: true,
-        touchTooltipData: _getTooltipData(),
-        getTouchedSpotIndicator: (barData, spotIndexes) {
-          return spotIndexes.map((index) {
-            return TouchedSpotIndicatorData(
-              FlLine(
-                color: Colors.blue.withOpacity(0.3),
-                strokeWidth: 2,
-                dashArray: [3, 3],
-              ),
-              FlDotData(
-                getDotPainter: (spot, percent, barData, index) {
-                  return FlDotCirclePainter(
-                    radius: 6,
-                    color: Colors.white,
-                    strokeWidth: 3,
-                    strokeColor: Colors.blue[600]!,
-                  );
-                },
-              ),
-            );
-          }).toList();
-        },
-      ),
-      lineBarsData: [
-        LineChartBarData(
-          spots: _getChartSpots(),
-          isCurved: true,
-          curveSmoothness: 0.3,
-          color: _isDarkMode ? Colors.blue[400] : Colors.blue[600],
-          barWidth: 2.5,
-          isStrokeCapRound: true,
-          dotData: FlDotData(
-            show: true,
-            getDotPainter: (spot, percent, barData, index) {
-              final isLast = index == _getChartSpots().length - 1;
-              return FlDotCirclePainter(
-                radius: isLast ? 6 * _pulseController.value : 0,
-                color: _isDarkMode ? Colors.blue[400]! : Colors.blue[600]!,
-                strokeWidth: isLast ? 2 : 0,
-                strokeColor: _isDarkMode ? Colors.white : Colors.white,
-              );
-            },
-          ),
-          belowBarData: BarAreaData(
-            show: true,
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload profile picture when dependencies change (e.g., after navigation)
+    _loadProfilePicture();
+  }
+
+  Widget _buildShimmerEffect() {
+    return AnimatedBuilder(
+      animation: _shimmerAnimation,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
               colors: [
-                (_isDarkMode ? Colors.blue[400]! : Colors.blue[600]!)
-                    .withOpacity(0.2),
-                (_isDarkMode ? Colors.blue[400]! : Colors.blue[600]!)
-                    .withOpacity(0.0),
+                Colors.white.withOpacity(0),
+                Colors.white.withOpacity(0.1),
+                Colors.white.withOpacity(0),
               ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+              stops: const [
+                0.0,
+                0.5,
+                1.0,
+              ],
+              transform:
+                  GradientRotation(_shimmerAnimation.value * math.pi * 2),
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadDailyTransactionSummary() async {
+    if (!mounted) return;
+
+    try {
+      setState(() {
+        _isChartLoading = true;
+      });
+
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final response = await authService.getDailyTransactionSummary();
+
+      final List<auth.DailyTransactionSummary> summary =
+          (response['summary'] as List)
+              .map((item) => auth.DailyTransactionSummary.fromJson(item))
+              .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _dailyTransactionSummary = summary;
+        _isChartLoading = false;
+      });
+    } catch (e) {
+      _logger.e('Error loading daily transaction summary: $e');
+      if (mounted) {
+        setState(() {
+          _isChartLoading = false;
+        });
+      }
+    }
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Good morning';
+    } else if (hour < 17) {
+      return 'Good afternoon';
+    } else {
+      return 'Good evening';
+    }
+  }
+
+  void _showTransactionDetails(Transaction transaction) {
+    _performHapticFeedback(haptics.HapticsType.medium);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: _isDarkMode ? const Color(0xFF1A2942) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Main Content
+              CustomScrollView(
+                controller: scrollController,
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // Header Section
+                  SliverToBoxAdapter(
+                    child: Column(
+                      children: [
+                        // Drag Handle
+                        Container(
+                          margin: const EdgeInsets.only(top: 12, bottom: 16),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color:
+                                _isDarkMode ? Colors.white24 : Colors.black12,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        // Amount Section
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: transaction.isOutflow
+                                  ? [
+                                      Colors.red[400]!.withOpacity(0.15),
+                                      Colors.red[300]!.withOpacity(0.05),
+                                    ]
+                                  : [
+                                      Colors.green[400]!.withOpacity(0.15),
+                                      Colors.green[300]!.withOpacity(0.05),
+                                    ],
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: transaction.isOutflow
+                                  ? Colors.red[400]!.withOpacity(0.2)
+                                  : Colors.green[400]!.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: transaction.isOutflow
+                                          ? Colors.red[400]!.withOpacity(0.1)
+                                          : Colors.green[400]!.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      transaction.isOutflow
+                                          ? Icons.arrow_upward
+                                          : Icons.arrow_downward,
+                                      color: transaction.isOutflow
+                                          ? Colors.red[400]
+                                          : Colors.green[400],
+                                      size: 24,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              ShaderMask(
+                                shaderCallback: (bounds) => LinearGradient(
+                                  colors: transaction.isOutflow
+                                      ? [Colors.red[400]!, Colors.red[300]!]
+                                      : [
+                                          Colors.green[400]!,
+                                          Colors.green[300]!
+                                        ],
+                                ).createShader(bounds),
+                                child: Text(
+                                  currencyFormatter.format(transaction.amount),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 36,
+                                    fontFamily: 'Onest',
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                transaction.isOutflow ? 'Outflow' : 'Inflow',
+                                style: TextStyle(
+                                  color: transaction.isOutflow
+                                      ? Colors.red[400]
+                                      : Colors.green[400],
+                                  fontSize: 16,
+                                  fontFamily: 'Onest',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Transaction Details
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Merchant Section
+                          _buildDetailSection(
+                            'Merchant Details',
+                            [
+                              _buildDetailTile(
+                                icon: Icons.storefront_rounded,
+                                title: transaction.merchantName ??
+                                    'Unknown Merchant',
+                                subtitle: transaction.displayCategory,
+                                iconColor:
+                                    transaction.getCategoryColor(_isDarkMode),
+                                onTap: () {
+                                  _performHapticFeedback(
+                                      haptics.HapticsType.light);
+                                  // TODO: Show merchant details/history
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Transaction Information
+                          _buildDetailSection(
+                            'Transaction Details',
+                            [
+                              _buildDetailTile(
+                                icon: Icons.calendar_today_rounded,
+                                title: 'Date',
+                                subtitle: DateFormat('EEEE, MMMM d, y')
+                                    .format(transaction.date),
+                                showCopy: false,
+                              ),
+                              _buildDetailTile(
+                                icon: Icons.access_time_rounded,
+                                title: 'Time',
+                                subtitle: DateFormat('h:mm a')
+                                    .format(transaction.date),
+                                showCopy: false,
+                              ),
+                              _buildDetailTile(
+                                icon: Icons.tag_rounded,
+                                title: 'Transaction ID',
+                                subtitle: transaction.id,
+                                showCopy: true,
+                              ),
+                              _buildDetailTile(
+                                icon: Icons.check_circle_outline_rounded,
+                                title: 'Status',
+                                subtitle: transaction.displayStatus,
+                                iconColor: Colors.green[400],
+                                showCopy: false,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Category Section
+                          _buildDetailSection(
+                            'Category',
+                            [
+                              _buildCategoryTile(transaction),
+                            ],
+                          ),
+                          if (transaction.description != null) ...[
+                            const SizedBox(height: 24),
+                            _buildDetailSection(
+                              'Additional Information',
+                              [
+                                _buildDetailTile(
+                                  icon: Icons.description_outlined,
+                                  title: 'Note',
+                                  subtitle: transaction.description!,
+                                  showCopy: false,
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 32),
+
+                          // Action Buttons
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildActionButton(
+                                  icon: Icons.receipt_long_rounded,
+                                  label: 'Export Receipt',
+                                  onPressed: () {
+                                    _performHapticFeedback(
+                                        haptics.HapticsType.light);
+                                    // TODO: Implement export functionality
+                                  },
+                                  isPrimary: false,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildActionButton(
+                                  icon: Icons.flag_rounded,
+                                  label: 'Report Issue',
+                                  onPressed: () {
+                                    _performHapticFeedback(
+                                        haptics.HapticsType.light);
+                                    // TODO: Implement report functionality
+                                  },
+                                  isPrimary: true,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Close Button
+              Positioned(
+                top: 12,
+                right: 12,
+                child: IconButton(
+                  onPressed: () {
+                    _performHapticFeedback(haptics.HapticsType.light);
+                    Navigator.pop(context);
+                  },
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _isDarkMode
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.black.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: _isDarkMode ? Colors.white70 : Colors.black54,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTile(Transaction transaction) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          _performHapticFeedback(haptics.HapticsType.light);
+          _changeCategory(transaction);
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: transaction
+                      .getCategoryColor(_isDarkMode)
+                      .withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  transaction.getCategoryIcon(),
+                  color: transaction.getCategoryColor(_isDarkMode),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Category',
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white70 : Colors.black54,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      transaction.displayCategory,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white : Colors.black87,
+                        fontSize: 16,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _isDarkMode
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.edit_rounded,
+                  size: 16,
+                  color: _isDarkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Color? iconColor,
+    bool showCopy = false,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: (iconColor ??
+                          (_isDarkMode ? Colors.blue[400] : Colors.blue[700]))!
+                      .withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor ??
+                      (_isDarkMode ? Colors.blue[400] : Colors.blue[700]),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white70 : Colors.black54,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white : Colors.black87,
+                        fontSize: 16,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (showCopy)
+                IconButton(
+                  onPressed: () {
+                    _performHapticFeedback(haptics.HapticsType.light);
+                    Clipboard.setData(ClipboardData(text: subtitle));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('$title copied to clipboard'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: Icon(
+                    Icons.copy_rounded,
+                    size: 20,
+                    color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            title,
+            style: TextStyle(
+              color: _isDarkMode ? Colors.white70 : Colors.black54,
+              fontSize: 14,
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color:
+                _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey[50],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isDarkMode
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.grey[200]!,
+            ),
+          ),
+          child: Column(
+            children: children,
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    required bool isPrimary,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            gradient: isPrimary
+                ? LinearGradient(
+                    colors: [
+                      _isDarkMode ? Colors.blue[400]! : Colors.blue[700]!,
+                      _isDarkMode ? Colors.blue[500]! : Colors.blue[800]!,
+                    ],
+                  )
+                : null,
+            color: isPrimary
+                ? null
+                : _isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.grey[100],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isPrimary
+                  ? Colors.transparent
+                  : _isDarkMode
+                      ? Colors.white.withOpacity(0.2)
+                      : Colors.grey[300]!,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isPrimary
+                    ? Colors.white
+                    : (_isDarkMode ? Colors.white : Colors.blue[700]),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isPrimary
+                      ? Colors.white
+                      : (_isDarkMode ? Colors.white : Colors.blue[700]),
+                  fontSize: 16,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIconButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onPressed,
+          child: Center(
+            child: Icon(
+              icon,
+              color: _isDarkMode ? Colors.white70 : Colors.black54,
+              size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _viewDetails(Transaction transaction) {
+    _showTransactionDetails(transaction);
+  }
+
+  Color _getTransactionColor(Transaction transaction) {
+    return transaction.getCategoryColor(_isDarkMode);
+  }
+
+  IconData _getTransactionIcon(Transaction transaction) {
+    return transaction.getCategoryIcon();
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white70 : Colors.black54,
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.black87,
+                fontSize: 14,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildMetadataRows(Map<String, dynamic> metadata) {
+    return metadata.entries
+        .where(
+            (entry) => entry.value != null && entry.value.toString().isNotEmpty)
+        .map((entry) {
+      final key =
+          entry.key.split('_').map((word) => word.capitalize()).join(' ');
+      final value = entry.value.toString();
+      return _buildDetailRow(key, value);
+    }).toList();
+  }
+
+  Widget _getStatusEmoji() {
+    if (_hasActiveAdvance) {
+      return const Text('✅', style: TextStyle(fontSize: 16));
+    }
+    switch (_blinkAdvanceStatus.toLowerCase()) {
+      case 'on review':
+        return const Text('🕒', style: TextStyle(fontSize: 16));
+      case 'approved':
+        return const Text('✅', style: TextStyle(fontSize: 16));
+      case 'rejected':
+        return const Text('❌', style: TextStyle(fontSize: 16));
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _buildGlassmorphicHeader() {
@@ -2784,7 +4011,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           height: MediaQuery.of(context).padding.top + 52,
           decoration: BoxDecoration(
             color: _isDarkMode
-                ? const Color(0xFF141B2E).withOpacity(darkModeOpacity)
+                ? const Color(0xFF0A0F1E).withOpacity(darkModeOpacity)
                 : Colors.white.withOpacity(lightModeOpacity),
             border: Border(
               bottom: BorderSide(
@@ -2920,38 +4147,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 // Right side - Action buttons
                 Row(
                   children: [
-                    _buildActionButton(
+                    _buildIconButton(
                       icon: Icons.add_rounded,
-                      onPressed: () =>
-                          _performHapticFeedback(haptics.HapticsType.light),
-                      showBadge: false,
+                      onPressed: () {
+                        _performHapticFeedback(haptics.HapticsType.light);
+                        showDialog(
+                          context: context,
+                          builder: (context) => const QuickActionsScreen(),
+                        );
+                      },
                     ),
                     const SizedBox(width: 8),
-                    _buildActionButton(
+                    _buildIconButton(
                       icon: Icons.favorite_outline_rounded,
-                      onPressed: () =>
-                          _performHapticFeedback(haptics.HapticsType.light),
-                      showBadge: false,
+                      onPressed: () {
+                        _performHapticFeedback(haptics.HapticsType.light);
+                        showDialog(
+                          context: context,
+                          builder: (context) => const FavoritesScreen(),
+                        );
+                      },
                     ),
                     const SizedBox(width: 8),
-                    _buildActionButton(
-                      icon: Icons.search_rounded,
-                      onPressed: () =>
-                          _performHapticFeedback(haptics.HapticsType.light),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildActionButton(
+                    _buildIconButton(
                       icon: Icons.notifications_outlined,
                       onPressed: () {
                         _performHapticFeedback(haptics.HapticsType.light);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const NotificationsScreen(),
-                          ),
-                        );
+                        // TODO: Show notifications
                       },
-                      showBadge: true,
                     ),
                   ],
                 ),
@@ -2964,1005 +4187,173 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildAvatarFallback() {
-    return Center(
-      child: Text(
-        _userName.isNotEmpty ? _userName[0].toUpperCase() : '?',
-        style: TextStyle(
-          color: _isDarkMode ? Colors.white : Colors.blue[700],
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          fontFamily: 'Onest',
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-    bool showBadge = false,
-  }) {
     return Container(
-      width: 36,
-      height: 36,
       decoration: BoxDecoration(
-        color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color:
-              _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey[200]!,
-          width: 1,
-        ),
+        color: _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.blue[50],
+        shape: BoxShape.circle,
       ),
-      child: Stack(
-        children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onPressed,
-              child: Center(
-                child: Icon(
-                  icon,
-                  color: _isDarkMode ? Colors.white70 : Colors.black54,
-                  size: 20,
-                ),
-              ),
-            ),
+      child: Center(
+        child: Text(
+          _userName.isNotEmpty ? _userName[0].toUpperCase() : '?',
+          style: TextStyle(
+            color: _isDarkMode ? Colors.white : Colors.blue[700],
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Onest',
           ),
-          if (showBadge)
-            Positioned(
-              right: 10,
-              top: 10,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.red[400],
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _isDarkMode ? const Color(0xFF141B2E) : Colors.white,
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      spreadRadius: 1,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildBlinkAdvanceCard() {
-    return GestureDetector(
-      onTap: () {
-        _performHapticFeedback(haptics.HapticsType.medium);
-        if (_hasActiveAdvance) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) =>
-                  BlinkAdvanceScreen(bankAccountId: _bankAccountId),
-            ),
-          );
-        } else if (_isBlinkAdvanceApproved) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) =>
-                  BlinkAdvanceScreen(bankAccountId: _bankAccountId),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _blinkAdvanceStatus == 'On Review'
-                    ? 'Your Blink Advance application is still under review.'
-                    : 'You are not currently eligible for Blink Advance.',
+  Widget _buildEnhancedStoryCard(Map<String, String> newsItem, int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 300 + (index * 50)),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)),
+          child: Opacity(
+            opacity: value.clamp(0.0, 1.0),
+            child: Container(
+              width: 200,
+              margin: const EdgeInsets.only(right: 16),
+              decoration: BoxDecoration(
+                color: _isDarkMode
+                    ? const Color(0xFF1A2942).withOpacity(0.7)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _isDarkMode
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _isDarkMode
+                        ? Colors.black.withOpacity(0.3)
+                        : Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: _isDarkMode
-                ? [
-                    const Color(0xFF1E2A45).withOpacity(0.9),
-                    const Color(0xFF1A2942).withOpacity(0.95),
-                  ]
-                : [
-                    Colors.blue[100]!.withOpacity(0.9),
-                    Colors.blue[50]!.withOpacity(0.95),
-                  ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.blue.withOpacity(0.2),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: _isDarkMode
-                  ? Colors.black.withOpacity(0.3)
-                  : Colors.blue.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            children: [
-              if (_hasActiveAdvance || _isBlinkAdvanceApproved)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Transform.rotate(
-                      angle: -0.7853981634,
-                      child: AnimatedBuilder(
-                        animation: _shimmerAnimation,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(
-                              0,
-                              _shimmerAnimation.value * 200,
-                            ),
-                            child: Container(
-                              width: 60,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Colors.white.withOpacity(0),
-                                    Colors.white.withOpacity(0.1),
-                                    Colors.white.withOpacity(0),
-                                  ],
-                                  stops: const [0.0, 0.5, 1.0],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Hero(
+                    tag: 'newsImage-$index',
+                    child: Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
+                        image: DecorationImage(
+                          image: AssetImage(newsItem['imageUrl']!),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.5),
+                            ],
+                            stops: const [0.5, 1.0],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    FluentUiEmojiIcon(
-                      fl: Fluents.flHighVoltage,
-                      w: 48,
-                      h: 48,
-                    ),
-                    const Spacer(),
-                    SvgPicture.asset(
-                      _isDarkMode
-                          ? 'assets/images/blink-logo2.svg'
-                          : 'assets/images/blink-logo3.svg',
-                      height: 28,
-                      width: 100,
-                      fit: BoxFit.contain,
-                      colorFilter: ColorFilter.mode(
-                        Colors.white,
-                        BlendMode.srcIn,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Cash Advance',
-                      style: TextStyle(
-                        color: _isDarkMode ? Colors.white : Colors.blue[800],
-                        fontSize: 24,
-                        fontFamily: 'Onest',
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Status',
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            newsItem['title']!,
+                            style: TextStyle(
+                              color:
+                                  _isDarkMode ? Colors.white : Colors.black87,
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.bold,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Expanded(
+                            child: Text(
+                              newsItem['description']!,
                               style: TextStyle(
                                 color: _isDarkMode
                                     ? Colors.white70
-                                    : Colors.blue[600],
-                                fontSize: 14,
+                                    : Colors.black54,
+                                fontSize: 12,
                                 fontFamily: 'Onest',
+                                height: 1.4,
                               ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  _hasActiveAdvance
-                                      ? 'Active'
-                                      : _blinkAdvanceStatus,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _isDarkMode
+                                      ? Colors.white.withOpacity(0.1)
+                                      : Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Financial Tips',
                                   style: TextStyle(
                                     color: _isDarkMode
                                         ? Colors.white
-                                        : Colors.blue[800],
-                                    fontSize: 14,
+                                        : Colors.blue[700],
+                                    fontSize: 10,
                                     fontFamily: 'Onest',
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
-                                _getStatusEmoji(),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color:
-                                _isDarkMode ? Colors.white : Colors.blue[800],
-                            shape: BoxShape.circle,
+                              ),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                color: _isDarkMode
+                                    ? Colors.white70
+                                    : Colors.blue[700],
+                                size: 16,
+                              ),
+                            ],
                           ),
-                          child: Center(
-                            child: Icon(
-                              Icons.arrow_forward,
-                              color: _isDarkMode
-                                  ? const Color(0xFF141B2E)
-                                  : Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    _isDarkMode = themeProvider.isDarkMode;
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: AnimatedGradientBackground(
-        isDarkMode: _isDarkMode,
-        child: Column(
-          children: [
-            _buildGlassmorphicHeader(),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  _performHapticFeedback(haptics.HapticsType.medium);
-                  await Future.wait([
-                    _loadData(),
-                    _loadBlinkAdvanceStatus(),
-                  ]);
-                },
-                color: _isDarkMode ? Colors.white : Colors.blue,
-                backgroundColor:
-                    _isDarkMode ? const Color(0xFF141B2E) : Colors.white,
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 16),
-                        _buildFinancialSummary(),
-                        const SizedBox(height: 20),
-                        _buildQuickActions(),
-                        const SizedBox(height: 24),
-                        _buildRecentTransactions(),
-                        const SizedBox(height: 20), // Reduced from 24 to 20
-                        _buildNewsAndUpdates(),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good Morning';
-    } else if (hour < 17) {
-      return 'Good Afternoon';
-    } else {
-      return 'Good Evening';
-    }
-  }
-
-  Future<void> _loadDailyTransactionSummary() async {
-    if (_isChartLoading) return;
-
-    setState(() {
-      _isChartLoading = true;
-    });
-
-    try {
-      final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final response = await authService.getDailyTransactionSummary();
-
-      if (!mounted) return;
-
-      setState(() {
-        _dailyTransactionSummary = (response['data'] as List)
-            .map((item) => auth.DailyTransactionSummary.fromJson(
-                Map<String, dynamic>.from(item)))
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
-        _isChartLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isChartLoading = false;
-        _dailyTransactionSummary = [];
-      });
-      _logger.e('Error loading daily transaction summary: $e');
-    }
-  }
-
-  Future<void> _loadData() async {
-    if (!mounted) return;
-
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      await Future.wait([
-        _loadUserInfo(),
-        _loadRecentTransactions(),
-        _loadCurrentBalances(),
-      ]);
-    } catch (e) {
-      _logger.e('Error loading data: $e');
-      rethrow;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Widget _buildShimmerEffect() {
-    return IgnorePointer(
-      child: Transform.rotate(
-        angle: -0.7853981634, // -45 degrees in radians
-        child: AnimatedBuilder(
-          animation: _shimmerAnimation,
-          builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(0, _shimmerAnimation.value * 400),
-              child: Container(
-                width: 100,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.white.withOpacity(0),
-                      Colors.white.withOpacity(0.1),
-                      Colors.white.withOpacity(0),
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _loadProfilePicture() async {
-    final storageService = Provider.of<StorageService>(context, listen: false);
-    final profileProvider =
-        Provider.of<ProfileProvider>(context, listen: false);
-    final userId = storageService.getUserId();
-
-    if (userId != null) {
-      await profileProvider.loadProfilePicture(userId);
-    }
-  }
-}
-
-class TransactionDetailsSheet extends StatefulWidget {
-  final Transaction transaction;
-  final bool isDarkMode;
-  final Map<String, dynamic>? metadata;
-
-  const TransactionDetailsSheet({
-    Key? key,
-    required this.transaction,
-    required this.isDarkMode,
-    this.metadata,
-  }) : super(key: key);
-
-  @override
-  State<TransactionDetailsSheet> createState() =>
-      _TransactionDetailsSheetState();
-}
-
-class _TransactionDetailsSheetState extends State<TransactionDetailsSheet> {
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) => Container(
-        decoration: BoxDecoration(
-          color: widget.isDarkMode ? const Color(0xFF1A2942) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SingleChildScrollView(
-          controller: scrollController,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              _buildTransactionDetails(),
-              if (widget.metadata != null && widget.metadata!.isNotEmpty)
-                _buildMetadata(),
-              _buildActions(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: widget.isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.grey.withOpacity(0.2),
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: widget.isDarkMode
-                    ? Colors.white.withOpacity(0.3)
-                    : Colors.grey.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.transaction.merchantName,
-            style: TextStyle(
-              color: widget.isDarkMode ? Colors.white : Colors.black87,
-              fontSize: 24,
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTransactionDetails() {
-    final currencyFormatter = NumberFormat.currency(symbol: '\$');
-    return Column(
-      children: [
-        // Amount Card with Transaction Status
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: widget.transaction.isOutflow
-                  ? [
-                      Colors.red.withOpacity(0.1),
-                      Colors.redAccent.withOpacity(0.05),
-                    ]
-                  : [
-                      Colors.green.withOpacity(0.1),
-                      Colors.greenAccent.withOpacity(0.05),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
-            ),
-          ),
-          child: Stack(
-            children: [
-              if (widget.metadata?['pending'] == true)
-                Positioned(
-                  right: 16,
-                  top: 16,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: widget.isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: widget.isDarkMode
-                            ? Colors.white.withOpacity(0.2)
-                            : Colors.orange.withOpacity(0.3),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.pending_outlined,
-                          size: 14,
-                          color: widget.isDarkMode
-                              ? Colors.white70
-                              : Colors.orange[700],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Pending',
-                          style: TextStyle(
-                            color: widget.isDarkMode
-                                ? Colors.white70
-                                : Colors.orange[700],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Onest',
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          widget.transaction.isOutflow
-                              ? Icons.arrow_upward_rounded
-                              : Icons.arrow_downward_rounded,
-                          color: widget.transaction.isOutflow
-                              ? Colors.red[400]
-                              : Colors.green[400],
-                          size: 24,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          currencyFormatter.format(widget.transaction.amount),
-                          style: TextStyle(
-                            color: widget.transaction.isOutflow
-                                ? Colors.red[400]
-                                : Colors.green[400],
-                            fontSize: 36,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.transaction.isOutflow ? 'Expense' : 'Income',
-                      style: TextStyle(
-                        color: widget.isDarkMode
-                            ? Colors.white.withOpacity(0.7)
-                            : Colors.black54,
-                        fontSize: 14,
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Main Details Section
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          decoration: BoxDecoration(
-            color: widget.isDarkMode
-                ? Colors.white.withOpacity(0.05)
-                : Colors.grey.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
-            ),
-          ),
-          child: Column(
-            children: [
-              _buildDetailSection(
-                'Transaction Details',
-                Icons.receipt_long_rounded,
-                [
-                  _buildDetailRowEnhanced(
-                    'Date',
-                    DateFormat('MMMM dd, yyyy').format(widget.transaction.date),
-                    Icons.calendar_today_rounded,
-                  ),
-                  if (widget.metadata?['description'] != null) ...[
-                    const SizedBox(height: 16),
-                    _buildDetailRowEnhanced(
-                      'Description',
-                      widget.metadata!['description'],
-                      Icons.description_outlined,
-                    ),
-                  ],
-                  if (widget.metadata?['original_description'] != null) ...[
-                    const SizedBox(height: 16),
-                    _buildDetailRowEnhanced(
-                      'Original Description',
-                      widget.metadata!['original_description'],
-                      Icons.description_outlined,
-                    ),
-                  ],
                 ],
               ),
-            ],
-          ),
-        ),
-
-        // Category Section
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          decoration: BoxDecoration(
-            color: widget.isDarkMode
-                ? Colors.white.withOpacity(0.05)
-                : Colors.grey.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
             ),
           ),
-          child: Column(
-            children: [
-              _buildDetailSection(
-                'Category Information',
-                Icons.category_rounded,
-                [
-                  _buildDetailRowEnhanced(
-                    'Main Category',
-                    widget.metadata?['category'] ?? 'Uncategorized',
-                    Icons.folder_rounded,
-                  ),
-                  if (widget.metadata?['category_detailed'] != null) ...[
-                    const SizedBox(height: 16),
-                    _buildDetailRowEnhanced(
-                      'Detailed Category',
-                      widget.metadata!['category_detailed'],
-                      Icons.folder_special_rounded,
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        // Account Information
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          decoration: BoxDecoration(
-            color: widget.isDarkMode
-                ? Colors.white.withOpacity(0.05)
-                : Colors.grey.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
-            ),
-          ),
-          child: Column(
-            children: [
-              _buildDetailSection(
-                'Account Information',
-                Icons.account_balance_rounded,
-                [
-                  if (widget.metadata?['account_id'] != null)
-                    _buildDetailRowEnhanced(
-                      'Account ID',
-                      widget.metadata!['account_id'],
-                      Icons.credit_card_rounded,
-                    ),
-                  if (widget.metadata?['bank_account_id'] != null) ...[
-                    const SizedBox(height: 16),
-                    _buildDetailRowEnhanced(
-                      'Bank Account ID',
-                      widget.metadata!['bank_account_id'],
-                      Icons.account_balance_wallet_rounded,
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        // Transaction IDs Section
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          decoration: BoxDecoration(
-            color: widget.isDarkMode
-                ? Colors.white.withOpacity(0.05)
-                : Colors.grey.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
-            ),
-          ),
-          child: Column(
-            children: [
-              _buildDetailSection(
-                'Transaction IDs',
-                Icons.numbers_rounded,
-                [
-                  _buildDetailRowEnhanced(
-                    'Transaction ID',
-                    widget.metadata?['transaction_id'] ?? widget.transaction.id,
-                    Icons.tag_rounded,
-                  ),
-                  if (widget.metadata?['id'] != null) ...[
-                    const SizedBox(height: 16),
-                    _buildDetailRowEnhanced(
-                      'Internal ID',
-                      widget.metadata!['id'],
-                      Icons.fingerprint_rounded,
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailSection(
-      String title, IconData titleIcon, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(
-                titleIcon,
-                color: widget.isDarkMode ? Colors.white70 : Colors.blue[700],
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  color: widget.isDarkMode ? Colors.white : Colors.black87,
-                  fontSize: 18,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            children: children,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailRowEnhanced(String label, String value, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: widget.isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.blue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: widget.isDarkMode ? Colors.white70 : Colors.blue[700],
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: widget.isDarkMode
-                      ? Colors.white.withOpacity(0.7)
-                      : Colors.black54,
-                  fontSize: 14,
-                  fontFamily: 'Onest',
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  color: widget.isDarkMode ? Colors.white : Colors.black87,
-                  fontSize: 16,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetadata() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: widget.isDarkMode
-            ? Colors.white.withOpacity(0.05)
-            : Colors.grey.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: widget.isDarkMode
-              ? Colors.white.withOpacity(0.1)
-              : Colors.grey.withOpacity(0.1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                color: widget.isDarkMode ? Colors.white70 : Colors.blue[700],
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Additional Details',
-                style: TextStyle(
-                  color: widget.isDarkMode ? Colors.white : Colors.black87,
-                  fontSize: 18,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...widget.metadata!.entries
-              .map((entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildDetailRowEnhanced(
-                      entry.key,
-                      entry.value.toString(),
-                      Icons.label_outline_rounded,
-                    ),
-                  ))
-              .toList(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActions() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ElevatedButton(
-            onPressed: () {
-              // Implement edit category functionality
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  widget.isDarkMode ? Colors.white : Colors.blue[800],
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.edit_rounded,
-                  color: widget.isDarkMode ? Colors.black87 : Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Edit Category',
-                  style: TextStyle(
-                    color: widget.isDarkMode ? Colors.black87 : Colors.white,
-                    fontSize: 16,
-                    fontFamily: 'Onest',
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

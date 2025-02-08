@@ -21,6 +21,7 @@ import 'package:blink_app/features/insights/presentation/recurring_expenses_scre
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:blink_app/services/biometric_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,7 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final storageService = StorageService(prefs);
   final authService = AuthService(storageService);
+  final biometricService = BiometricService();
   await authService.init();
 
   final supabaseStorageService =
@@ -68,6 +70,7 @@ void main() async {
         Provider<AuthService>(create: (_) => authService),
         Provider<StorageService>(create: (_) => storageService),
         Provider<SupabaseStorageService>(create: (_) => supabaseStorageService),
+        Provider<BiometricService>(create: (_) => biometricService),
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
         ChangeNotifierProvider(
             create: (_) => FinancialDataProvider(authService)),
@@ -80,15 +83,107 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _updateSystemUIOverlayStyle(bool isDarkMode) {
+    SystemChrome.setSystemUIOverlayStyle(
+      isDarkMode
+          ? const SystemUiOverlayStyle(
+              statusBarBrightness: Brightness.dark,
+              statusBarIconBrightness: Brightness.light,
+              systemNavigationBarIconBrightness: Brightness.light,
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: Colors.transparent,
+            )
+          : const SystemUiOverlayStyle(
+              statusBarBrightness: Brightness.light,
+              statusBarIconBrightness: Brightness.dark,
+              systemNavigationBarIconBrightness: Brightness.dark,
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: Colors.transparent,
+            ),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    _updateSystemUIOverlayStyle(isDarkMode);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final biometricService =
+        Provider.of<BiometricService>(context, listen: false);
+    final authService = Provider.of<AuthService>(context, listen: false);
+
+    switch (state) {
+      case AppLifecycleState.paused:
+        // App goes to background
+        biometricService.updateLastActiveTime();
+        break;
+      case AppLifecycleState.resumed:
+        // App comes to foreground
+        _handleAppResume(biometricService, authService);
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _handleAppResume(
+      BiometricService biometricService, AuthService authService) async {
+    if (authService.currentUser != null) {
+      final bool hasTimedOut = await biometricService.hasSessionTimedOut();
+      final bool isBiometricEnabled =
+          await biometricService.isBiometricEnabled();
+
+      if (hasTimedOut && isBiometricEnabled) {
+        final bool authenticated = await biometricService.authenticate();
+        if (!authenticated) {
+          // Navigate to login screen if authentication fails
+          if (mounted) {
+            Navigator.of(context)
+                .pushNamedAndRemoveUntil('/login', (route) => false);
+          }
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Blink',
       debugShowCheckedModeBanner: false,
-      theme: Provider.of<ThemeProvider>(context).currentTheme,
+      theme: Provider.of<ThemeProvider>(context).currentTheme.copyWith(
+            platform: TargetPlatform.android,
+            pageTransitionsTheme: const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.android: ZoomPageTransitionsBuilder(),
+              },
+            ),
+          ),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

@@ -212,25 +212,58 @@ class StorageService {
 
   Future<void> setToken(String token) async {
     try {
+      if (!_isInitialized) _init();
+
+      // Validate token before encryption
+      if (token.isEmpty) {
+        throw Exception('Token cannot be empty');
+      }
+
       final encryptedToken = _encrypt(token);
       await _prefs.setString(StorageKeys.token, encryptedToken);
-      _logger.i('Token set and encrypted.');
+      _logger.i('Token set and encrypted successfully.');
     } catch (e) {
       _logger.e('Failed to set token: $e');
-      throw Exception('Failed to set token');
+      // Clear any potentially corrupted token
+      await _prefs.remove(StorageKeys.token);
+      throw Exception('Failed to set token: $e');
     }
   }
 
   String? getToken() {
     try {
+      if (!_isInitialized) _init();
+
       final encryptedToken = _prefs.getString(StorageKeys.token);
-      if (encryptedToken == null) return null;
+      if (encryptedToken == null) {
+        _logger.i('No token found in storage.');
+        return null;
+      }
+
+      // Add validation for encrypted token format
+      if (!_isBase64(encryptedToken)) {
+        _logger.e('Stored token is not in valid base64 format');
+        _prefs.remove(StorageKeys.token);
+        return null;
+      }
+
       final decryptedToken = _decrypt(encryptedToken);
-      _logger.i('Token retrieved and decrypted.');
+      _logger.i('Token retrieved and decrypted successfully.');
       return decryptedToken;
     } catch (e) {
       _logger.e('Failed to get token: $e');
+      // Clear corrupted token
+      _prefs.remove(StorageKeys.token);
       return null;
+    }
+  }
+
+  bool _isBase64(String str) {
+    try {
+      base64.decode(str);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 

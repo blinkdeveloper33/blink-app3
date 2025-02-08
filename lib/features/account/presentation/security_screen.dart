@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:blink_app/providers/theme_provider.dart';
 import 'package:blink_app/services/auth_service.dart';
+import 'package:blink_app/services/biometric_service.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
 import 'package:google_fonts/google_fonts.dart';
@@ -15,7 +16,7 @@ class SecurityScreen extends StatefulWidget {
 }
 
 class _SecurityScreenState extends State<SecurityScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _showCurrentPassword = false;
@@ -50,6 +51,7 @@ class _SecurityScreenState extends State<SecurityScreen>
     _setupFocusNodes();
     _setupAnimations();
     _setupControllerListeners();
+    _loadBiometricSettings();
   }
 
   void _setupAnimations() {
@@ -125,6 +127,189 @@ class _SecurityScreenState extends State<SecurityScreen>
     _currentPasswordController.addListener(listener);
     _newPasswordController.addListener(listener);
     _confirmPasswordController.addListener(listener);
+  }
+
+  Future<void> _loadBiometricSettings() async {
+    final biometricService =
+        Provider.of<BiometricService>(context, listen: false);
+
+    // Check both if biometrics are enabled and available
+    final bool isAvailable = await biometricService.isBiometricsAvailable();
+    final bool isEnabled = await biometricService.isBiometricEnabled();
+
+    if (mounted) {
+      setState(() {
+        _biometricEnabled = isEnabled && isAvailable;
+      });
+    }
+  }
+
+  Future<void> _toggleBiometrics(bool value) async {
+    if (!mounted) return;
+
+    final biometricService =
+        Provider.of<BiometricService>(context, listen: false);
+
+    if (value) {
+      try {
+        // Check if biometrics are available
+        final bool canUseBiometrics =
+            await biometricService.isBiometricsAvailable();
+        if (!canUseBiometrics) {
+          if (!mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Face ID is not available on this device. Please check your device settings.',
+                      style: TextStyle(fontFamily: 'Onest'),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+
+          setState(() {
+            _biometricEnabled = false;
+          });
+          return;
+        }
+
+        // Try to authenticate
+        final bool authenticated = await biometricService.authenticate();
+        if (!mounted) return;
+
+        if (authenticated) {
+          await biometricService.setBiometricEnabled(true);
+          setState(() {
+            _biometricEnabled = true;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Face ID has been enabled successfully',
+                    style: TextStyle(fontFamily: 'Onest'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+          haptics.Haptics.vibrate(haptics.HapticsType.success);
+        } else {
+          setState(() {
+            _biometricEnabled = false;
+          });
+        }
+      } catch (e) {
+        if (!mounted) return;
+
+        setState(() {
+          _biometricEnabled = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Failed to enable Face ID. Please try again.',
+                    style: TextStyle(fontFamily: 'Onest'),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } else {
+      try {
+        await biometricService.setBiometricEnabled(false);
+        if (!mounted) return;
+
+        setState(() {
+          _biometricEnabled = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                const Text(
+                  'Face ID has been disabled',
+                  style: TextStyle(fontFamily: 'Onest'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        haptics.Haptics.vibrate(haptics.HapticsType.light);
+      } catch (e) {
+        if (!mounted) return;
+
+        setState(() {
+          _biometricEnabled = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Failed to disable Face ID. Please try again.',
+                    style: TextStyle(fontFamily: 'Onest'),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _changePassword() async {
@@ -542,7 +727,7 @@ class _SecurityScreenState extends State<SecurityScreen>
                 FadeInUp(
                   duration: const Duration(milliseconds: 300),
                   child: Text(
-                    'Change Password',
+                    'Security Options',
                     style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -553,6 +738,43 @@ class _SecurityScreenState extends State<SecurityScreen>
                 const SizedBox(height: 16),
                 FadeInUp(
                   duration: const Duration(milliseconds: 400),
+                  child: _buildSecurityOption(
+                    title: 'Two-Factor Authentication',
+                    subtitle: 'Add an extra layer of security to your account',
+                    icon: Icons.security,
+                    value: _twoFactorEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        _twoFactorEnabled = value;
+                      });
+                    },
+                  ),
+                ),
+                FadeInUp(
+                  duration: const Duration(milliseconds: 500),
+                  child: _buildSecurityOption(
+                    title: 'Face ID Authentication',
+                    subtitle: 'Use Face ID to quickly access your account',
+                    icon: Icons.face_retouching_natural,
+                    value: _biometricEnabled,
+                    onChanged: _toggleBiometrics,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                FadeInUp(
+                  duration: const Duration(milliseconds: 600),
+                  child: Text(
+                    'Change Password',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isDarkMode ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FadeInUp(
+                  duration: const Duration(milliseconds: 700),
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -713,47 +935,6 @@ class _SecurityScreenState extends State<SecurityScreen>
                         ],
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                FadeInUp(
-                  duration: const Duration(milliseconds: 500),
-                  child: Text(
-                    'Security Settings',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: isDarkMode ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FadeInUp(
-                  duration: const Duration(milliseconds: 600),
-                  child: _buildSecurityOption(
-                    title: 'Two-Factor Authentication',
-                    subtitle: 'Add an extra layer of security to your account',
-                    icon: Icons.security,
-                    value: _twoFactorEnabled,
-                    onChanged: (value) {
-                      setState(() {
-                        _twoFactorEnabled = value;
-                      });
-                    },
-                  ),
-                ),
-                FadeInUp(
-                  duration: const Duration(milliseconds: 700),
-                  child: _buildSecurityOption(
-                    title: 'Biometric Authentication',
-                    subtitle: 'Use fingerprint or face ID to log in',
-                    icon: Icons.fingerprint,
-                    value: _biometricEnabled,
-                    onChanged: (value) {
-                      setState(() {
-                        _biometricEnabled = value;
-                      });
-                    },
                   ),
                 ),
               ],

@@ -76,7 +76,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   Future<void> _loadTransactions() async {
-    if (_isLoading) return;
+    if (_isLoading || !mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -89,10 +89,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         pageSize: 50,
       );
 
+      if (!mounted) return;
+
       if (response['success'] == true && response['data'] != null) {
         final transactions = (response['data']['transactions'] as List)
             .map((json) => Transaction.fromJson(json))
             .toList();
+
+        if (!mounted) return;
 
         setState(() {
           _transactions = transactions;
@@ -103,6 +107,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     } catch (e) {
       // TODO: Handle error
     } finally {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -110,7 +115,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   Future<void> _loadMoreTransactions() async {
-    if (_isLoadingMore || !_hasMoreData) return;
+    if (_isLoadingMore || !_hasMoreData || !mounted) return;
 
     setState(() {
       _isLoadingMore = true;
@@ -123,10 +128,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         pageSize: 50,
       );
 
+      if (!mounted) return;
+
       if (response['success'] == true && response['data'] != null) {
         final newTransactions = (response['data']['transactions'] as List)
             .map((json) => Transaction.fromJson(json))
             .toList();
+
+        if (!mounted) return;
 
         setState(() {
           _transactions.addAll(newTransactions);
@@ -138,6 +147,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     } catch (e) {
       // TODO: Handle error
     } finally {
+      if (!mounted) return;
       setState(() {
         _isLoadingMore = false;
       });
@@ -145,6 +155,8 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   void _groupTransactions() {
+    if (!mounted) return;
+
     final grouped = <String, List<Transaction>>{};
 
     for (var transaction in _transactions) {
@@ -155,6 +167,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       grouped[date]!.add(transaction);
     }
 
+    if (!mounted) return;
     setState(() {
       _groupedTransactions = grouped;
     });

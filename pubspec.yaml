@@ -55,6 +55,9 @@ dependencies:
   supabase_flutter: ^2.3.4
   image_cropper: ^8.1.0
   google_fonts: ^6.2.1
+  teller_connect_flutter: ^0.12.1
+  local_auth: ^2.2.0
+  flutter_secure_storage: ^9.0.0
 
 dev_dependencies:
   flutter_test:

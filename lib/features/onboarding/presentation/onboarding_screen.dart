@@ -67,7 +67,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         animation: 'assets/animations/instant_cash.json',
         title: 'Get a Blink Cash Advance',
         subtitle:
-            'Access up to \$300 instantly when you need it most. Fast, transparent, and hassle-free with no credit check required.',
+            'Get an instant \$200 cash advance when you need it most. Fast, transparent, and hassle-free with no credit check required.',
         gradientStart: const Color(0xFF1E3A8A),
         gradientEnd: const Color(0xFF2563EB),
         icon: Icons.attach_money,
@@ -76,7 +76,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         animation: 'assets/animations/money_management.json',
         title: 'Smart Financial Wellness',
         subtitle:
-            'Take control of your finances with personalized insights, budgeting tools, and responsible borrowing features. We help you make better financial decisions.',
+            'Take control of your finances with personalized insights, analytics, and responsible borrowing features. We help you make better financial decisions.',
         gradientStart: const Color(0xFF064E3B),
         gradientEnd: const Color(0xFF059669),
         icon: Icons.insert_chart,
