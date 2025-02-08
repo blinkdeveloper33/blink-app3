@@ -49,7 +49,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _userName = '';
   String _bankAccountId = '';
   String? _primaryAccountName;
-  String? _profilePictureUrl;
   bool _isLoading = false;
   List<auth.DailyTransactionSummary> _dailyTransactionSummary = [];
   bool _isChartLoading = false;
@@ -1067,14 +1066,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadUserInfo() async {
-    if (!mounted) return;
-
     try {
       final authService = Provider.of<auth.AuthService>(context, listen: false);
       final storageService =
           Provider.of<StorageService>(context, listen: false);
       final supabaseStorage =
           Provider.of<SupabaseStorageService>(context, listen: false);
+      final profileProvider =
+          Provider.of<ProfileProvider>(context, listen: false);
 
       final userId = authService.currentUser?.id;
       String? profilePicture;
@@ -1103,6 +1102,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (latestProfilePic != null) {
             profilePicture =
                 supabaseStorage.getProfilePictureUrl(userId, latestProfilePic);
+            if (profilePicture != null) {
+              await profileProvider.updateProfilePicture(profilePicture);
+            }
           }
         } catch (e) {
           debugPrint('Error loading profile picture: $e');
@@ -1119,7 +1121,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _userName = fullName ?? 'User';
         _bankAccountId = bankAccountId ?? '';
         _primaryAccountName = primaryAccountName;
-        _profilePictureUrl = profilePicture;
       });
     } catch (e) {
       _logger.e('Error loading user info: $e');
@@ -3174,70 +3175,59 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!mounted) return;
 
     try {
-      final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final supabaseStorage =
-          Provider.of<SupabaseStorageService>(context, listen: false);
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+      final profileProvider =
+          Provider.of<ProfileProvider>(context, listen: false);
+      final userId = storageService.getUserId();
 
-      // Clear existing profile picture first
-      setState(() {
-        _profilePictureUrl = null;
-      });
-
-      final userId = authService.currentUser?.id;
       if (userId != null) {
-        final profilePicture =
-            await supabaseStorage.getLatestProfilePictureUrl(userId);
-
-        if (mounted) {
-          setState(() {
-            _profilePictureUrl = profilePicture;
-          });
-        }
+        await profileProvider.loadProfilePicture(userId);
       }
     } catch (e) {
       _logger.e('Error in _loadProfilePicture: $e');
-      if (mounted) {
-        setState(() {
-          _profilePictureUrl = null;
-        });
-      }
     }
   }
 
   Widget _buildProfileImage() {
-    if (_profilePictureUrl == null) {
-      return _buildAvatarFallback();
-    }
+    return Consumer<ProfileProvider>(
+      builder: (context, profileProvider, child) {
+        final profilePictureUrl = profileProvider.profilePictureUrl;
+        if (profilePictureUrl == null) {
+          return _buildAvatarFallback();
+        }
 
-    return Image.network(
-      _profilePictureUrl!,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        _logger.e('Error loading profile image: $error');
-        return _buildAvatarFallback();
-      },
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Center(
-          child: CircularProgressIndicator(
-            value: loadingProgress.expectedTotalBytes != null
-                ? loadingProgress.cumulativeBytesLoaded /
-                    loadingProgress.expectedTotalBytes!
-                : null,
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(
-                _isDarkMode ? Colors.white70 : Colors.blue[200]!),
-          ),
+        return Image.network(
+          profilePictureUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            _logger.e('Error loading profile image: $error');
+            return _buildAvatarFallback();
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                    _isDarkMode ? Colors.white70 : Colors.blue[200]!),
+              ),
+            );
+          },
+          // Force image refresh by using key with URL
+          key: ValueKey(profilePictureUrl),
+          // Disable image caching
+          cacheWidth: null,
+          cacheHeight: null,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
         );
-      },
-      // Force image refresh by using key with URL
-      key: ValueKey(_profilePictureUrl),
-      // Disable image caching
-      cacheWidth: null,
-      cacheHeight: null,
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
       },
     );
   }
@@ -3994,9 +3984,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildGlassmorphicHeader() {
-    final profileProvider = Provider.of<ProfileProvider>(context);
-    _profilePictureUrl = profileProvider.profilePictureUrl;
-
     final darkModeOpacity = (0.65 + (_scrollOffset / 1000)).clamp(0.0, 0.8);
     final lightModeOpacity = (0.8 + (_scrollOffset / 1000)).clamp(0.0, 0.95);
     final borderOpacity = (0.05 + (_scrollOffset / 500)).clamp(0.0, 0.1);
@@ -4011,22 +3998,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           height: MediaQuery.of(context).padding.top + 52,
           decoration: BoxDecoration(
             color: _isDarkMode
-                ? const Color(0xFF0A0F1E).withOpacity(darkModeOpacity)
+                ? const Color(0xFF141B2E).withOpacity(darkModeOpacity)
                 : Colors.white.withOpacity(lightModeOpacity),
             border: Border(
               bottom: BorderSide(
-                color: (_isDarkMode ? Colors.white : Colors.black)
-                    .withOpacity(borderOpacity),
-                width: 0.5,
+                color: _isDarkMode
+                    ? Colors.white.withOpacity(borderOpacity)
+                    : Colors.black.withOpacity(borderOpacity),
               ),
             ),
           ),
           child: Padding(
             padding: EdgeInsets.only(
               top: MediaQuery.of(context).padding.top,
-              left: 16,
-              right: 16,
-              bottom: 8,
+              left: 20,
+              right: 20,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -4043,9 +4029,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ).then((result) {
                       // If we got a new profile picture URL back, update it
                       if (result != null && result is String) {
-                        setState(() {
-                          _profilePictureUrl = result;
-                        });
+                        final profileProvider = Provider.of<ProfileProvider>(
+                            context,
+                            listen: false);
+                        profileProvider.updateProfilePicture(result);
                       }
                     });
                   },
@@ -4079,35 +4066,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ],
                           ),
                           child: ClipOval(
-                            child: _profilePictureUrl != null
-                                ? Image.network(
-                                    _profilePictureUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      // Log the error
-                                      _logger.e(
-                                          'Error loading profile image: $error');
-                                      // Return fallback widget
-                                      return _buildAvatarFallback();
-                                    },
-                                    loadingBuilder:
-                                        (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Center(
-                                        child: CircularProgressIndicator(
-                                          value: loadingProgress
-                                                      .expectedTotalBytes !=
-                                                  null
-                                              ? loadingProgress
-                                                      .cumulativeBytesLoaded /
-                                                  loadingProgress
-                                                      .expectedTotalBytes!
-                                              : null,
-                                        ),
-                                      );
-                                    },
-                                  )
-                                : _buildAvatarFallback(),
+                            child: Consumer<ProfileProvider>(
+                              builder: (context, profileProvider, child) {
+                                final profilePictureUrl =
+                                    profileProvider.profilePictureUrl;
+                                if (profilePictureUrl == null) {
+                                  return _buildAvatarFallback();
+                                }
+                                return Image.network(
+                                  profilePictureUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    // Log the error
+                                    _logger.e(
+                                        'Error loading profile image: $error');
+                                    // Return fallback widget
+                                    return _buildAvatarFallback();
+                                  },
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        value: loadingProgress
+                                                    .expectedTotalBytes !=
+                                                null
+                                            ? loadingProgress
+                                                    .cumulativeBytesLoaded /
+                                                loadingProgress
+                                                    .expectedTotalBytes!
+                                            : null,
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
