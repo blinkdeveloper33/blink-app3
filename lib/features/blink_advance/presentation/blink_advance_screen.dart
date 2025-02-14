@@ -425,9 +425,9 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                           boxShadow: [
                             BoxShadow(
                               color: widget.isUser
-                                  ? const Color(0xFF1E3A8A).withOpacity(0.25)
-                                  : Colors.black.withOpacity(0.15),
-                              blurRadius: 12,
+                                  ? const Color(0xFF1E3A8A).withOpacity(0.3)
+                                  : Colors.black.withOpacity(0.2),
+                              blurRadius: 16,
                               offset: const Offset(0, 4),
                               spreadRadius: -2,
                             ),
@@ -444,8 +444,8 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                               ),
                               decoration: BoxDecoration(
                                 color: widget.isUser
-                                    ? const Color(0xFF1E3A8A).withOpacity(0.95)
-                                    : Colors.white.withOpacity(0.98),
+                                    ? const Color(0xFF1E3A8A).withOpacity(0.98)
+                                    : Colors.white.withOpacity(0.99),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   color: widget.isUser
@@ -774,9 +774,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    color: Colors.white.withOpacity(0.08),
+                    color: Colors.white.withOpacity(0.1),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.06),
+                      color: Colors.white.withOpacity(0.08),
                       width: 0.5,
                     ),
                   ),
@@ -974,8 +974,10 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
 
   Widget _buildFixedBottomSheet() {
     final screenHeight = MediaQuery.of(context).size.height;
-    final bottomSheetHeight =
-        screenHeight * 0.2 * 1.2; // 1/5 of screen height * 1.2 for extra height
+    final bottomSheetHeight = _conversationState ==
+            ConversationState.dateSelection
+        ? screenHeight * 0.2 * 1.2 * 1.2 // 1.2 times higher for date selection
+        : screenHeight * 0.2 * 1.2; // normal height for other states
 
     return Container(
       decoration: BoxDecoration(
@@ -993,7 +995,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           top: Radius.circular(28),
         ),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Container(
             height: _isBottomSheetCollapsed ? 60 : bottomSheetHeight,
             decoration: BoxDecoration(
@@ -1001,14 +1003,14 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withOpacity(0.15),
-                  Colors.white.withOpacity(0.1),
-                  Colors.white.withOpacity(0.05),
+                  Colors.white.withOpacity(0.18),
+                  Colors.white.withOpacity(0.12),
+                  Colors.white.withOpacity(0.06),
                 ],
               ),
               border: Border(
                 top: BorderSide(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.25),
                   width: 1,
                 ),
               ),
@@ -1123,20 +1125,24 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           ],
         );
       case ConversationState.dateSelection:
+        final baseFee = _selectedSpeed == TransferSpeed.instant ? 25.00 : 20.00;
+        final discountedFee = baseFee * 0.9; // 10% discount
         return Row(
           children: [
             Expanded(
               child: _buildCompactActionButton(
                 onTap: () => _handleDateSelection(RepaymentDate.sevenDays),
                 title: '7 Days',
-                subtitle: 'Save 10% on fees',
-                amount: '\$20.00',
+                subtitle: '10% Fee Discount',
+                amount: '\$${discountedFee.toStringAsFixed(2)}',
+                originalAmount: '\$${baseFee.toStringAsFixed(2)}',
                 emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 22),
                 gradientColors: [
                   Color(0xFF43A047),
                   Color(0xFF2E7D32),
                 ],
                 isHighlighted: true,
+                showDiscount: true,
               ),
             ),
             SizedBox(width: 12),
@@ -1145,7 +1151,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 onTap: () => _handleDateSelection(RepaymentDate.fifteenDays),
                 title: '15 Days',
                 subtitle: 'More flexibility',
-                amount: '\$25.00',
+                amount: '\$${baseFee.toStringAsFixed(2)}',
                 emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 22),
                 gradientColors: [
                   Color(0xFF5E35B1),
@@ -1198,9 +1204,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     required String title,
     required String subtitle,
     required String amount,
+    String? originalAmount,
     required AnimatedEmoji emoji,
     required List<Color> gradientColors,
     bool isHighlighted = false,
+    bool showDiscount = false,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1256,11 +1264,49 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 ),
                 if (amount.isNotEmpty) ...[
                   SizedBox(height: 6),
+                  if (showDiscount && originalAmount != null) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          originalAmount,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'Onest',
+                            decoration: TextDecoration.lineThrough,
+                            decorationColor: Colors.white.withOpacity(0.7),
+                            decorationThickness: 2,
+                          ),
+                        ),
+                        Container(
+                          margin: EdgeInsets.only(left: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '-10%',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'Onest',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                  ],
                   Text(
                     amount,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: showDiscount ? 20 : 18,
                       fontWeight: FontWeight.w700,
                       fontFamily: 'Onest',
                     ),
@@ -1464,10 +1510,27 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         _isLoading = true;
       });
 
-      // Simulate API call
-      await Future.delayed(Duration(seconds: 2));
+      // Show processing dialog for at least 2 seconds
+      await Future.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
+
+      final baseFee = _selectedSpeed == TransferSpeed.instant ? 25.00 : 20.00;
+      final isSevenDayRepayment =
+          _selectedDate!.difference(DateTime.now()).inDays <= 7;
+      final feeDiscount = isSevenDayRepayment ? 0.1 : 0.0;
+      final finalFee = baseFee * (1 - feeDiscount);
+
+      final advanceData = {
+        'amount': 200.0,
+        'repayment_amount': finalFee + 200.0, // Add advance amount to fee
+        'repayment_date': _selectedDate!.toIso8601String(),
+        'status': 'active',
+        'transfer_speed':
+            _selectedSpeed == TransferSpeed.instant ? 'instant' : 'standard',
+        'fee': finalFee,
+        'created_at': DateTime.now().toIso8601String()
+      };
 
       _addMessage(ChatMessage(
         text: "Great! Your \$200 advance has been approved! 🎉\n\n"
@@ -1478,10 +1541,11 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         emoji: AnimatedEmoji(AnimatedEmojis.partyPopper, size: 24),
       ));
 
-      Future.delayed(Duration(milliseconds: 5200), () {
-        if (!mounted) return;
-        Navigator.of(context).pop();
-      });
+      // Show success message for 2 seconds before returning to home
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (!mounted) return;
+      Navigator.of(context).pop(advanceData);
     } catch (e) {
       if (!mounted) return;
 
@@ -1658,9 +1722,9 @@ Ready to proceed?""",
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF1E40AF),
-            const Color(0xFF1E3A8A),
-            const Color(0xFF2563EB),
+            const Color(0xFF1E40AF).withOpacity(0.98),
+            const Color(0xFF1E3A8A).withOpacity(0.98),
+            const Color(0xFF2563EB).withOpacity(0.98),
           ],
           stops: const [0.0, 0.5, 1.0],
         ),
@@ -1672,8 +1736,10 @@ Ready to proceed?""",
     if (_scrollController.hasClients) {
       final extraPadding = _showQuickActions
           ? (_conversationState == ConversationState.dateSelection
-              ? 340.0
-              : 200.0)
+              ? 420.0 // Increased padding for the taller date selection sheet
+              : _conversationState == ConversationState.speedSelection
+                  ? 380.0 // Adequate padding for speed selection
+                  : 380.0) // Same padding for confirmation sheet
           : 0.0;
 
       _scrollController.animateTo(

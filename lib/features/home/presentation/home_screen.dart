@@ -124,6 +124,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // Add this timer variable
   Timer? _blinkAdvanceStatusTimer;
 
+  // Add these variables to the _HomeScreenState class
+  Map<String, dynamic>? _activeAdvanceData;
+
   void _performHapticFeedback(haptics.HapticsType type) {
     if (_hapticFeedbackEnabled) {
       haptics.Haptics.vibrate(type);
@@ -725,20 +728,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
 
     if (_hasActiveAdvance) {
-      Navigator.of(context).push(
+      Navigator.of(context)
+          .push(
         MaterialPageRoute(
           builder: (context) =>
               BlinkAdvanceScreen(bankAccountId: _bankAccountId),
         ),
-      );
+      )
+          .then((result) {
+        if (result != null && result is Map<String, dynamic>) {
+          setState(() {
+            _activeAdvanceData = result;
+            _hasActiveAdvance = true;
+          });
+        }
+      });
     } else if (_isBlinkAdvanceApproved) {
       if (_bankAccountId.isNotEmpty) {
-        Navigator.of(context).push(
+        Navigator.of(context)
+            .push(
           MaterialPageRoute(
             builder: (context) =>
                 BlinkAdvanceScreen(bankAccountId: _bankAccountId),
           ),
-        );
+        )
+            .then((result) {
+          if (result != null && result is Map<String, dynamic>) {
+            setState(() {
+              _activeAdvanceData = result;
+              _hasActiveAdvance = true;
+            });
+          }
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -3027,6 +3048,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildRepaymentBackCard(Color color, Color textColor) {
+    final hasActiveAdvance = _activeAdvanceData != null;
+    final repaymentAmount = hasActiveAdvance
+        ? _activeAdvanceData!['repayment_amount'] as double
+        : 0.0;
+    final repaymentDate = hasActiveAdvance
+        ? DateTime.parse(_activeAdvanceData!['repayment_date'])
+        : DateTime.now();
+    final daysUntilRepayment =
+        hasActiveAdvance ? repaymentDate.difference(DateTime.now()).inDays : 0;
+    final transferSpeed =
+        hasActiveAdvance ? _activeAdvanceData!['transfer_speed'] as String : '';
+    final fee = hasActiveAdvance ? _activeAdvanceData!['fee'] as double : 0.0;
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -3075,7 +3109,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                         const SizedBox(width: 3),
                         Text(
-                          'Next Payment',
+                          hasActiveAdvance
+                              ? 'Next Payment'
+                              : 'No Active Advance',
                           style: TextStyle(
                             color: textColor,
                             fontSize: 10,
@@ -3086,90 +3122,120 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      _flipRepaymentCard();
-                      _performHapticFeedback(haptics.HapticsType.medium);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
+                  if (hasActiveAdvance)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: textColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: AnimatedRotation(
-                        duration: const Duration(milliseconds: 300),
-                        turns: _isRepaymentCardFlipped ? 0.5 : 0,
-                        child: Icon(
-                          Icons.chevron_right_rounded,
-                          color: textColor.withOpacity(0.9),
-                          size: 16,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            transferSpeed == 'instant'
+                                ? Icons.bolt
+                                : Icons.schedule,
+                            color: textColor,
+                            size: 10,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            transferSpeed == 'instant' ? 'Instant' : 'Standard',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 10,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                '\$224.99',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 22,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.5,
+              if (hasActiveAdvance) ...[
+                const SizedBox(height: 12),
+                Text(
+                  currencyFormatter.format(repaymentAmount),
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 24,
+                    fontFamily: 'Onest',
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-              Text(
-                'Due in 7 days',
-                style: TextStyle(
-                  color: textColor.withOpacity(0.7),
-                  fontSize: 12,
-                  fontFamily: 'Onest',
+                const SizedBox(height: 4),
+                Text(
+                  'Due in $daysUntilRepayment days',
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.7),
+                    fontSize: 12,
+                    fontFamily: 'Onest',
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    _performHapticFeedback(haptics.HapticsType.medium);
-                    // TODO: Implement pay now functionality
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: Ink(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: textColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: textColor.withOpacity(0.2),
+                Text(
+                  'Includes ${currencyFormatter.format(fee)} fee',
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.6),
+                    fontSize: 11,
+                    fontFamily: 'Onest',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _performHapticFeedback(haptics.HapticsType.medium);
+                      // TODO: Implement pay now functionality
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Ink(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: textColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: textColor.withOpacity(0.2),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Pay Now',
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 12,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.w600,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Pay Now',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 12,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          color: textColor,
-                          size: 14,
-                        ),
-                      ],
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: textColor,
+                            size: 14,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ] else ...[
+                const SizedBox(height: 8),
+                Text(
+                  'No active advance to repay',
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.7),
+                    fontSize: 12,
+                    fontFamily: 'Onest',
+                  ),
+                ),
+              ],
             ],
           ),
         ),
