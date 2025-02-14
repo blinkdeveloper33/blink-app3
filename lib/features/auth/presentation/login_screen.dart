@@ -11,6 +11,7 @@ import 'package:animate_do/animate_do.dart';
 import 'dart:math' as math;
 import 'package:shimmer/shimmer.dart';
 import 'dart:convert';
+import 'package:animated_emoji/animated_emoji.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool showAppBar;
@@ -661,16 +662,26 @@ class _LoginScreenState extends State<LoginScreen>
                     children: [
                       FadeInLeft(
                         duration: const Duration(milliseconds: 600),
-                        child: const Text(
-                          'Welcome Back!',
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                            letterSpacing: -0.5,
-                          ),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Welcome Back!',
+                              style: TextStyle(
+                                fontFamily: 'Onest',
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const AnimatedEmoji(
+                              AnimatedEmojis.partyPopper,
+                              size: 32,
+                              repeat: true,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 8),

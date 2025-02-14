@@ -6,6 +6,7 @@ import 'package:blink_app/features/auth/presentation/login_screen.dart';
 import 'package:logger/logger.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:animated_emoji/animated_emoji.dart';
 
 class SignUpScreen extends StatefulWidget {
   final bool showAppBar;
@@ -343,16 +344,26 @@ class _SignUpScreenState extends State<SignUpScreen>
                       // Title
                       FadeInLeft(
                         duration: const Duration(milliseconds: 600),
-                        child: const Text(
-                          'Welcome to Blink',
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                            letterSpacing: -0.5,
-                          ),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Welcome to Blink',
+                              style: TextStyle(
+                                fontFamily: 'Onest',
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const AnimatedEmoji(
+                              AnimatedEmojis.wave,
+                              size: 32,
+                              repeat: true,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -360,7 +371,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                         duration: const Duration(milliseconds: 600),
                         delay: const Duration(milliseconds: 200),
                         child: Text(
-                          'Sign up to get started',
+                          'Are you new to Blink? Sign up to get Cash',
                           style: TextStyle(
                             fontFamily: 'Onest',
                             color: Colors.white.withOpacity(0.9),

@@ -39,6 +39,10 @@ enum HapticsType {
   rigid,
 }
 
+enum TransferSpeed { instant, standard }
+
+enum RepaymentDate { sevenDays, fifteenDays }
+
 class AnimatedBackground extends StatefulWidget {
   final Widget child;
 
@@ -330,16 +334,16 @@ class CustomChatBubble extends StatefulWidget {
   final bool isUser;
   final DateTime timestamp;
   final bool isAnimating;
-  final AnimatedEmoji? emoji;
+  final Widget? emoji;
 
   const CustomChatBubble({
-    super.key,
+    Key? key,
     required this.message,
     required this.isUser,
     required this.timestamp,
     this.isAnimating = false,
     this.emoji,
-  });
+  }) : super(key: key);
 
   @override
   State<CustomChatBubble> createState() => _CustomChatBubbleState();
@@ -356,24 +360,24 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
     _scaleAnimation = Tween<double>(
-      begin: 0.0,
+      begin: 0.95,
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutBack,
+      curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
     ));
 
     _slideAnimation = Tween<double>(
-      begin: widget.isUser ? 50.0 : -50.0,
+      begin: widget.isUser ? 20.0 : -20.0,
       end: 0.0,
     ).animate(CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
+      curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
     ));
 
     _opacityAnimation = Tween<double>(
@@ -381,7 +385,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOut,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
     ));
 
     _controller.forward();
@@ -396,137 +400,175 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-        left: widget.isUser ? 64 : 16,
-        right: widget.isUser ? 16 : 64,
-        bottom: 8,
-      ),
-      child: Column(
-        crossAxisAlignment:
-            widget.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: Row(
+        mainAxisAlignment:
+            widget.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment:
-                widget.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Flexible(
-                child: AnimatedBuilder(
-                  animation: _controller,
-                  builder: (context, child) {
-                    return Transform.translate(
-                      offset: Offset(_slideAnimation.value, 0),
-                      child: Opacity(
-                        opacity: _opacityAnimation.value,
-                        child: Transform.scale(
-                          scale: _scaleAnimation.value,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (widget.isUser
-                                          ? Colors.blue
-                                          : Colors.black)
-                                      .withOpacity(0.1),
-                                  offset: Offset(0, 4),
-                                  blurRadius: 12,
-                                  spreadRadius: 2,
-                                ),
-                              ],
+          Flexible(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(_slideAnimation.value, 0),
+                  child: Opacity(
+                    opacity: _opacityAnimation.value,
+                    child: Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: widget.isUser
+                                  ? const Color(0xFF1E3A8A).withOpacity(0.25)
+                                  : Colors.black.withOpacity(0.15),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                              spreadRadius: -2,
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: BackdropFilter(
-                                filter:
-                                    ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                child: Container(
-                                  padding: EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: widget.isUser
-                                        ? Colors.blue.shade500.withOpacity(0.9)
-                                        : Colors.grey.shade900.withOpacity(0.8),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(
-                                      color: widget.isUser
-                                          ? Colors.blue.shade300
-                                          : Colors.grey.shade800,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Column(
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: widget.isUser
+                                    ? const Color(0xFF1E3A8A).withOpacity(0.95)
+                                    : Colors.white.withOpacity(0.98),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: widget.isUser
+                                      ? Colors.white.withOpacity(0.15)
+                                      : const Color(0xFF1E3A8A)
+                                          .withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              widget.message.text,
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                height: 1.4,
-                                                letterSpacing: 0.2,
-                                              ),
-                                            ).animate().fadeIn(
-                                                  duration: 300.ms,
-                                                  curve: Curves.easeOut,
-                                                ),
+                                      Flexible(
+                                        child: Text(
+                                          widget.message.text,
+                                          style: TextStyle(
+                                            fontFamily: 'Onest',
+                                            color: widget.isUser
+                                                ? Colors.white
+                                                : const Color(0xFF1E3A8A),
+                                            fontSize: 16,
+                                            height: 1.5,
+                                            letterSpacing: 0.3,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                          if (widget.emoji != null) ...[
-                                            const SizedBox(width: 8),
-                                            widget.emoji!,
-                                          ],
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            DateFormat('HH:mm')
-                                                .format(widget.timestamp),
-                                            style: TextStyle(
-                                              color:
-                                                  Colors.white.withOpacity(0.6),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
+                                        ).animate().fadeIn(
+                                              duration: 300.ms,
+                                              curve: Curves.easeOut,
                                             ),
-                                          ),
-                                          if (!widget.isUser) ...[
-                                            const SizedBox(width: 6),
-                                            Icon(
-                                              Icons.check_circle,
-                                              size: 12,
-                                              color: Colors.blue.shade300,
-                                            ).animate().scale(
-                                                  duration: 200.ms,
-                                                  delay: 300.ms,
-                                                  curve: Curves.easeOut,
-                                                ),
-                                          ],
-                                        ],
                                       ),
+                                      if (widget.emoji != null) ...[
+                                        const SizedBox(width: 8),
+                                        widget.emoji!,
+                                      ],
                                     ],
                                   ),
-                                ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        DateFormat('HH:mm')
+                                            .format(widget.timestamp),
+                                        style: TextStyle(
+                                          fontFamily: 'Onest',
+                                          color: widget.isUser
+                                              ? Colors.white.withOpacity(0.7)
+                                              : const Color(0xFF1E3A8A)
+                                                  .withOpacity(0.6),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (!widget.isUser) ...[
+                                        const SizedBox(width: 6),
+                                        Icon(
+                                          Icons.check_circle,
+                                          size: 12,
+                                          color: const Color(0xFF1E3A8A)
+                                              .withOpacity(0.6),
+                                        ).animate().scale(
+                                              duration: 200.ms,
+                                              delay: 300.ms,
+                                              curve: Curves.easeOut,
+                                            ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-              if (widget.isUser) _buildUserAvatar(),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (widget.isUser) _buildUserAvatar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAssistantAvatar() {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF1E40AF),
+              const Color(0xFF2563EB),
             ],
           ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1E40AF).withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Image.asset(
+            'assets/images/blink_logo_white.png',
+            width: 20,
+            height: 20,
+            fit: BoxFit.contain,
+          ),
+        ),
       ),
     );
   }
@@ -596,264 +638,205 @@ class BlinkAdvanceScreen extends StatefulWidget {
 
 class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     with TickerProviderStateMixin {
+  bool _isBottomSheetCollapsed = false;
+  bool _showQuickActions = false;
+  final ScrollController _scrollController = ScrollController();
+  late AnimationController _inputSectionController;
+  late AnimationController _sectionTransitionController;
+  late AnimationController _backgroundPulseController;
+  late Animation<double> _sectionExitAnimation;
+  late Animation<double> _sectionEntryAnimation;
+  late Animation<double> _backgroundPulseAnimation;
   ConversationState _conversationState = ConversationState.initial;
+  TransferSpeed? _selectedSpeed;
+  DateTime? _selectedDate;
   final List<ChatMessage> _messages = [];
   String _userName = '';
   final double _advanceAmount = 200.0;
-  TransferSpeed? _selectedSpeed;
-  DateTime? _selectedDate;
-  late ScrollController _scrollController;
-  int? _animatingMessageIndex;
-  bool _isTyping = false;
-  final GlobalKey _confettiKey = GlobalKey();
-  late AnimationController _fadeController;
-  late AnimationController _inputSectionController;
   late Animation<Offset> _inputSectionAnimation;
   String? _bankAccountId = '';
-  bool _showQuickActions = false;
   bool _isLoading = false;
+  bool _isTyping = false;
   late AnimationController _confettiController;
-  late AnimationController _backgroundController;
-  late Animation<double> _gradientAnimation;
-  late List<BackgroundParticle> _particles;
-  final _random = Random();
-  double _scrollBlur = 0.0;
-  final _maxBlur = 10.0;
-  Offset? _touchPosition;
-  double _touchIntensity = 0.0;
-  final _maxTouchIntensity = 0.8;
   final List<int> _sectionBreaks = [];
   double _previousSectionOffset = 0.0;
+  final GlobalKey _confettiKey = GlobalKey();
+  int? _animatingMessageIndex;
+  bool _isTransitioning = false;
+  List<double> _messageOffsets = [];
+  final double _collapsedHeight = 80.0;
+  final double _expandedHeight = 380.0;
 
   @override
   void initState() {
     super.initState();
+    _initializeControllers();
+    _loadUserName();
+    _addInitialMessage();
+  }
+
+  void _initializeControllers() {
     _bankAccountId = widget.bankAccountId;
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
+
+    // Input section controller for bottom sheet
     _inputSectionController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _inputSectionAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: const Offset(0, 0),
-    ).animate(CurvedAnimation(
-      parent: _inputSectionController,
-      curve: Curves.easeOutExpo,
-    ));
-    _loadUserName();
-    _addInitialMessage();
-    _fadeController.forward();
-    _scrollController = ScrollController();
 
-    _confettiController = AnimationController(
+    // Section transition controller
+    _sectionTransitionController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
-      duration: Duration(milliseconds: 2000),
     );
 
-    _backgroundController = AnimationController(
-      duration: const Duration(seconds: 10),
+    // Background pulse controller
+    _backgroundPulseController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
-    )..repeat();
+    );
 
-    _gradientAnimation = Tween<double>(
+    _inputSectionAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _inputSectionController,
+      curve: Curves.easeInOut,
+    ));
+
+    _sectionExitAnimation = CurvedAnimation(
+      parent: _sectionTransitionController,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeOutCubic),
+    );
+
+    _sectionEntryAnimation = CurvedAnimation(
+      parent: _sectionTransitionController,
+      curve: const Interval(0.5, 1.0, curve: Curves.easeOutCubic),
+    );
+
+    _backgroundPulseAnimation = Tween<double>(
       begin: 0.0,
-      end: 2 * pi,
-    ).animate(_backgroundController);
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _backgroundPulseController,
+      curve: Curves.easeInOut,
+    ));
 
-    _particles = List.generate(
-      20,
-      (index) => BackgroundParticle(
-        x: _random.nextDouble(),
-        y: _random.nextDouble(),
-        dx: _random.nextDouble() * 0.2 - 0.1,
-        dy: _random.nextDouble() * 0.2 - 0.1,
-        size: _random.nextDouble() * 2 + 1,
-        alpha: _random.nextDouble() * 0.5 + 0.1,
-      ),
+    _confettiController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
     );
 
     _scrollController.addListener(_handleScroll);
   }
 
   void _handleScroll() {
-    final velocity = _scrollController.position.activity?.velocity ?? 0.0;
-    setState(() {
-      _scrollBlur = (velocity.abs() / 1000).clamp(0.0, _maxBlur);
-    });
-  }
-
-  void _handleTapDown(TapDownDetails details) {
-    setState(() {
-      _touchPosition = details.localPosition;
-      _touchIntensity = _maxTouchIntensity;
-    });
-  }
-
-  void _handleTapUp(TapUpDetails details) {
-    setState(() {
-      _touchPosition = null;
-      _touchIntensity = 0.0;
-    });
-  }
-
-  void _handleTapCancel() {
-    setState(() {
-      _touchPosition = null;
-      _touchIntensity = 0.0;
-    });
+    if (!_scrollController.hasClients) return;
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
     _inputSectionController.dispose();
+    _sectionTransitionController.dispose();
+    _backgroundPulseController.dispose();
     _scrollController.dispose();
     _confettiController.dispose();
-    _backgroundController.dispose();
     super.dispose();
+  }
+
+  void _toggleBottomSheet() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _isBottomSheetCollapsed = !_isBottomSheetCollapsed;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          GestureDetector(
-            onTapDown: _handleTapDown,
-            onTapUp: _handleTapUp,
-            onTapCancel: _handleTapCancel,
-            child: AnimatedBuilder(
-              animation: _backgroundController,
-              builder: (context, child) {
-                return BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: _scrollBlur,
-                    sigmaY: _scrollBlur,
-                  ),
-                  child: CustomPaint(
-                    painter: BackgroundPainter(
-                      gradientAngle: _gradientAnimation.value,
-                      particles: _particles,
-                      isDarkMode:
-                          Theme.of(context).brightness == Brightness.dark,
-                      touchPosition: _touchPosition,
-                      touchIntensity: _touchIntensity,
-                    ),
-                    size: Size.infinite,
-                  ),
-                );
-              },
-            ),
-          ),
-          ConfettiOverlay(
-            key: _confettiKey,
-            child: Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(48),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: AppBar(
+              toolbarHeight: 48,
               backgroundColor: Colors.transparent,
-              body: SafeArea(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.only(
-                          top: 16,
-                          bottom: _showQuickActions
-                              ? (_conversationState ==
-                                      ConversationState.dateSelection
-                                  ? 340
-                                  : 200)
-                              : 20,
+              elevation: 0,
+              leadingWidth: 48,
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Container(
+                  height: 32,
+                  width: 32,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white.withOpacity(0.08),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.06),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white.withOpacity(0.7),
+                          size: 14,
                         ),
-                        itemCount: _messages.length + (_isTyping ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == _messages.length && _isTyping) {
-                            return _buildTypingIndicator();
-                          }
-
-                          final message = _messages[index];
-                          final isLastMessage = index == _messages.length - 1;
-                          final isStartOfSection =
-                              _sectionBreaks.contains(index - 1);
-
-                          return Column(
-                            children: [
-                              if (isStartOfSection)
-                                Container(
-                                  margin: EdgeInsets.symmetric(vertical: 16),
-                                  child: Container(
-                                    height: 1,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.white.withOpacity(0),
-                                          Colors.white.withOpacity(0.15),
-                                          Colors.white.withOpacity(0),
-                                        ],
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              Padding(
-                                padding: EdgeInsets.only(
-                                  bottom: isLastMessage &&
-                                          _conversationState ==
-                                              ConversationState.dateSelection
-                                      ? 16.0
-                                      : 0.0,
-                                ),
-                                child: CustomChatBubble(
-                                  message: message,
-                                  isUser: message.isUser,
-                                  timestamp: message.timestamp,
-                                  isAnimating:
-                                      _animatingMessageIndex == index &&
-                                          !message.isUser,
-                                  emoji: message.emoji,
-                                )
-                                    .animate()
-                                    .fadeIn(
-                                        duration: 200.ms, curve: Curves.easeOut)
-                                    .slideY(
-                                      begin: 0.1,
-                                      end: 0,
-                                      duration: 200.ms,
-                                      curve: Curves.easeOut,
-                                    ),
-                              ),
-                            ],
-                          );
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          Navigator.of(context).pop();
                         },
+                        style: ButtonStyle(
+                          overlayColor: MaterialStateProperty.all(
+                            Colors.white.withOpacity(0.05),
+                          ),
+                        ),
                       ),
                     ),
-                    if (_showQuickActions && !_isTyping)
-                      SlideTransition(
-                        position: _inputSectionAnimation,
-                        child: Container(
-                          margin: EdgeInsets.only(top: 16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.1),
-                                Colors.black.withOpacity(0.2),
-                              ],
-                            ),
-                          ),
-                          child: _buildQuickActionsSection(),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
               ),
+              flexibleSpace: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.03),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              systemOverlayStyle: SystemUiOverlayStyle.light,
             ),
+          ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: _buildBackground(),
+          ),
+          Column(
+            children: [
+              Expanded(
+                child: SafeArea(
+                  bottom: false,
+                  child: _buildMessageList(),
+                ),
+              ),
+              if (_showQuickActions) _buildFixedBottomSheet(),
+            ],
           ),
         ],
       ),
@@ -870,12 +853,14 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   }
 
   void _addInitialMessage() {
-    Future.delayed(Duration(milliseconds: 1200), () {
+    // Initial delay before starting the conversation
+    Future.delayed(const Duration(milliseconds: 800), () {
       if (!mounted) return;
       setState(() {
         _conversationState = ConversationState.initial;
       });
 
+      // First message - Welcome
       _addMessage(ChatMessage(
         text: 'Welcome back, $_userName! 👋',
         isUser: false,
@@ -883,18 +868,28 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         emoji: AnimatedEmoji(AnimatedEmojis.sparkles, size: 24),
       ));
 
-      Future.delayed(Duration(milliseconds: 1200), () {
+      // Second message - After 3 seconds
+      Future.delayed(const Duration(milliseconds: 3000), () {
         if (!mounted) return;
+
+        // Add subtle haptic feedback
+        HapticFeedback.selectionClick();
+
         _addMessage(ChatMessage(
           text:
-              'Need extra cash? You can get an instant \$200 advance right now! 💫',
+              'Are you looking for Extra Cash? You can get a \$200 Advance right now! 💫',
           isUser: false,
           timestamp: DateTime.now(),
           emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 24),
         ));
 
-        Future.delayed(Duration(milliseconds: 1200), () {
+        // Third message - After another 3 seconds
+        Future.delayed(const Duration(milliseconds: 3000), () {
           if (!mounted) return;
+
+          // Add subtle haptic feedback
+          HapticFeedback.selectionClick();
+
           _addMessage(ChatMessage(
             text: 'How quickly would you like to receive your funds?',
             isUser: false,
@@ -902,13 +897,20 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             emoji: AnimatedEmoji(AnimatedEmojis.rocket, size: 24),
           ));
 
-          Future.delayed(Duration(milliseconds: 1500), () {
+          // Show speed selection options after 3 seconds
+          Future.delayed(const Duration(milliseconds: 3000), () {
             if (!mounted) return;
+
+            // Add medium haptic feedback for the transition
+            HapticFeedback.mediumImpact();
+
             setState(() {
               _conversationState = ConversationState.speedSelection;
               _showQuickActions = true;
-              _inputSectionController.forward();
             });
+
+            // Animate the bottom sheet smoothly
+            _inputSectionController.forward();
           });
         });
       });
@@ -970,52 +972,101 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     );
   }
 
-  Widget _buildQuickActionsSection() {
-    if (!_showQuickActions) return const SizedBox.shrink();
+  Widget _buildFixedBottomSheet() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomSheetHeight =
+        screenHeight * 0.2 * 1.2; // 1/5 of screen height * 1.2 for extra height
 
-    return ClipRRect(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.white.withOpacity(0.12),
-                Colors.white.withOpacity(0.08),
-                Colors.white.withOpacity(0.05),
-              ],
-            ),
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withOpacity(0.15),
-                width: 1,
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+            spreadRadius: -5,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: _isBottomSheetCollapsed ? 60 : bottomSheetHeight,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.15),
+                  Colors.white.withOpacity(0.1),
+                  Colors.white.withOpacity(0.05),
+                ],
+              ),
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
               ),
             ),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(2),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onVerticalDragEnd: (details) {
+                      if (details.primaryVelocity! > 0) {
+                        if (!_isBottomSheetCollapsed) _toggleBottomSheet();
+                      } else if (details.primaryVelocity! < 0) {
+                        if (_isBottomSheetCollapsed) _toggleBottomSheet();
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
-                if (_conversationState == ConversationState.speedSelection)
-                  _buildSpeedOptions()
-                else if (_conversationState == ConversationState.dateSelection)
-                  _buildDateOptions()
-                else if (_conversationState == ConversationState.summary)
-                  _buildConfirmationOptions(),
-              ],
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _getBottomSheetTitle(),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                                fontFamily: 'Onest',
+                              ),
+                            ).animate().fadeIn(
+                                  duration: 400.ms,
+                                  curve: Curves.easeOut,
+                                ),
+                            const SizedBox(height: 12),
+                            _buildBottomSheetContent(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1023,287 +1074,291 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     );
   }
 
-  Widget _buildActionButton({
+  String _getBottomSheetTitle() {
+    switch (_conversationState) {
+      case ConversationState.speedSelection:
+        return 'Select Transfer Speed';
+      case ConversationState.dateSelection:
+        return 'Select Repayment Date';
+      case ConversationState.summary:
+        return 'Confirm Advance';
+      default:
+        return '';
+    }
+  }
+
+  Widget _buildBottomSheetContent() {
+    switch (_conversationState) {
+      case ConversationState.speedSelection:
+        return Row(
+          children: [
+            Expanded(
+              child: _buildCompactActionButton(
+                onTap: () => _handleSpeedSelection(TransferSpeed.instant),
+                title: 'Instant',
+                subtitle: 'Minutes',
+                amount: '\$25.00',
+                emoji: AnimatedEmoji(AnimatedEmojis.electricity, size: 22),
+                gradientColors: [
+                  Color(0xFF9C27B0),
+                  Color(0xFF7B1FA2),
+                ],
+                isHighlighted: true,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: _buildCompactActionButton(
+                onTap: () => _handleSpeedSelection(TransferSpeed.standard),
+                title: 'Standard',
+                subtitle: '1-3 days',
+                amount: '\$20.00',
+                emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 22),
+                gradientColors: [
+                  Color(0xFF1E88E5),
+                  Color(0xFF1976D2),
+                ],
+              ),
+            ),
+          ],
+        );
+      case ConversationState.dateSelection:
+        return Row(
+          children: [
+            Expanded(
+              child: _buildCompactActionButton(
+                onTap: () => _handleDateSelection(RepaymentDate.sevenDays),
+                title: '7 Days',
+                subtitle: 'Save 10% on fees',
+                amount: '\$20.00',
+                emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 22),
+                gradientColors: [
+                  Color(0xFF43A047),
+                  Color(0xFF2E7D32),
+                ],
+                isHighlighted: true,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: _buildCompactActionButton(
+                onTap: () => _handleDateSelection(RepaymentDate.fifteenDays),
+                title: '15 Days',
+                subtitle: 'More flexibility',
+                amount: '\$25.00',
+                emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 22),
+                gradientColors: [
+                  Color(0xFF5E35B1),
+                  Color(0xFF4527A0),
+                ],
+              ),
+            ),
+          ],
+        );
+      case ConversationState.summary:
+        return Row(
+          children: [
+            Expanded(
+              child: _buildCompactActionButton(
+                onTap: () => _handleConfirmation(true),
+                title: 'Confirm',
+                subtitle: 'Process advance',
+                amount: '\$200.00',
+                emoji: AnimatedEmoji(AnimatedEmojis.checkMark, size: 22),
+                gradientColors: [
+                  Color(0xFF43A047),
+                  Color(0xFF2E7D32),
+                ],
+                isHighlighted: true,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: _buildCompactActionButton(
+                onTap: () => _handleConfirmation(false),
+                title: 'Cancel',
+                subtitle: 'Exit process',
+                amount: '',
+                emoji: AnimatedEmoji(AnimatedEmojis.crossMark, size: 22),
+                gradientColors: [
+                  Color(0xFFE53935),
+                  Color(0xFFC62828),
+                ],
+              ),
+            ),
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildCompactActionButton({
     required VoidCallback onTap,
     required String title,
     required String subtitle,
     required String amount,
     required AnimatedEmoji emoji,
     required List<Color> gradientColors,
-    String? additionalInfo,
     bool isHighlighted = false,
   }) {
-    return MouseRegion(
-      onEnter: (_) => HapticFeedback.lightImpact(),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: gradientColors.first.withOpacity(0.3),
-              blurRadius: 20,
-              offset: Offset(0, 8),
-              spreadRadius: -4,
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(28),
-            splashColor: Colors.white.withOpacity(0.1),
-            highlightColor: Colors.white.withOpacity(0.2),
-            child: Container(
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: gradientColors,
-                ),
-                border: Border.all(
-                  color: Colors.white.withOpacity(isHighlighted ? 0.3 : 0.15),
-                  width: 1,
-                ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.first.withOpacity(0.2),
+            blurRadius: 15,
+            offset: Offset(0, 4),
+            spreadRadius: -2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: gradientColors,
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      emoji,
-                      SizedBox(width: 12),
-                      Text(
+              border: Border.all(
+                color: Colors.white.withOpacity(isHighlighted ? 0.3 : 0.15),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    emoji,
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
                         title,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    amount,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  if (additionalInfo != null) ...[
-                    SizedBox(height: 12),
-                    Container(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        additionalInfo,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
+                          fontFamily: 'Onest',
                         ),
                       ),
                     ),
                   ],
+                ),
+                if (amount.isNotEmpty) ...[
+                  SizedBox(height: 6),
+                  Text(
+                    amount,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
                 ],
-              ),
+                SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: 'Onest',
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      )
-          .animate()
-          .scale(
-            duration: 200.ms,
-            curve: Curves.easeOut,
-            begin: Offset(0.97, 0.97),
-            end: Offset(1, 1),
-          )
-          .fadeIn(duration: 300.ms, curve: Curves.easeOut),
-    );
+      ),
+    ).animate().scale(
+          duration: 200.ms,
+          curve: Curves.easeOut,
+        );
   }
 
-  Widget _buildSpeedOptions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildActionButton(
-          onTap: () => _handleSpeedSelection(TransferSpeed.instant),
-          title: 'Instant Transfer',
-          subtitle: 'Funds available in minutes',
-          amount: '\$24.99',
-          emoji: AnimatedEmoji(AnimatedEmojis.electricity, size: 26),
-          gradientColors: [
-            Color(0xFF9C27B0),
-            Color(0xFF7B1FA2),
-            Color(0xFF6A1B9A),
-          ],
-          additionalInfo: '⚡️ Instant processing',
-          isHighlighted: true,
-        ),
-        SizedBox(height: 16),
-        _buildActionButton(
-          onTap: () => _handleSpeedSelection(TransferSpeed.standard),
-          title: 'Standard Transfer',
-          subtitle: '1-3 business days',
-          amount: '\$19.99',
-          emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 26),
-          gradientColors: [
-            Color(0xFF1E88E5),
-            Color(0xFF1976D2),
-            Color(0xFF1565C0),
-          ],
-          additionalInfo: '💰 Best value option',
-        ),
-      ],
-    )
-        .animate()
-        .slideY(
-          begin: 0.2,
-          duration: 600.ms,
-          curve: Curves.easeOutQuart,
-        )
-        .fadeIn(duration: 400.ms);
-  }
-
-  Widget _buildDateOptions() {
-    final sevenDaysFromNow = DateTime.now().add(Duration(days: 7));
-    final fifteenDaysFromNow = DateTime.now().add(Duration(days: 15));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildActionButton(
-          onTap: () => _handleDateSelection(sevenDaysFromNow),
-          title: '7 Days',
-          subtitle: DateFormat('MMMM d, yyyy').format(sevenDaysFromNow),
-          amount: '10% OFF',
-          emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 26),
-          gradientColors: [
-            Color(0xFF9C27B0),
-            Color(0xFF7B1FA2),
-            Color(0xFF6A1B9A),
-          ],
-          additionalInfo: 'Early Repayment Discount',
-          isHighlighted: true,
-        ),
-        SizedBox(height: 16),
-        _buildActionButton(
-          onTap: () => _handleDateSelection(fifteenDaysFromNow),
-          title: '15 Days',
-          subtitle: DateFormat('MMMM d, yyyy').format(fifteenDaysFromNow),
-          amount: 'Standard',
-          emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 26),
-          gradientColors: [
-            Color(0xFF1E88E5),
-            Color(0xFF1976D2),
-            Color(0xFF1565C0),
+  Widget _buildHomeButton() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.1),
           ],
         ),
-        SizedBox(height: 20),
-        TextButton.icon(
-          onPressed: () {
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+            spreadRadius: -2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
             HapticFeedback.mediumImpact();
             Navigator.of(context).pop();
           },
-          icon: Icon(Icons.arrow_back_rounded, size: 20),
-          label: Text('Return to Home'),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.white.withOpacity(0.9),
-            padding: EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: Colors.white.withOpacity(0.2),
-              ),
-            ),
-            textStyle: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.5,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.home_rounded,
+                  size: 24,
+                  color: Colors.white.withOpacity(0.9),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Return to Home',
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     )
         .animate()
-        .slideY(
-          begin: 0.2,
-          duration: 600.ms,
-          curve: Curves.easeOutQuart,
+        .fadeIn(
+          duration: 400.ms,
+          curve: Curves.easeOut,
         )
-        .fadeIn(duration: 400.ms);
-  }
-
-  Widget _buildConfirmationOptions() {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () => _handleConfirmation(true),
-            child: Text('Confirm'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.withOpacity(0.8),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-        ),
-        SizedBox(width: 8),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () => _handleConfirmation(false),
-            child: Text('Cancel'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.withOpacity(0.8),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      final extraPadding = _showQuickActions
-          ? (_conversationState == ConversationState.dateSelection
-              ? 340.0
-              : 200.0)
-          : 0.0;
-
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + extraPadding,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    }
+        .scale(
+          duration: 400.ms,
+          curve: Curves.easeOut,
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1, 1),
+        );
   }
 
   void _handleSpeedSelection(TransferSpeed speed) {
@@ -1314,15 +1369,17 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       _inputSectionController.reverse();
     });
 
+    // Add user message immediately
     _addMessage(ChatMessage(
       text: speed == TransferSpeed.instant
-          ? "I'd like to receive my funds instantly with the \$24.99 fee. ⚡️"
-          : "I'll go with the standard transfer for \$19.99. 📅",
+          ? "I'd like to receive my funds instantly with the \$25.00 fee. ⚡️"
+          : "I'll go with the Standard Transfer for \$20.00. 📅",
       isUser: true,
       timestamp: DateTime.now(),
     ));
 
-    Future.delayed(Duration(milliseconds: 800), () {
+    // First assistant response after 3 seconds
+    Future.delayed(const Duration(milliseconds: 3000), () {
       if (!mounted) return;
       _addMessage(ChatMessage(
         text: speed == TransferSpeed.instant
@@ -1332,7 +1389,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         timestamp: DateTime.now(),
       ));
 
-      Future.delayed(Duration(milliseconds: 800), () {
+      // Second assistant response after another 3 seconds
+      Future.delayed(const Duration(milliseconds: 3000), () {
         if (!mounted) return;
         _addMessage(ChatMessage(
           text:
@@ -1342,104 +1400,60 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 24),
         ));
 
-        Future.delayed(Duration(milliseconds: 2500), () {
+        // Show date selection options after the last message
+        Future.delayed(const Duration(milliseconds: 3000), () {
           if (!mounted) return;
           setState(() {
             _conversationState = ConversationState.dateSelection;
-          });
-
-          _scrollToBottom();
-
-          Future.delayed(Duration(milliseconds: 300), () {
-            if (!mounted) return;
-            setState(() {
-              _showQuickActions = true;
-              _inputSectionController.forward();
-            });
+            _showQuickActions = true;
           });
         });
       });
     });
   }
 
-  void _handleDateSelection(DateTime date) {
+  void _handleDateSelection(RepaymentDate date) {
     HapticFeedback.selectionClick();
     setState(() {
-      _selectedDate = date;
+      _selectedDate = date == RepaymentDate.sevenDays
+          ? DateTime.now().add(Duration(days: 7))
+          : DateTime.now().add(Duration(days: 15));
       _showQuickActions = false;
-      _inputSectionController.reverse();
     });
 
-    final isSevenDays = date.difference(DateTime.now()).inDays <= 7;
-    final baseFee = _selectedSpeed == TransferSpeed.instant ? 24.99 : 19.99;
-    final finalFee = isSevenDays ? baseFee * 0.9 : baseFee;
-
+    // Add user message immediately
     _addMessage(ChatMessage(
-      text:
-          "I'll repay on ${DateFormat('MMMM d, yyyy').format(date)}. ${isSevenDays ? "That's with the 10% discount! 🎉" : ""} 📅",
+      text: date == RepaymentDate.sevenDays
+          ? "I'll repay in 7 days and save 10% on fees! 💰"
+          : "I'll take 15 days for more flexibility with repayment. 📅",
       isUser: true,
       timestamp: DateTime.now(),
     ));
 
-    Future.delayed(Duration(milliseconds: 800), () {
+    // First assistant response after 3 seconds
+    Future.delayed(const Duration(milliseconds: 3000), () {
       if (!mounted) return;
+      _addMessage(ChatMessage(
+        text: date == RepaymentDate.sevenDays
+            ? "Great choice! You'll save money with the 7-day repayment. 🎯"
+            : "Perfect! You'll have more time to manage your repayment. ⏳",
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
 
-      if (isSevenDays) {
-        _addMessage(ChatMessage(
-          text:
-              "Excellent! With the early repayment discount, your fee is reduced to \$${finalFee.toStringAsFixed(2)}. You're saving \$${(baseFee * 0.1).toStringAsFixed(2)}! 🎉",
-          isUser: false,
-          timestamp: DateTime.now(),
-        ));
-      }
-
-      Future.delayed(Duration(milliseconds: 800), () {
+      // Second assistant response after another 3 seconds
+      Future.delayed(const Duration(milliseconds: 3000), () {
         if (!mounted) return;
         _showAdvanceSummary();
 
-        Future.delayed(Duration(milliseconds: 1000), () {
+        // Show confirmation options after the summary
+        Future.delayed(const Duration(milliseconds: 3000), () {
           if (!mounted) return;
           setState(() {
             _conversationState = ConversationState.summary;
             _showQuickActions = true;
-            _inputSectionController.forward();
           });
         });
-      });
-    });
-  }
-
-  void _handleConfirmation(bool confirmed) {
-    if (confirmed) {
-      setState(() {
-        _isLoading = true;
-      });
-      _processAdvance();
-    } else {
-      _handleCancellation();
-    }
-  }
-
-  void _handleCancellation() {
-    _addMessage(ChatMessage(
-      text: "I'd like to cancel this advance request.",
-      isUser: true,
-      timestamp: DateTime.now(),
-    ));
-
-    Future.delayed(Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      _addMessage(ChatMessage(
-        text:
-            "No problem at all! Feel free to come back whenever you need a cash advance. Have a great day! ✨",
-        isUser: false,
-        timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
-      ));
-
-      Future.delayed(Duration(milliseconds: 5200), () {
-        if (!mounted) return;
-        Navigator.of(context).pop();
       });
     });
   }
@@ -1486,8 +1500,32 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     }
   }
 
+  void _handleCancellation() {
+    _addMessage(ChatMessage(
+      text: "I'd like to cancel this advance request.",
+      isUser: true,
+      timestamp: DateTime.now(),
+    ));
+
+    Future.delayed(Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      _addMessage(ChatMessage(
+        text:
+            "No problem at all! Feel free to come back whenever you need a cash advance. Have a great day! ✨",
+        isUser: false,
+        timestamp: DateTime.now(),
+        emoji: AnimatedEmoji(AnimatedEmojis.wave, size: 24),
+      ));
+
+      Future.delayed(Duration(milliseconds: 5200), () {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+      });
+    });
+  }
+
   void _showAdvanceSummary() {
-    final baseFee = _selectedSpeed == TransferSpeed.instant ? 24.99 : 19.99;
+    final baseFee = _selectedSpeed == TransferSpeed.instant ? 25.00 : 20.00;
     final isSevenDayRepayment =
         _selectedDate!.difference(DateTime.now()).inDays <= 7;
     final feeDiscount = isSevenDayRepayment ? 0.1 : 0.0;
@@ -1512,48 +1550,69 @@ Ready to proceed?""",
     setState(() {
       _messages.add(message);
       _animatingMessageIndex = _messages.length - 1;
+      _messageOffsets.add(0.0);
 
-      // Mark section breaks for user messages to create conversation chapters
+      // Only mark section breaks for user messages
       if (message.isUser) {
         _sectionBreaks.add(_messages.length - 1);
       }
     });
 
-    // Handle section animations
+    // For user messages, don't animate previous section
     if (message.isUser) {
-      _animatePreviousSection();
+      _scrollToBottom();
     } else {
-      // For bot messages, ensure smooth scroll after render
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
+      // For assistant messages, show typing indicator and delayed appearance
+      setState(() => _isTyping = true);
+
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        setState(() => _isTyping = false);
+
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (!mounted) return;
+          _scrollToBottom();
+        });
       });
     }
   }
 
-  void _animatePreviousSection() {
-    if (_scrollController.hasClients) {
-      final currentOffset = _scrollController.offset;
-      _previousSectionOffset = currentOffset;
+  Widget _buildMessageList() {
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.only(
+            top: 24,
+            bottom: 150,
+            left: 16,
+            right: 16,
+          ),
+          itemCount: _messages.length,
+          itemBuilder: (context, index) {
+            final message = _messages[index];
+            final isAnimating = _animatingMessageIndex == index;
 
-      // First phase: Quick scroll to make room for new content
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent +
-            60, // Add extra space for visual comfort
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
-
-      // Second phase: Smooth upward animation of previous section
-      Future.delayed(Duration(milliseconds: 150), () {
-        if (!mounted) return;
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent +
-              120, // Additional space for section separation
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeOutCubic,
-        );
-      });
-    }
+            return AnimatedOpacity(
+              duration: const Duration(milliseconds: 400),
+              opacity: 1.0,
+              child: CustomChatBubble(
+                message: message,
+                isUser: message.isUser,
+                timestamp: message.timestamp,
+                isAnimating: isAnimating,
+              ),
+            );
+          },
+        ),
+        if (_isTyping)
+          Positioned(
+            bottom: 16,
+            left: 16,
+            child: _buildTypingIndicator(),
+          ),
+      ],
+    );
   }
 
   Widget _buildSectionSeparator() {
@@ -1591,120 +1650,104 @@ Ready to proceed?""",
           curve: Curves.easeOut,
         );
   }
-}
 
-class BackgroundParticle {
-  double x;
-  double y;
-  double dx;
-  double dy;
-  double size;
-  double alpha;
-
-  BackgroundParticle({
-    required this.x,
-    required this.y,
-    required this.dx,
-    required this.dy,
-    required this.size,
-    required this.alpha,
-  });
-
-  void update() {
-    x = (x + dx).clamp(0.0, 1.0);
-    y = (y + dy).clamp(0.0, 1.0);
-
-    if (x <= 0 || x >= 1) dx = -dx;
-    if (y <= 0 || y >= 1) dy = -dy;
-  }
-}
-
-class BackgroundPainter extends CustomPainter {
-  final double gradientAngle;
-  final List<BackgroundParticle> particles;
-  final bool isDarkMode;
-  final Offset? touchPosition;
-  final double touchIntensity;
-
-  BackgroundPainter({
-    required this.gradientAngle,
-    required this.particles,
-    required this.isDarkMode,
-    this.touchPosition,
-    this.touchIntensity = 0.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-
-    final gradient = LinearGradient(
-      begin: Alignment(
-        cos(gradientAngle),
-        sin(gradientAngle),
-      ),
-      end: Alignment(
-        cos(gradientAngle + pi),
-        sin(gradientAngle + pi),
-      ),
-      colors: isDarkMode
-          ? [
-              const Color(0xFF1A237E),
-              const Color(0xFF0D47A1),
-              const Color(0xFF1565C0),
-              const Color(0xFF1A237E),
-            ]
-          : [
-              const Color(0xFF90CAF9),
-              const Color(0xFF64B5F6),
-              const Color(0xFF42A5F5),
-              const Color(0xFF90CAF9),
-            ],
-      stops: [0.0, 0.3, 0.7, 1.0],
-      tileMode: TileMode.mirror,
-    ).createShader(Offset.zero & size);
-
-    paint.shader = gradient;
-    canvas.drawRect(Offset.zero & size, paint);
-
-    for (final particle in particles) {
-      paint.color = Colors.white.withOpacity(particle.alpha);
-      canvas.drawCircle(
-        Offset(
-          particle.x * size.width,
-          particle.y * size.height,
-        ),
-        particle.size,
-        paint,
-      );
-      particle.update();
-    }
-
-    if (touchPosition != null && touchIntensity > 0) {
-      final touchPaint = Paint()
-        ..shader = RadialGradient(
+  Widget _buildBackground() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(touchIntensity),
-            Colors.white.withOpacity(0),
+            const Color(0xFF1E40AF),
+            const Color(0xFF1E3A8A),
+            const Color(0xFF2563EB),
           ],
-        ).createShader(
-          Rect.fromCircle(
-            center: touchPosition!,
-            radius: 100,
-          ),
-        );
+          stops: const [0.0, 0.5, 1.0],
+        ),
+      ),
+    );
+  }
 
-      canvas.drawCircle(
-        touchPosition!,
-        100,
-        touchPaint,
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      final extraPadding = _showQuickActions
+          ? (_conversationState == ConversationState.dateSelection
+              ? 340.0
+              : 200.0)
+          : 0.0;
+
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent + extraPadding,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
       );
     }
   }
 
-  @override
-  bool shouldRepaint(BackgroundPainter oldDelegate) =>
-      gradientAngle != oldDelegate.gradientAngle ||
-      touchPosition != oldDelegate.touchPosition ||
-      touchIntensity != oldDelegate.touchIntensity;
+  void _handleConfirmation(bool confirmed) {
+    if (confirmed) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withOpacity(0.5),
+        builder: (BuildContext context) {
+          return WillPopScope(
+            onWillPop: () async => false,
+            child: Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF061535),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      spreadRadius: 2,
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 32,
+                      width: 32,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white.withOpacity(0.9)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Processing your advance...',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+      _processAdvance();
+    } else {
+      _handleCancellation();
+    }
+  }
 }

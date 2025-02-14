@@ -159,21 +159,6 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
                   ),
                 ),
               ),
-              // Subtle pattern overlay
-              Opacity(
-                opacity: 0.03,
-                child: Container(
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image:
-                          const AssetImage('assets/images/noise_pattern.png'),
-                      repeat: ImageRepeat.repeat,
-                      filterQuality: FilterQuality.high,
-                      opacity: 0.2,
-                    ),
-                  ),
-                ),
-              ),
               // Fade the auth screen in
               FadeTransition(
                 opacity: CurvedAnimation(

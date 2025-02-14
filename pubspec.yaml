@@ -81,7 +81,6 @@ flutter:
     - assets/animations/
     - assets/images/blink_logo.png
     - assets/images/blink_logo_white.png
-    - assets/images/noise_pattern.png
     # Onboarding images
     - assets/images/onboarding/pexels-mizunokozuki-13431763.jpg
     - assets/images/onboarding/pexels-shvets-production-7544453.jpg
