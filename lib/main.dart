@@ -16,16 +16,19 @@ import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:blink_app/features/home/presentation/home_screen.dart';
 import 'package:blink_app/features/error/presentation/error_screen.dart';
 import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart';
-import 'package:blink_app/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:blink_app/features/onboarding/presentation/onboarding_wrapper.dart';
 import 'package:blink_app/features/insights/presentation/recurring_expenses_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:blink_app/services/biometric_service.dart';
+import 'package:blink_app/features/auth/presentation/auth_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
+
+  // Debug environment variables
 
   // Debug environment variables
   print('API_URL: ${dotenv.env['API_URL']}');
@@ -196,7 +199,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
-        '/onboarding': (context) => const OnboardingScreen(),
+        '/auth': (context) => const AuthScreen(),
+        '/onboarding': (context) => const OnboardingWrapper(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),
         '/home': (context) => const HomeScreen(),

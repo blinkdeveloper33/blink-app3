@@ -4,6 +4,8 @@ import 'package:lottie/lottie.dart';
 import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:blink_app/services/storage_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -110,18 +112,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     super.dispose();
   }
 
-  void _navigateToSignUp() {
+  void _navigateToSignUp() async {
     HapticFeedback.mediumImpact();
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const SignUpScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 500),
-      ),
-    );
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    await storageService.setBool('has_shown_onboarding', true);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed('/auth');
   }
 
   void _onPageChanged(int page) {

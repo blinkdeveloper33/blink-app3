@@ -216,31 +216,73 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                     borderRadius: BorderRadius.circular(28),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: TabBar(
-                        controller: _tabController,
-                        labelColor: isDarkMode ? Colors.white : Colors.black87,
-                        unselectedLabelColor:
-                            isDarkMode ? Colors.white38 : Colors.black38,
-                        labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          splashColor: Colors.transparent,
+                          highlightColor: Colors.transparent,
                         ),
-                        unselectedLabelStyle: const TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
+                        child: TabBar(
+                          controller: _tabController,
+                          labelColor: isDarkMode
+                              ? Colors.white
+                              : const Color(0xFF2D3142),
+                          unselectedLabelColor: isDarkMode
+                              ? Colors.white.withOpacity(0.5)
+                              : const Color(0xFF2D3142).withOpacity(0.5),
+                          labelStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.2,
+                          ),
+                          unselectedLabelStyle: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.2,
+                          ),
+                          indicator: BoxDecoration(
+                            borderRadius: BorderRadius.circular(25),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isDarkMode
+                                    ? const Color(0xFF0078D4).withOpacity(0.2)
+                                    : const Color(0xFF0078D4).withOpacity(0.15),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: isDarkMode
+                                  ? [
+                                      const Color(0xFF0078D4).withOpacity(0.3),
+                                      const Color(0xFF0078D4).withOpacity(0.1),
+                                    ]
+                                  : [
+                                      const Color(0xFF0078D4).withOpacity(0.15),
+                                      const Color(0xFF0078D4).withOpacity(0.05),
+                                    ],
+                            ),
+                          ),
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          dividerColor: Colors.transparent,
+                          padding: const EdgeInsets.all(4),
+                          splashBorderRadius: BorderRadius.circular(25),
+                          overlayColor:
+                              MaterialStateProperty.resolveWith<Color?>(
+                            (Set<MaterialState> states) {
+                              return states.contains(MaterialState.focused)
+                                  ? null
+                                  : Colors.transparent;
+                            },
+                          ),
+                          tabs: [
+                            _buildTab('Expenses', 0),
+                            _buildTab('Cash Flow', 1),
+                          ],
                         ),
-                        indicator: BoxDecoration(
-                          color: isDarkMode
-                              ? Colors.white.withAlpha(15)
-                              : theme.primaryColor.withAlpha(15),
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        dividerColor: Colors.transparent,
-                        padding: const EdgeInsets.all(4),
-                        tabs: const [
-                          Tab(text: 'Expenses'),
-                          Tab(text: 'Cash Flow'),
-                        ],
                       ),
                     ),
                   ),
@@ -288,35 +330,79 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                         Container(
                           margin: EdgeInsets.symmetric(
                               horizontal: isSmallScreen ? 16 : 20),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pushNamed(
-                                  context, '/recurring-expenses');
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0078D4),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  const Color(0xFF0078D4),
+                                  const Color(0xFF0078D4).withOpacity(0.8),
+                                ],
                               ),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              minimumSize: const Size(double.infinity, 0),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.repeat_rounded, size: 20),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'View Recurring Expenses',
-                                  style: TextStyle(
-                                    fontSize: isSmallScreen ? 14 : 16,
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: 'Onest',
-                                  ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFF0078D4).withOpacity(0.25),
+                                  offset: const Offset(0, 4),
+                                  blurRadius: 12,
                                 ),
                               ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                      context, '/recurring-expenses');
+                                },
+                                borderRadius: BorderRadius.circular(16),
+                                child: Ink(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                    horizontal: 20,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.15),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: const Icon(
+                                          Icons.repeat_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'View Recurring Expenses',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: isSmallScreen ? 15 : 16,
+                                          fontWeight: FontWeight.w600,
+                                          fontFamily: 'Onest',
+                                          letterSpacing: -0.2,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        color: Colors.white70,
+                                        size: 14,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -598,5 +684,368 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
         );
       },
     );
+  }
+
+  Widget _buildTab(String text, int index) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Stack(
+        children: [
+          Center(
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                fontSize: _tabController.index == index ? 15 : 14,
+                fontWeight: _tabController.index == index
+                    ? FontWeight.w600
+                    : FontWeight.w500,
+                fontFamily: 'Onest',
+                letterSpacing: -0.2,
+                color: _tabController.index == index
+                    ? (isDarkMode ? Colors.white : const Color(0xFF2D3142))
+                    : (isDarkMode
+                        ? Colors.white.withOpacity(0.5)
+                        : const Color(0xFF2D3142).withOpacity(0.5)),
+              ),
+              child: Text(text),
+            ),
+          ),
+          if (_tabController.index == index)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 2,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0078D4)
+                      .withOpacity(isDarkMode ? 0.7 : 0.5),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrendAnalysis(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final provider = Provider.of<FinancialDataProvider>(context);
+    final trends = provider.cashFlowData?.trends ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0078D4).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.insights_rounded,
+                  color: Color(0xFF0078D4),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Detailed Analysis',
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.white : Colors.black87,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Day-by-day breakdown of your cash flow',
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.white60 : Colors.black45,
+                        fontSize: 14,
+                        height: 1.2,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: trends.length,
+            separatorBuilder: (context, index) => Divider(
+              height: 32,
+              color: isDarkMode
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.black.withOpacity(0.05),
+            ),
+            itemBuilder: (context, index) {
+              final trend = trends[index];
+              final isPositive = trend.netFlow >= 0;
+              final date = DateFormat('MMM d, yyyy').format(trend.date);
+              final dayOfWeek = DateFormat('EEEE').format(trend.date);
+
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.03)
+                      : Colors.black.withOpacity(0.02),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDarkMode
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.black.withOpacity(0.04),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                date,
+                                style: TextStyle(
+                                  color: isDarkMode
+                                      ? Colors.white
+                                      : Colors.black87,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.2,
+                                  fontFamily: 'Onest',
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                dayOfWeek,
+                                style: TextStyle(
+                                  color: isDarkMode
+                                      ? Colors.white60
+                                      : Colors.black45,
+                                  fontSize: 13,
+                                  height: 1.2,
+                                  fontFamily: 'Onest',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (isPositive ? Colors.green : Colors.red)
+                                .withOpacity(isDarkMode ? 0.15 : 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: (isPositive ? Colors.green : Colors.red)
+                                  .withOpacity(isDarkMode ? 0.2 : 0.15),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isPositive
+                                    ? Icons.trending_up_rounded
+                                    : Icons.trending_down_rounded,
+                                color: isPositive
+                                    ? Colors.green[400]
+                                    : Colors.red[400],
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatCurrency(trend.netFlow.abs()),
+                                style: TextStyle(
+                                  color: isPositive
+                                      ? Colors.green[400]
+                                      : Colors.red[400],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.2,
+                                  fontFamily: 'Onest',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_upward_rounded,
+                                      color: Colors.green[400],
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Inflow',
+                                          style: TextStyle(
+                                            color: isDarkMode
+                                                ? Colors.white60
+                                                : Colors.black45,
+                                            fontSize: 13,
+                                            height: 1.2,
+                                            fontFamily: 'Onest',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _formatCurrency(trend.inflow),
+                                          style: TextStyle(
+                                            color: Colors.green[400],
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.2,
+                                            fontFamily: 'Onest',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.1)
+                              : Colors.black.withOpacity(0.05),
+                          margin: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_downward_rounded,
+                                      color: Colors.red[400],
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Outflow',
+                                          style: TextStyle(
+                                            color: isDarkMode
+                                                ? Colors.white60
+                                                : Colors.black45,
+                                            fontSize: 13,
+                                            height: 1.2,
+                                            fontFamily: 'Onest',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _formatCurrency(trend.outflow),
+                                          style: TextStyle(
+                                            color: Colors.red[400],
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.2,
+                                            fontFamily: 'Onest',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCurrency(double amount) {
+    return NumberFormat.currency(
+      symbol: '\$',
+      decimalDigits: 0,
+    ).format(amount);
   }
 }

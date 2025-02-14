@@ -1,8 +1,10 @@
 PODS:
-  - app_links (0.0.1):
+  - app_links (0.0.2):
     - Flutter
   - Flutter (1.0.0)
   - flutter_haptic (0.0.1):
+    - Flutter
+  - flutter_local_notifications (0.0.1):
     - Flutter
   - flutter_localization (0.0.1):
     - Flutter
@@ -50,6 +52,7 @@ DEPENDENCIES:
   - app_links (from `.symlinks/plugins/app_links/ios`)
   - Flutter (from `Flutter`)
   - flutter_haptic (from `.symlinks/plugins/flutter_haptic/ios`)
+  - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - flutter_localization (from `.symlinks/plugins/flutter_localization/ios`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - haptic_feedback (from `.symlinks/plugins/haptic_feedback/ios`)
@@ -79,6 +82,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_haptic:
     :path: ".symlinks/plugins/flutter_haptic/ios"
+  flutter_local_notifications:
+    :path: ".symlinks/plugins/flutter_local_notifications/ios"
   flutter_localization:
     :path: ".symlinks/plugins/flutter_localization/ios"
   flutter_secure_storage:
@@ -111,9 +116,10 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  app_links: e70ca16b4b0f88253b3b3660200d4a10b4ea9795
+  app_links: e7a6750a915a9e161c58d91bc610e8cd1d4d0ad0
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   flutter_haptic: 69ea6e5e1e478c19b2bec98a9a445bcc6525fcde
+  flutter_local_notifications: df98d66e515e1ca797af436137b4459b160ad8c9
   flutter_localization: f43b18844a2b3d2c71fd64f04ffd6b1e64dd54d4
   flutter_secure_storage: d33dac7ae2ea08509be337e775f6b59f1ff45f12
   haptic_feedback: 8cb3ee0cb6b797946c2b0df9c99ebc8f7ed79c71

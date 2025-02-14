@@ -59,9 +59,9 @@ class _QuickActionsScreenState extends State<QuickActionsScreen>
               await authService.getActiveBlinkAdvance();
           final bankAccountId = storageService.getBankAccountId();
 
-          _isBlinkAdvanceApproved = status['isApproved'] ?? false;
+          _isBlinkAdvanceApproved = status?['isApproved'] ?? false;
           _hasActiveAdvance =
-              activeAdvanceResponse['hasActiveAdvance'] ?? false;
+              activeAdvanceResponse?['hasActiveAdvance'] ?? false;
           _bankAccountId = bankAccountId ?? '';
 
           if (_hasActiveAdvance || _isBlinkAdvanceApproved) {
@@ -80,7 +80,7 @@ class _QuickActionsScreenState extends State<QuickActionsScreen>
             }
           } else {
             if (mounted) {
-              final String message = status['status']?.toLowerCase() ==
+              final String message = status?['status']?.toLowerCase() ==
                       'on review'
                   ? 'Your Blink Advance application is currently under review. This typically takes 1-2 business days. We\'ll notify you once a decision has been made.'
                   : 'You are not currently eligible for Blink Advance. Our system will automatically notify you when you become eligible.';
@@ -91,7 +91,7 @@ class _QuickActionsScreenState extends State<QuickActionsScreen>
                   content: Row(
                     children: [
                       Icon(
-                        status['status']?.toLowerCase() == 'on review'
+                        status?['status']?.toLowerCase() == 'on review'
                             ? Icons.pending_outlined
                             : Icons.info_outline,
                         color: Colors.white,
@@ -110,7 +110,7 @@ class _QuickActionsScreenState extends State<QuickActionsScreen>
                     ],
                   ),
                   backgroundColor:
-                      status['status']?.toLowerCase() == 'on review'
+                      status?['status']?.toLowerCase() == 'on review'
                           ? Colors.orange[700]
                           : Colors.red[700],
                   duration: const Duration(seconds: 6),
@@ -118,7 +118,7 @@ class _QuickActionsScreenState extends State<QuickActionsScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  action: status['status']?.toLowerCase() == 'on review'
+                  action: status?['status']?.toLowerCase() == 'on review'
                       ? SnackBarAction(
                           label: 'Got it',
                           textColor: Colors.white,

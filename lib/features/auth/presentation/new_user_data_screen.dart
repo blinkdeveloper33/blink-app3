@@ -5,9 +5,7 @@ import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lottie/lottie.dart';
-import 'dart:math' as math;
 
 class AnimatedBubble extends StatefulWidget {
   final double size;
@@ -113,65 +111,16 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   final Logger _logger = Logger();
 
   final List<String> _states = [
-    'Alabama',
-    'Alaska',
-    'Arizona',
-    'Arkansas',
-    'California',
-    'Colorado',
-    'Connecticut',
-    'Delaware',
-    'Florida',
-    'Georgia',
-    'Hawaii',
-    'Idaho',
-    'Illinois',
-    'Indiana',
-    'Iowa',
-    'Kansas',
-    'Kentucky',
-    'Louisiana',
-    'Maine',
-    'Maryland',
-    'Massachusetts',
-    'Michigan',
-    'Minnesota',
-    'Mississippi',
-    'Missouri',
-    'Montana',
-    'Nebraska',
     'Nevada',
-    'New Hampshire',
-    'New Jersey',
-    'New Mexico',
-    'New York',
-    'North Carolina',
-    'North Dakota',
-    'Ohio',
-    'Oklahoma',
-    'Oregon',
-    'Pennsylvania',
-    'Rhode Island',
-    'South Carolina',
-    'South Dakota',
-    'Tennessee',
-    'Texas',
-    'Utah',
-    'Vermont',
-    'Virginia',
-    'Washington',
-    'West Virginia',
+    'Missouri',
     'Wisconsin',
-    'Wyoming'
+    'Kansas',
+    'South Carolina',
+    'Florida',
   ];
 
   late AnimationController _animationController;
   late Animation<double> _fadeInAnimation;
-
-  final List<Color> _stepColors = [
-    const Color(0xFF1E3A8A),
-    const Color(0xFF2563EB),
-  ];
 
   final List<String> animations = [
     'assets/animations/personal_info.json',
@@ -297,105 +246,70 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withAlpha(25),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: _selectedState != null
+                  ? Colors.white.withAlpha(77)
+                  : Colors.white.withAlpha(51),
               width: 1,
             ),
           ),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              inputDecorationTheme: InputDecorationTheme(
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(20),
-              ),
-              dropdownMenuTheme: DropdownMenuThemeData(
-                textStyle: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.w500,
-                ),
-                menuStyle: MenuStyle(
-                  backgroundColor:
-                      MaterialStateProperty.all(const Color(0xFF1E3A8A)),
-                  elevation: MaterialStateProperty.all(8),
-                  shape: MaterialStateProperty.all(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: Colors.white.withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  padding: MaterialStateProperty.all(
-                    const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
+          child: DropdownButtonFormField<String>(
+            value: _selectedState,
+            icon: Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white.withAlpha(179),
             ),
-            child: DropdownButtonFormField<String>(
-              value: _selectedState,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please select your state';
-                }
-                return null;
-              },
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(20),
-                prefixIcon: Icon(
-                  Icons.location_on,
-                  color: Colors.white.withOpacity(0.7),
-                ),
-                suffixIcon: Icon(
-                  Icons.arrow_drop_down,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 28,
-                ),
-              ),
-              dropdownColor: const Color(0xFF1E3A8A),
-              style: const TextStyle(
-                color: Colors.white,
+            decoration: InputDecoration(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              border: InputBorder.none,
+              hintText: 'Select your state',
+              hintStyle: TextStyle(
+                color: Colors.white.withAlpha(128),
                 fontSize: 16,
                 fontFamily: 'Onest',
-                fontWeight: FontWeight.w500,
               ),
-              icon: const SizedBox.shrink(), // Hide default icon
-              hint: Text(
-                'Select State',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 16,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.w500,
-                ),
+              prefixIcon: Icon(
+                Icons.location_on_outlined,
+                color: Colors.white.withAlpha(179),
               ),
-              menuMaxHeight: 300,
-              isExpanded: true,
-              items: _states.map((String state) {
-                return DropdownMenuItem<String>(
-                  value: state,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Text(
-                      state,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedState = newValue;
-                });
-              },
             ),
+            dropdownColor: const Color(0xFF1E3A8A),
+            items: _states.map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontFamily: 'Onest',
+                  ),
+                ),
+              );
+            }).toList(),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select your state';
+              }
+              return null;
+            },
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedState = newValue;
+              });
+            },
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontFamily: 'Onest',
+            ),
+            menuMaxHeight: 300,
+            isExpanded: true,
+            elevation: 8,
+            focusColor: Colors.transparent,
           ),
         ),
       ],
@@ -571,13 +485,12 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   Widget _buildContinueButton() {
     return Container(
       width: double.infinity,
-      height: 56,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -585,27 +498,21 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _submitForm,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.1),
-          foregroundColor: Colors.white,
-          elevation: 0,
+          foregroundColor: const Color(0xFF1E3A8A),
+          backgroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: Colors.white.withOpacity(0.3),
-              width: 1,
-            ),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          elevation: 0,
         ),
         child: _isSubmitting
-            ? SizedBox(
-                width: 24,
+            ? const SizedBox(
                 height: 24,
+                width: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.white.withOpacity(0.8),
-                  ),
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Color(0xFF1E3A8A)),
                 ),
               )
             : const Text(
@@ -669,9 +576,41 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   }
 
   Widget _buildStepSpecificContent() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _getStepInstructions(),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 14,
+              fontFamily: 'Onest',
+              height: 1.5,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildStepFields(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepFields() {
     switch (_currentStep) {
       case 0:
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildTextField(
               label: 'First Name',
@@ -685,7 +624,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
               hintText: 'Enter your first name',
               prefixIcon: Icons.person_outline,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             _buildTextField(
               label: 'Last Name',
               controller: _lastNameController,
@@ -701,9 +640,25 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
           ],
         );
       case 1:
-        return _buildDropdownField();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDropdownField(),
+            const SizedBox(height: 16),
+            Text(
+              '* Your state helps us provide relevant services and improve your experience',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+                fontFamily: 'Onest',
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        );
       case 2:
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildTextField(
               label: 'ZIP Code',
@@ -725,10 +680,18 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
               hintText: 'Enter your ZIP code',
               prefixIcon: Icons.location_on_outlined,
             ),
+            const SizedBox(height: 8),
+            Text(
+              '* Your ZIP code helps us connect you with nearby services',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+                fontFamily: 'Onest',
+                fontStyle: FontStyle.italic,
+              ),
+            ),
             const SizedBox(height: 24),
             _buildCheckbox(),
-            const SizedBox(height: 32),
-            _buildContinueButton(),
           ],
         );
       default:
@@ -778,7 +741,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.2),
-                blurRadius: 20,
+                blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -796,16 +759,12 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white.withOpacity(0.1),
-              foregroundColor: Colors.white,
+              foregroundColor: const Color(0xFF1E3A8A),
+              backgroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 1,
-                ),
               ),
             ),
             child: Row(
@@ -821,9 +780,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                 ),
                 if (_currentStep < 2) ...[
                   const SizedBox(width: 8),
-                  Icon(
+                  const Icon(
                     Icons.arrow_forward,
-                    color: Colors.white,
+                    color: Color(0xFF1E3A8A),
                     size: 20,
                   ),
                 ],
@@ -837,14 +796,13 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
 
   @override
   Widget build(BuildContext context) {
-    final bubbles = _generateBubbles();
     return Scaffold(
       extendBody: true,
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
       body: Container(
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.height,
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -853,16 +811,56 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
               Color(0xFF1E3A8A),
               Color(0xFF2563EB),
             ],
+            stops: [0.0, 1.0],
           ),
         ),
-        child: Stack(
-          fit: StackFit.expand,
+        child: Column(
           children: [
-            // Animated Bubbles
-            ...bubbles,
-            // Main Content
-            SafeArea(
+            // Fixed Header
+            Container(
+              color: const Color(0xFF1E3A8A).withOpacity(0.95),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 24, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child:
+                              const Icon(Icons.arrow_back, color: Colors.white),
+                        ),
+                        onPressed: () =>
+                            Navigator.of(context).pushReplacementNamed('/auth'),
+                        tooltip: 'Go Back',
+                      ),
+                      Hero(
+                        tag: 'logo',
+                        child: Image.asset(
+                          'assets/images/blink_logo_white.png',
+                          height: 35,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Scrollable Content
+            Expanded(
               child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
                   child: Form(
@@ -870,44 +868,14 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              icon: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: const Icon(Icons.arrow_back,
-                                    color: Colors.white),
-                              ),
-                              onPressed: () => Navigator.of(context).pop(),
-                              tooltip: 'Go Back',
-                            ),
-                            Hero(
-                              tag: 'logo',
-                              child: Image.asset(
-                                'assets/images/blink_logo_white.png',
-                                height: 42,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 24),
                         FadeInLeft(
                           duration: const Duration(milliseconds: 600),
                           child: Text(
                             _getStepTitle(),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 32,
+                              fontSize: 28,
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.bold,
                               height: 1.2,
@@ -922,28 +890,15 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                             _getStepSubtitle(),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
-                              fontSize: 16,
+                              fontSize: 15,
                               fontFamily: 'Onest',
                               height: 1.5,
+                              letterSpacing: -0.2,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 40),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 600),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            padding: const EdgeInsets.all(24),
-                            child: _buildStepContent(),
-                          ),
-                        ),
+                        const SizedBox(height: 32),
+                        _buildStepContent(),
                         const SizedBox(height: 32),
                         FadeInUp(
                           duration: const Duration(milliseconds: 600),
@@ -971,11 +926,11 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   String _getStepTitle() {
     switch (_currentStep) {
       case 0:
-        return 'Personal Information';
+        return 'Create Your Profile';
       case 1:
-        return 'Location Details';
+        return 'Set Your Location';
       case 2:
-        return 'Almost Done';
+        return 'Final Step';
       default:
         return '';
     }
@@ -984,36 +939,26 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   String _getStepSubtitle() {
     switch (_currentStep) {
       case 0:
-        return 'Tell us a bit about yourself';
+        return 'Help us personalize your experience by sharing your name';
       case 1:
-        return 'Where are you located?';
+        return 'Choose your location to access relevant features and services';
       case 2:
-        return 'Just a few more details to complete your profile';
+        return 'Confirm your details to complete your account setup';
       default:
         return '';
     }
   }
 
-  List<Widget> _generateBubbles() {
-    final List<Widget> bubbles = [];
-    final random = math.Random();
-
-    for (int i = 0; i < 10; i++) {
-      final size = 40 + random.nextDouble() * 20;
-      final initialX = random.nextDouble() * MediaQuery.of(context).size.width;
-      final initialY = random.nextDouble() * MediaQuery.of(context).size.height;
-      final duration = Duration(seconds: 5 + random.nextInt(10));
-
-      bubbles.add(
-        AnimatedBubble(
-          size: size,
-          initialX: initialX,
-          initialY: initialY,
-          duration: duration,
-        ),
-      );
+  String _getStepInstructions() {
+    switch (_currentStep) {
+      case 0:
+        return 'Please enter your first and last name as they appear on your official documents. This helps us maintain a secure and trustworthy community.';
+      case 1:
+        return 'Select your state to help us provide you with location-specific services and connect you with nearby users. Your location information is securely stored.';
+      case 2:
+        return 'Enter your ZIP code and verify that all provided information is accurate. This information helps us enhance your experience and ensure account security.';
+      default:
+        return '';
     }
-
-    return bubbles;
   }
 }

@@ -1369,7 +1369,10 @@ class _AccountScreenState extends State<AccountScreen> {
                   Provider.of<AuthService>(context, listen: false);
               await authService.logout();
               if (mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/auth',
+                  (route) => false,
+                );
               }
             },
           ),

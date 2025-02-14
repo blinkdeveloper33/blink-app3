@@ -320,14 +320,6 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
     );
   }
 
-  void _autofillCode() {
-    for (int i = 0; i < 6; i++) {
-      _controllers[i].text = '1';
-    }
-    setState(() {});
-    _focusNodes[5].requestFocus();
-  }
-
   Widget _buildOtpFields() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -370,128 +362,47 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
               FilteringTextInputFormatter.digitsOnly,
             ],
             onChanged: (value) => _onCodeChanged(value, index),
+            autocorrect: false,
+            enableSuggestions: false,
+            enableInteractiveSelection: true,
+            showCursor: true,
+            autofocus: index == 0,
+            onEditingComplete: () {
+              if (index == 5) {
+                TextInput.finishAutofillContext();
+              }
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _buildAutofillButton() {
-    return Center(
-      child: TextButton.icon(
-        onPressed: _autofillCode,
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        ),
-        icon: Icon(
-          Icons.smart_button,
-          color: Colors.white.withOpacity(0.9),
-        ),
-        label: Text(
-          'Autofill Code',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontSize: 14,
-            fontFamily: 'Onest',
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimerDisplay() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-            width: 1,
-          ),
-        ),
-        child: Text(
-          'Time Remaining ${_timeLeft.toString().padLeft(2, '0')}:${(_timeLeft % 60).toString().padLeft(2, '0')}',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontSize: 14,
-            fontFamily: 'Onest',
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVerifyNowButton() {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed:
-            (_completeCode.length == 6 && !_isVerifying) ? _verifyOtp : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.1),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: Colors.white.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-        child: _isVerifying
-            ? SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.white.withOpacity(0.8),
-                  ),
-                ),
-              )
-            : const Text(
-                'Verify Now',
-                style: TextStyle(
-                  fontFamily: 'Onest',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildResendCodeOption() {
+  Widget _buildTimerAndResend() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(
-          'Don\'t Receive Anything? ',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontSize: 14,
-            fontFamily: 'Onest',
-            fontWeight: FontWeight.w400,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            '${_timeLeft}s',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 14,
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
+        const SizedBox(width: 16),
         TextButton(
           onPressed: (_timeLeft == 0 && !_isResending) ? _resendOtp : null,
           style: TextButton.styleFrom(
@@ -523,18 +434,61 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
     );
   }
 
+  Widget _buildVerifyNowButton() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed:
+            (_completeCode.length == 6 && !_isVerifying) ? _verifyOtp : null,
+        style: ElevatedButton.styleFrom(
+          foregroundColor: const Color(0xFF1E3A8A),
+          backgroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+        ),
+        child: _isVerifying
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Color(0xFF1E3A8A)),
+                ),
+              )
+            : const Text(
+                'Verify Now',
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bubbles = _generateBubbles();
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       extendBody: true,
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
       body: Container(
-        width: size.width,
-        height: size.height,
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -543,76 +497,81 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
               Color(0xFF1E3A8A),
               Color(0xFF2563EB),
             ],
+            stops: [0.0, 1.0],
           ),
         ),
-        child: Stack(
-          fit: StackFit.expand,
+        child: Column(
           children: [
-            // Animated Bubbles
-            ...bubbles,
-            // Main Content
-            SafeArea(
+            // Fixed Header
+            Container(
+              color: const Color(0xFF1E3A8A).withOpacity(0.95),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 24, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child:
+                              const Icon(Icons.arrow_back, color: Colors.white),
+                        ),
+                        onPressed: () =>
+                            Navigator.of(context).pushReplacementNamed('/auth'),
+                        tooltip: 'Go Back',
+                      ),
+                      Hero(
+                        tag: 'logo',
+                        child: Image.asset(
+                          'assets/images/blink_logo_white.png',
+                          height: 35,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Scrollable Content
+            Expanded(
               child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            icon: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                  width: 1,
-                                ),
-                              ),
-                              child: const Icon(Icons.arrow_back,
-                                  color: Colors.white),
-                            ),
-                            onPressed: () =>
-                                Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (context) => const SignUpScreen(),
-                              ),
-                            ),
-                            tooltip: 'Go Back',
-                          ),
-                          Hero(
-                            tag: 'logo',
-                            child: Image.asset(
-                              'assets/images/blink_logo_white.png',
-                              height: 42,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 24),
                       FadeInDown(
                         duration: const Duration(milliseconds: 600),
                         child: Center(
                           child: Lottie.asset(
                             'assets/animations/enterotp.json',
-                            width: 200,
-                            height: 200,
+                            width: 180,
+                            height: 180,
                             fit: BoxFit.contain,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
                       FadeInLeft(
                         duration: const Duration(milliseconds: 600),
                         child: const Text(
                           'Enter Verification Code',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 32,
+                            fontSize: 28,
                             fontFamily: 'Onest',
                             fontWeight: FontWeight.bold,
                             height: 1.2,
@@ -627,40 +586,51 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
                           'We\'ve sent a verification code to ${widget.email}',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
+                            fontSize: 15,
                             fontFamily: 'Onest',
                             height: 1.5,
+                            letterSpacing: -0.2,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 40),
-                      FadeInUp(
-                        duration: const Duration(milliseconds: 600),
-                        child: _buildOtpFields(),
-                      ),
-                      const SizedBox(height: 24),
-                      FadeInUp(
-                        duration: const Duration(milliseconds: 600),
-                        delay: const Duration(milliseconds: 200),
+                      const SizedBox(height: 32),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(24),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildAutofillButton(),
-                            const SizedBox(height: 16),
-                            _buildTimerDisplay(),
+                            Text(
+                              'Enter the 6-digit code we sent to your email address. If you don\'t see it, check your spam folder.',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 14,
+                                fontFamily: 'Onest',
+                                height: 1.5,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            _buildOtpFields(),
+                            const SizedBox(height: 24),
+                            Center(
+                              child: _buildTimerAndResend(),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
                       FadeInUp(
                         duration: const Duration(milliseconds: 600),
                         delay: const Duration(milliseconds: 400),
                         child: _buildVerifyNowButton(),
-                      ),
-                      const SizedBox(height: 24),
-                      FadeInUp(
-                        duration: const Duration(milliseconds: 600),
-                        delay: const Duration(milliseconds: 600),
-                        child: _buildResendCodeOption(),
                       ),
                     ],
                   ),

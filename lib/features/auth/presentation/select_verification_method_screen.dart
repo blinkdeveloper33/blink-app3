@@ -1,90 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:blink_app/features/auth/presentation/enter_otp_screen.dart';
-import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/storage_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
-import 'dart:math' as math;
-
-class AnimatedBubble extends StatefulWidget {
-  final double size;
-  final double initialX;
-  final double initialY;
-  final Duration duration;
-
-  const AnimatedBubble({
-    Key? key,
-    required this.size,
-    required this.initialX,
-    required this.initialY,
-    required this.duration,
-  }) : super(key: key);
-
-  @override
-  State<AnimatedBubble> createState() => _AnimatedBubbleState();
-}
-
-class _AnimatedBubbleState extends State<AnimatedBubble>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _positionAnimation;
-  late Animation<double> _opacityAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: widget.duration,
-      vsync: this,
-    )..repeat(reverse: true);
-
-    _positionAnimation = Tween<double>(
-      begin: -10.0,
-      end: 10.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
-
-    _opacityAnimation = Tween<double>(
-      begin: 0.3,
-      end: 0.5,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Positioned(
-          left: widget.initialX + _positionAnimation.value,
-          top: widget.initialY + _positionAnimation.value,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(_opacityAnimation.value * 0.1),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 class SelectVerificationMethodScreen extends StatefulWidget {
   final String email;
@@ -103,23 +24,6 @@ class _SelectVerificationMethodScreenState
     extends State<SelectVerificationMethodScreen> {
   bool _isSending = false;
   final Logger _logger = Logger();
-
-  List<AnimatedBubble> _generateBubbles() {
-    final random = math.Random();
-    return List.generate(8, (index) {
-      final size = 150.0 + random.nextDouble() * 200;
-      final x = -100.0 +
-          random.nextDouble() * (MediaQuery.of(context).size.width + 200);
-      final y = -100.0 +
-          random.nextDouble() * (MediaQuery.of(context).size.height + 200);
-      return AnimatedBubble(
-        size: size,
-        initialX: x,
-        initialY: y,
-        duration: Duration(milliseconds: 4000 + random.nextInt(3000)),
-      );
-    });
-  }
 
   Future<void> _initiateVerification() async {
     setState(() {
@@ -227,7 +131,7 @@ class _SelectVerificationMethodScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Verify Your Account',
+                  'Identity Verification',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -235,14 +139,15 @@ class _SelectVerificationMethodScreenState
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Text(
-                  'Choose your preferred verification method',
+                  'To ensure the security of your account, we need to verify your identity. This helps us protect your information and maintain a safe environment for all users.',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
-                    fontSize: 16,
+                    fontSize: 15,
                     fontFamily: 'Onest',
                     height: 1.5,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ],
@@ -252,7 +157,8 @@ class _SelectVerificationMethodScreenState
           _buildOptionTile(
             icon: Icons.email_outlined,
             title: 'Email Verification',
-            subtitle: 'Send code to ${widget.email}',
+            subtitle: 'We\'ll send a secure code to ${widget.email}',
+            description: 'Recommended: Quick and secure verification method',
             onTap: _isSending ? null : _initiateVerification,
             isEnabled: true,
           ),
@@ -261,6 +167,7 @@ class _SelectVerificationMethodScreenState
             icon: Icons.phone_android_outlined,
             title: 'Phone Verification',
             subtitle: 'Coming soon',
+            description: 'Additional verification method for enhanced security',
             onTap: null,
             isEnabled: false,
           ),
@@ -273,6 +180,7 @@ class _SelectVerificationMethodScreenState
     required IconData icon,
     required String title,
     required String subtitle,
+    required String description,
     required VoidCallback? onTap,
     required bool isEnabled,
   }) {
@@ -329,6 +237,18 @@ class _SelectVerificationMethodScreenState
                           fontFamily: 'Onest',
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          color: isEnabled
+                              ? Colors.white.withOpacity(0.7)
+                              : Colors.white38,
+                          fontSize: 13,
+                          fontFamily: 'Onest',
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -349,13 +269,12 @@ class _SelectVerificationMethodScreenState
   Widget _buildContinueButton() {
     return Container(
       width: double.infinity,
-      height: 56,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -363,47 +282,30 @@ class _SelectVerificationMethodScreenState
       child: ElevatedButton(
         onPressed: _isSending ? null : _initiateVerification,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.1),
-          foregroundColor: Colors.white,
-          elevation: 0,
+          foregroundColor: const Color(0xFF1E3A8A),
+          backgroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: Colors.white.withOpacity(0.3),
-              width: 1,
-            ),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          elevation: 0,
         ),
         child: _isSending
-            ? SizedBox(
-                width: 24,
+            ? const SizedBox(
                 height: 24,
+                width: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.white.withOpacity(0.8),
-                  ),
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Color(0xFF1E3A8A)),
                 ),
               )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontFamily: 'Onest',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.arrow_forward,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ],
+            : const Text(
+                'Continue',
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
       ),
     );
@@ -411,16 +313,13 @@ class _SelectVerificationMethodScreenState
 
   @override
   Widget build(BuildContext context) {
-    final bubbles = _generateBubbles();
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       extendBody: true,
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
       body: Container(
-        width: size.width,
-        height: size.height,
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -429,69 +328,76 @@ class _SelectVerificationMethodScreenState
               Color(0xFF1E3A8A),
               Color(0xFF2563EB),
             ],
+            stops: [0.0, 1.0],
           ),
         ),
-        child: Stack(
-          fit: StackFit.expand,
+        child: Column(
           children: [
-            // Animated Bubbles
-            ...bubbles,
-            // Main Content
-            SafeArea(
+            // Fixed Header
+            Container(
+              color: const Color(0xFF1E3A8A).withOpacity(0.95),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 24, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child:
+                              const Icon(Icons.arrow_back, color: Colors.white),
+                        ),
+                        onPressed: () =>
+                            Navigator.of(context).pushReplacementNamed('/auth'),
+                        tooltip: 'Go Back',
+                      ),
+                      Hero(
+                        tag: 'logo',
+                        child: Image.asset(
+                          'assets/images/blink_logo_white.png',
+                          height: 35,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Scrollable Content
+            Expanded(
               child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            icon: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                  width: 1,
-                                ),
-                              ),
-                              child: const Icon(Icons.arrow_back,
-                                  color: Colors.white),
-                            ),
-                            onPressed: () =>
-                                Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (context) => const SignUpScreen(),
-                              ),
-                            ),
-                            tooltip: 'Go Back',
-                          ),
-                          Hero(
-                            tag: 'logo',
-                            child: Image.asset(
-                              'assets/images/blink_logo_white.png',
-                              height: 42,
+                      const SizedBox(height: 24),
+                      ClipRect(
+                        child: FadeInDown(
+                          duration: const Duration(milliseconds: 600),
+                          child: Center(
+                            child: Lottie.asset(
+                              'assets/animations/verification.json',
+                              width: 180,
+                              height: 180,
                               fit: BoxFit.contain,
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 40),
-                      FadeInDown(
-                        duration: const Duration(milliseconds: 600),
-                        child: Center(
-                          child: Lottie.asset(
-                            'assets/animations/verification.json',
-                            width: 200,
-                            height: 200,
-                            fit: BoxFit.contain,
-                          ),
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 24),
                       FadeInUp(
                         duration: const Duration(milliseconds: 600),
                         child: _buildVerificationOptions(),
@@ -502,6 +408,7 @@ class _SelectVerificationMethodScreenState
                         delay: const Duration(milliseconds: 200),
                         child: _buildContinueButton(),
                       ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),

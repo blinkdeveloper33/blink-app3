@@ -121,6 +121,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _showHistoricalDataMessage = false;
   Timer? _messageTimer;
 
+  // Add this timer variable
+  Timer? _blinkAdvanceStatusTimer;
+
   void _performHapticFeedback(haptics.HapticsType type) {
     if (_hapticFeedbackEnabled) {
       haptics.Haptics.vibrate(type);
@@ -987,6 +990,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _loadProfilePicture();
       }
     });
+
+    // Set up periodic status check every 30 seconds
+    _blinkAdvanceStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _loadBlinkAdvanceStatus();
+    });
   }
 
   @override
@@ -1008,6 +1016,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Remove scroll controller listener and dispose
     _scrollController.removeListener(_updateBlurEffect);
     _scrollController.dispose();
+
+    _blinkAdvanceStatusTimer?.cancel();
 
     super.dispose();
   }
@@ -1181,71 +1191,67 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (!mounted) return;
 
-      if (activeAdvanceResponse['hasActiveAdvance'] == true) {
-        setState(() {
-          _hasActiveAdvance = true;
-          _activeAdvance = activeAdvanceResponse['activeAdvance'];
-          _isBlinkAdvanceApproved = true;
-          _blinkAdvanceStatus = 'Active';
-          _isBlinkAdvanceLoading = false;
-        });
-        return;
+      // Check for active advance first
+      if (activeAdvanceResponse != null &&
+          activeAdvanceResponse['success'] == true) {
+        final hasActiveAdvance =
+            activeAdvanceResponse['hasActiveAdvance'] ?? false;
+        final activeAdvance = activeAdvanceResponse['activeAdvance'];
+
+        if (hasActiveAdvance && activeAdvance != null) {
+          setState(() {
+            _hasActiveAdvance = true;
+            _activeAdvance = activeAdvance;
+            _isBlinkAdvanceApproved = true;
+            _blinkAdvanceStatus = 'Active';
+            _isBlinkAdvanceLoading = false;
+          });
+          return;
+        }
       }
 
       // If no active advance, check approval status
-      final status = await authService.getBlinkAdvanceApprovalStatus();
+      final approvalResponse =
+          await authService.getBlinkAdvanceApprovalStatus();
 
       if (!mounted) return;
 
-      setState(() {
-        _isBlinkAdvanceApproved = status['isApproved'] ?? false;
-        _blinkAdvanceStatus = status['status'] ?? 'On Review';
-        _hasActiveAdvance = false;
-        _activeAdvance = null;
-        _isBlinkAdvanceLoading = false;
-      });
-    } catch (e) {
-      _logger.e('Error loading Blink Advance status: $e');
-      if (mounted) {
+      // Handle the approval status response
+      if (approvalResponse != null &&
+          approvalResponse['success'] == true &&
+          approvalResponse['data'] != null) {
+        final data = approvalResponse['data'] as Map<String, dynamic>;
+
+        setState(() {
+          _isBlinkAdvanceApproved = data['isApproved'] ?? false;
+          _blinkAdvanceStatus = data['status'] ?? 'On Review';
+          _hasActiveAdvance = false;
+          _activeAdvance = null;
+          _isBlinkAdvanceLoading = false;
+        });
+
+        // Log approval status for debugging
+        _logger.d('Blink Advance Status: $_blinkAdvanceStatus');
+        _logger.d('Is Approved: $_isBlinkAdvanceApproved');
+      } else {
         setState(() {
           _isBlinkAdvanceLoading = false;
-          // Set default values instead of error state
           _blinkAdvanceStatus = 'On Review';
           _hasActiveAdvance = false;
           _activeAdvance = null;
           _isBlinkAdvanceApproved = false;
         });
-
-        // Show a user-friendly error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Unable to check Blink Advance status. Please try again later.',
-                    style: TextStyle(
-                      fontFamily: 'Onest',
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.orange[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () => _loadBlinkAdvanceStatus(),
-            ),
-          ),
-        );
+      }
+    } catch (e) {
+      _logger.e('Error loading Blink Advance status: $e');
+      if (mounted) {
+        setState(() {
+          _isBlinkAdvanceLoading = false;
+          _blinkAdvanceStatus = 'On Review';
+          _hasActiveAdvance = false;
+          _activeAdvance = null;
+          _isBlinkAdvanceApproved = false;
+        });
       }
     }
   }

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/biometric_service.dart';
-import 'package:blink_app/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:blink_app/features/onboarding/presentation/onboarding_wrapper.dart';
+import 'package:blink_app/services/storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,6 +18,13 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _mainController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+
+  // List of onboarding images to preload
+  final List<String> _onboardingImages = [
+    'assets/images/onboarding/pexels-mizunokozuki-13431763.jpg',
+    'assets/images/onboarding/pexels-timmossholder-3105409.jpg',
+    'assets/images/onboarding/pexels-shvetsa-6631412.jpg',
+  ];
 
   @override
   void initState() {
@@ -53,18 +62,99 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
+  Future<void> _preloadOnboardingImages() async {
+    try {
+      final List<Future<void>> imagePreloadFutures = [];
+      final List<ImageStreamListener> listeners = [];
+
+      // Create image instances and preload them
+      for (final imagePath in _onboardingImages) {
+        final image = Image.asset(
+          imagePath,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+          isAntiAlias: true,
+          gaplessPlayback: true,
+        );
+
+        // First, precache the image
+        imagePreloadFutures.add(
+          precacheImage(image.image, context).then((_) {
+            debugPrint('Started preloading onboarding image: $imagePath');
+          }).catchError((error) {
+            debugPrint('Error preloading onboarding image $imagePath: $error');
+          }),
+        );
+
+        // Then ensure the image is fully loaded by listening to the image stream
+        final completer = Completer<void>();
+        final ImageStream stream =
+            image.image.resolve(const ImageConfiguration());
+        final listener = ImageStreamListener(
+          (ImageInfo info, bool synchronousCall) {
+            debugPrint('Image fully loaded: $imagePath');
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+          },
+          onError: (dynamic exception, StackTrace? stackTrace) {
+            debugPrint('Error fully loading image $imagePath: $exception');
+            if (!completer.isCompleted) {
+              completer.complete(); // Complete anyway to avoid hanging
+            }
+          },
+        );
+
+        stream.addListener(listener);
+        listeners.add(listener);
+        imagePreloadFutures.add(completer.future);
+      }
+
+      // Wait for all images to be fully loaded
+      await Future.wait(imagePreloadFutures);
+
+      // Clean up listeners
+      for (var i = 0; i < _onboardingImages.length; i++) {
+        final image = Image.asset(_onboardingImages[i]).image;
+        final stream = image.resolve(const ImageConfiguration());
+        stream.removeListener(listeners[i]);
+      }
+
+      if (mounted) {
+        debugPrint('All onboarding images are fully loaded and rendered');
+      }
+    } catch (e) {
+      debugPrint('Error in preloading onboarding images: $e');
+      if (mounted) {
+        // Continue even if there's an error
+      }
+    }
+  }
+
   Future<void> _initializeApp() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     final biometricService =
         Provider.of<BiometricService>(context, listen: false);
+    final storageService = Provider.of<StorageService>(context, listen: false);
 
-    // Wait for minimum splash screen duration
-    await Future.delayed(const Duration(seconds: 2));
+    // Start preloading images immediately
+    final preloadFuture = _preloadOnboardingImages();
+    final timerFuture = Future.delayed(const Duration(milliseconds: 3000));
+
+    try {
+      await Future.wait([timerFuture, preloadFuture]);
+      debugPrint(
+          'Splash screen minimum duration and image preloading completed');
+    } catch (e) {
+      debugPrint('Error during splash screen initialization: $e');
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
 
     if (!mounted) return;
 
     if (authService.currentUser == null) {
-      // No user logged in, go to onboarding
+      debugPrint('Splash screen - Current user is null');
+      debugPrint('Splash screen - Always showing onboarding on restart');
       _navigateToOnboarding();
       return;
     }
@@ -105,7 +195,7 @@ class _SplashScreenState extends State<SplashScreen>
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const OnboardingScreen(),
+            const OnboardingWrapper(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
@@ -133,12 +223,12 @@ class _SplashScreenState extends State<SplashScreen>
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF0D47A1), // Rich azure blue
-              const Color(0xFF1565C0), // Medium azure blue
-              const Color(0xFF1976D2), // Lighter azure blue
+              const Color(0xFF1E40AF),
+              const Color(0xFF1E3A8A),
+              const Color(0xFF2563EB),
             ],
             stops: const [0.0, 0.5, 1.0],
           ),
@@ -162,32 +252,13 @@ class _SplashScreenState extends State<SplashScreen>
                   double maxSize = constraints.maxWidth < constraints.maxHeight
                       ? constraints.maxWidth
                       : constraints.maxHeight;
-                  return Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Glow effect
-                      Container(
-                        width: maxSize * 0.25,
-                        height: maxSize * 0.25,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.2),
-                              blurRadius: 25,
-                              spreadRadius: 8,
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Logo
-                      Image.asset(
-                        'assets/images/blink_logo_white.png',
-                        width: maxSize * 0.22,
-                        height: maxSize * 0.22,
-                        fit: BoxFit.contain,
-                      ),
-                    ],
+                  return Image.asset(
+                    'assets/images/blink_logo_white.png',
+                    width: maxSize * 0.22,
+                    height: maxSize * 0.22,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                    isAntiAlias: true,
                   );
                 },
               ),

@@ -58,5 +58,7 @@
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>We need to use Face ID to secure your access to the app</string>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
 </dict>
 </plist>

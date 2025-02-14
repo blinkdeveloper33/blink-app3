@@ -552,60 +552,48 @@ class AuthService {
     );
   }
 
-  Future<Map<String, dynamic>> getBlinkAdvanceApprovalStatus() async {
+  Future<Map<String, dynamic>?> getBlinkAdvanceApprovalStatus() async {
     try {
       final response = await _makeRequest(
         endpoint: '/api/blink-advances/approval-status',
-        body: {},
         method: 'GET',
+        body: {},
         requireAuth: true,
       );
 
-      if (response['success'] == true && response['data'] != null) {
-        return {
-          'isApproved': response['data']['isApproved'] as bool,
-          'approvedAt': response['data']['approvedAt'] != null
-              ? DateTime.parse(response['data']['approvedAt'] as String)
-              : null,
-          'status': response['data']['status'] as String,
-        };
-      } else {
-        throw ApiException(
-          message: 'Failed to get Blink Advance approval status',
-          statusCode: 500,
-        );
+      if (response != null && response is Map<String, dynamic>) {
+        return response;
       }
+
+      return null;
     } catch (e) {
       _logger.e('Error getting Blink Advance approval status: $e');
-      rethrow;
+      return null;
     }
   }
 
-  Future<Map<String, dynamic>> getActiveBlinkAdvance() async {
+  Future<Map<String, dynamic>?> getActiveBlinkAdvance() async {
     try {
       final response = await _makeRequest(
         endpoint: '/api/blink-advances/active',
-        body: {},
         method: 'GET',
+        body: {},
         requireAuth: true,
       );
 
-      if (response['success'] == true) {
+      if (response != null && response is Map<String, dynamic>) {
+        // Return the entire response object
         return {
-          'hasActiveAdvance': response['data']['hasActiveAdvance'] as bool,
-          'activeAdvance': response['data']['activeAdvance'] != null
-              ? Map<String, dynamic>.from(response['data']['activeAdvance'])
-              : null,
+          'success': response['success'] ?? false,
+          'hasActiveAdvance': response['hasActiveAdvance'] ?? false,
+          'activeAdvance': response['activeAdvance'],
         };
-      } else {
-        throw ApiException(
-          message: 'Failed to get active Blink Advance status',
-          statusCode: 500,
-        );
       }
+
+      return null;
     } catch (e) {
       _logger.e('Error getting active Blink Advance status: $e');
-      rethrow;
+      return null;
     }
   }
 

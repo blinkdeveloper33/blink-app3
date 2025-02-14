@@ -27,23 +27,26 @@ class StorageKeys {
 }
 
 class StorageService {
-  static final StorageService _instance = StorageService._internal();
+  static StorageService? _instance;
   final Logger _logger = Logger();
-  late final SharedPreferences _prefs;
+  final SharedPreferences _prefs;
   late final encrypt.Key _encryptionKey;
   final encrypt.IV _iv = encrypt.IV.fromLength(16);
   late final encrypt.Encrypter _encrypter;
   bool _isInitialized = false;
   late final SupabaseClient _supabase;
 
-  factory StorageService(SharedPreferences prefs) {
-    _instance._prefs = prefs;
-    _instance._supabase = Supabase.instance.client;
-    _instance._init();
-    return _instance;
+  // Private constructor
+  StorageService._({required SharedPreferences prefs}) : _prefs = prefs {
+    _supabase = Supabase.instance.client;
+    _init();
   }
 
-  StorageService._internal();
+  // Factory constructor
+  factory StorageService(SharedPreferences prefs) {
+    _instance ??= StorageService._(prefs: prefs);
+    return _instance!;
+  }
 
   void _init() {
     if (!_isInitialized) {
@@ -510,5 +513,13 @@ class StorageService {
       _logger.e('Error getting profile picture URL', error: e);
       return null;
     }
+  }
+
+  Future<bool> getBool(String key) async {
+    return _prefs.getBool(key) ?? false;
+  }
+
+  Future<void> setBool(String key, bool value) async {
+    await _prefs.setBool(key, value);
   }
 }

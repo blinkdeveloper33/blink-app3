@@ -301,8 +301,13 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen>
                       haptics.Haptics.vibrate(haptics.HapticsType.light);
                     },
                     onEditingComplete: () {
+                      TextInput.finishAutofillContext();
                       _fieldFocusController.reverse();
                     },
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    enableInteractiveSelection: true,
+                    autofillHints: _getAutofillHints(label),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: isDarkMode
@@ -392,6 +397,23 @@ class _PersonalInformationScreenState extends State<PersonalInformationScreen>
         ],
       ),
     );
+  }
+
+  List<String> _getAutofillHints(String label) {
+    switch (label.toLowerCase()) {
+      case 'first name':
+        return [AutofillHints.givenName];
+      case 'last name':
+        return [AutofillHints.familyName];
+      case 'email':
+        return [AutofillHints.email];
+      case 'state':
+        return [AutofillHints.addressState];
+      case 'zipcode':
+        return [AutofillHints.postalCode];
+      default:
+        return [];
+    }
   }
 
   @override

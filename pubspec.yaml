@@ -58,6 +58,8 @@ dependencies:
   teller_connect_flutter: ^0.12.1
   local_auth: ^2.2.0
   flutter_secure_storage: ^9.0.0
+  app_links: ^6.3.3
+  flutter_local_notifications: ^18.0.1
 
 dev_dependencies:
   flutter_test:
@@ -74,10 +76,19 @@ flutter:
   generate: true
 
   assets:
+    - .env
     - assets/images/
-    - assets/images/blink-logo2.svg
-    - assets/images/blink-logo3.svg
     - assets/animations/
+    - assets/images/blink_logo.png
+    - assets/images/blink_logo_white.png
+    - assets/images/noise_pattern.png
+    # Onboarding images
+    - assets/images/onboarding/pexels-mizunokozuki-13431763.jpg
+    - assets/images/onboarding/pexels-shvets-production-7544453.jpg
+    - assets/images/onboarding/pexels-cottonbro-5138195.jpg
+    - assets/images/onboarding/pexels-timmossholder-3105409.jpg
+    - assets/images/onboarding/pexels-shvetsa-6631412.jpg
+
     # Animated Emoji Assets
     - packages/animated_emoji/lottie/moneyWithWings.json
     - packages/animated_emoji/lottie/partyPopper.json
@@ -92,17 +103,13 @@ flutter:
     - packages/animated_emoji/lottie/lightBulb.json
     - packages/animated_emoji/lottie/airplaneArrival.json
     - packages/animated_emoji/lottie/airplaneDeparture.json
-    - packages/animated_emoji/lottie/rocket.json
     - packages/animated_emoji/lottie/mirrorBall.json
-    - packages/animated_emoji/lottie/thinkingFace.json
     - packages/animated_emoji/lottie/batteryFull.json
     - packages/animated_emoji/lottie/batteryLow.json
     - packages/animated_emoji/lottie/flyingSaucer.json
     - packages/animated_emoji/lottie/bicycle.json
     - packages/animated_emoji/lottie/wave.json
     - packages/animated_emoji/lottie/robot.json
-    - .env
-    - assets/images/blink_logo.png
     - assets/animations/success.json
 
   fonts:
