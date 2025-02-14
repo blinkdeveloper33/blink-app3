@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
+import 'package:blink_app/features/auth/presentation/auth_screen.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:blink_app/services/storage_service.dart';
+import 'package:animated_emoji/animated_emoji.dart';
 import 'dart:math' as math;
 
 class ModernOnboardingScreen extends StatefulWidget {
@@ -15,9 +16,10 @@ class ModernOnboardingScreen extends StatefulWidget {
 }
 
 class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final PageController _pageController = PageController();
   late AnimationController _animationController;
+  late AnimationController _scrollIndicatorController;
   late Animation<double> _titleAnimation;
   late Animation<double> _subtitleAnimation;
   late Animation<double> _bulletContainerAnimation;
@@ -33,11 +35,15 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
   int _currentPage = 0;
   final Map<String, Image> _cachedImages = {};
 
+  late Animation<double> _scrollIndicatorAnimation;
+  bool _hasUserInteracted = false;
+
   final List<ModernOnboardingPage> _pages = [
     ModernOnboardingPage(
       image: 'assets/images/onboarding/pexels-mizunokozuki-13431763.jpg',
       title: 'INSTANT\nCASH',
       subtitle: '',
+      showEmoji: true,
       bullets: [
         BulletPoint(
           header: 'Get up to \$200 instantly',
@@ -62,6 +68,8 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       image: 'assets/images/onboarding/pexels-timmossholder-3105409.jpg',
       title: 'FLEXIBLE\nREPAYMENT',
       subtitle: '',
+      showEmoji: true,
+      emojiType: 'alarmClock',
       bullets: [
         BulletPoint(
           header: 'Pick your repayment date',
@@ -86,6 +94,8 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       image: 'assets/images/onboarding/pexels-shvetsa-6631412.jpg',
       title: 'BANK-LEVEL\nSECURITY',
       subtitle: '',
+      showEmoji: true,
+      emojiType: 'sunglasses-face',
       bullets: [
         BulletPoint(
           header: 'Bank-level security',
@@ -109,14 +119,77 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
   ];
 
   void _finishOnboarding() async {
+    // First haptic feedback
     HapticFeedback.mediumImpact();
+
+    // Trigger animations to fade out content
+    setState(() => _isPageTransitioning = true);
+    _animationController.reverse();
+
+    // Delayed second haptic for premium feel
+    await Future.delayed(const Duration(milliseconds: 100), () {
+      HapticFeedback.lightImpact();
+    });
+
     final storageService = Provider.of<StorageService>(context, listen: false);
     await storageService.setBool('has_shown_onboarding', true);
-    // Verify the value was set
-    final bool? value = await storageService.getBool('has_shown_onboarding');
-    debugPrint('Onboarding flag set to: $value');
+
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/auth');
+
+    // Navigate with custom page route for smooth transition
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 800),
+        reverseTransitionDuration: const Duration(milliseconds: 800),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return Stack(
+            children: [
+              // Background gradient similar to splash screen
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFF1E40AF),
+                      const Color(0xFF1E3A8A),
+                      const Color(0xFF2563EB),
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
+              // Subtle pattern overlay
+              Opacity(
+                opacity: 0.03,
+                child: Container(
+                  decoration: BoxDecoration(
+                    image: DecorationImage(
+                      image:
+                          const AssetImage('assets/images/noise_pattern.png'),
+                      repeat: ImageRepeat.repeat,
+                      filterQuality: FilterQuality.high,
+                      opacity: 0.2,
+                    ),
+                  ),
+                ),
+              ),
+              // Fade the auth screen in
+              FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                ),
+                child: const AuthScreen(),
+              ),
+            ],
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return child;
+        },
+      ),
+    );
   }
 
   @override
@@ -132,7 +205,17 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
     _initializeAnimations();
     _initializeImages();
 
-    // Delay the initial animation slightly to ensure proper fade in from splash screen
+    _scrollIndicatorAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.6, 1.0, curve: Curves.easeInOut),
+    );
+
+    _scrollIndicatorController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+
+    // Start the initial animation after a short delay
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
         setState(() => _isInitialLoad = false);
@@ -210,12 +293,22 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
   }
 
   void _handlePageTransitionStart() {
+    HapticFeedback.lightImpact(); // Light feedback when starting swipe
     setState(() => _isPageTransitioning = true);
     _animationController.reset();
   }
 
   void _handlePageTransitionEnd() {
     if (mounted) {
+      if (_currentPage == _pages.length - 1) {
+        HapticFeedback.mediumImpact(); // Stronger feedback on last page
+        Future.delayed(const Duration(milliseconds: 100), () {
+          HapticFeedback.lightImpact(); // Double pattern for success
+        });
+      } else {
+        HapticFeedback.selectionClick(); // Normal feedback for other pages
+      }
+
       Future.delayed(const Duration(milliseconds: 150), () {
         if (mounted) {
           setState(() => _isPageTransitioning = false);
@@ -245,6 +338,7 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
     _animationController.dispose();
     _pageController.dispose();
     _cachedImages.clear();
+    _scrollIndicatorController.dispose();
     super.dispose();
   }
 
@@ -258,8 +352,13 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
           NotificationListener<ScrollNotification>(
             onNotification: (notification) {
               if (notification is ScrollUpdateNotification) {
-                if (notification.dragDetails != null && !_isPageTransitioning) {
-                  setState(() => _isPageTransitioning = true);
+                if (notification.dragDetails != null) {
+                  if (!_hasUserInteracted) {
+                    setState(() => _hasUserInteracted = true);
+                  }
+                  if (!_isPageTransitioning) {
+                    setState(() => _isPageTransitioning = true);
+                  }
                 }
               } else if (notification is ScrollEndNotification) {
                 Future.delayed(const Duration(milliseconds: 100), () {
@@ -494,6 +593,7 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
               ),
             ),
           ),
+          _buildScrollIndicator(),
         ],
       ),
     );
@@ -637,64 +737,149 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
                                 child: Column(
                                   children: page.title
                                       .split('\n')
-                                      .map((line) => Wrap(
-                                            alignment: WrapAlignment.center,
-                                            children: line
-                                                .split('')
-                                                .asMap()
-                                                .entries
-                                                .map((entry) {
-                                              final int idx = entry.key;
-                                              final String char = entry.value;
-                                              return AnimatedBuilder(
-                                                animation: _titleAnimation,
-                                                builder: (context, child) {
-                                                  final double delay =
-                                                      idx * 0.05;
-                                                  final double opacity =
-                                                      math.max(
-                                                    0.0,
-                                                    math.min(
-                                                        1.0,
-                                                        (_titleAnimation.value -
-                                                                delay) *
-                                                            3),
-                                                  );
-                                                  final double yOffset =
-                                                      (1 - opacity) * 15;
-                                                  return Transform.translate(
-                                                    offset: Offset(0, yOffset),
-                                                    child: Opacity(
-                                                      opacity: opacity,
-                                                      child: Text(
-                                                        char,
-                                                        style:
-                                                            GoogleFonts.outfit(
-                                                          fontSize: 36,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          letterSpacing: -0.5,
-                                                          color: Colors.white,
-                                                          height: 1.2,
-                                                          shadows: [
-                                                            Shadow(
-                                                              color: Colors
-                                                                  .black
-                                                                  .withOpacity(
-                                                                      0.3),
-                                                              blurRadius: 20,
-                                                              offset:
-                                                                  const Offset(
-                                                                      0, 8),
-                                                            ),
-                                                          ],
+                                      .map((line) => Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Wrap(
+                                                alignment: WrapAlignment.center,
+                                                children: line
+                                                    .split('')
+                                                    .asMap()
+                                                    .entries
+                                                    .map((entry) {
+                                                  final int idx = entry.key;
+                                                  final String char =
+                                                      entry.value;
+                                                  return AnimatedBuilder(
+                                                    animation: _titleAnimation,
+                                                    builder: (context, child) {
+                                                      final double delay =
+                                                          idx * 0.05;
+                                                      final double opacity =
+                                                          math.max(
+                                                        0.0,
+                                                        math.min(
+                                                            1.0,
+                                                            (_titleAnimation
+                                                                        .value -
+                                                                    delay) *
+                                                                3),
+                                                      );
+                                                      final double yOffset =
+                                                          (1 - opacity) * 15;
+                                                      return Transform
+                                                          .translate(
+                                                        offset:
+                                                            Offset(0, yOffset),
+                                                        child: Opacity(
+                                                          opacity: opacity,
+                                                          child:
+                                                              TweenAnimationBuilder<
+                                                                  double>(
+                                                            tween: Tween(
+                                                                begin: 0.0,
+                                                                end: 1.0),
+                                                            duration:
+                                                                const Duration(
+                                                                    milliseconds:
+                                                                        800),
+                                                            curve:
+                                                                Curves.easeOut,
+                                                            builder: (context,
+                                                                shadowValue,
+                                                                child) {
+                                                              return Text(
+                                                                char,
+                                                                style:
+                                                                    GoogleFonts
+                                                                        .outfit(
+                                                                  fontSize: 36,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  letterSpacing:
+                                                                      -0.5,
+                                                                  color: Colors
+                                                                      .white,
+                                                                  height: 1.2,
+                                                                  shadows: [
+                                                                    Shadow(
+                                                                      color: Colors
+                                                                          .black
+                                                                          .withOpacity(0.3 *
+                                                                              shadowValue),
+                                                                      blurRadius:
+                                                                          20 *
+                                                                              shadowValue,
+                                                                      offset: Offset(
+                                                                          0,
+                                                                          8 * shadowValue),
+                                                                    ),
+                                                                    Shadow(
+                                                                      color: const Color(
+                                                                              0xFF60A5FA)
+                                                                          .withOpacity(0.2 *
+                                                                              shadowValue),
+                                                                      blurRadius:
+                                                                          30 *
+                                                                              shadowValue,
+                                                                      offset: Offset(
+                                                                          0,
+                                                                          4 * shadowValue),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              );
+                                                            },
+                                                          ),
                                                         ),
+                                                      );
+                                                    },
+                                                  );
+                                                }).toList(),
+                                              ),
+                                              if (page.showEmoji &&
+                                                  (line == 'CASH' ||
+                                                      line == 'REPAYMENT' ||
+                                                      line == 'SECURITY'))
+                                                FadeTransition(
+                                                  opacity: _titleAnimation,
+                                                  child: SlideTransition(
+                                                    position: Tween<Offset>(
+                                                      begin:
+                                                          const Offset(0.5, 0),
+                                                      end: Offset.zero,
+                                                    ).animate(CurvedAnimation(
+                                                      parent:
+                                                          _animationController,
+                                                      curve: const Interval(
+                                                          0.3, 0.7,
+                                                          curve: Curves
+                                                              .easeOutBack),
+                                                    )),
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              left: 8.0),
+                                                      child: AnimatedEmoji(
+                                                        page.emojiType ==
+                                                                'alarmClock'
+                                                            ? AnimatedEmojis
+                                                                .alarmClock
+                                                            : page.emojiType ==
+                                                                    'sunglasses-face'
+                                                                ? AnimatedEmojis
+                                                                    .sunglassesFace
+                                                                : AnimatedEmojis
+                                                                    .moneyFace,
+                                                        size: 40,
+                                                        repeat: true,
                                                       ),
                                                     ),
-                                                  );
-                                                },
-                                              );
-                                            }).toList(),
+                                                  ),
+                                                ),
+                                            ],
                                           ))
                                       .toList(),
                                 ),
@@ -799,23 +984,30 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
                                               ),
                                               const SizedBox(width: 12),
                                               Expanded(
-                                                child: Text(
-                                                  page.bullets[index].header,
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 18,
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w700,
-                                                    height: 1.3,
-                                                    letterSpacing: 0.3,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: Colors.black
-                                                            .withOpacity(0.3),
-                                                        blurRadius: 4,
-                                                        offset:
-                                                            const Offset(0, 2),
-                                                      ),
-                                                    ],
+                                                child: RichText(
+                                                  text: TextSpan(
+                                                    children:
+                                                        _buildStyledBulletText(
+                                                      page.bullets[index]
+                                                          .header,
+                                                    ),
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 18,
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      height: 1.3,
+                                                      letterSpacing: 0.3,
+                                                      shadows: [
+                                                        Shadow(
+                                                          color: Colors.black
+                                                              .withOpacity(0.3),
+                                                          blurRadius: 4,
+                                                          offset: const Offset(
+                                                              0, 2),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -865,6 +1057,107 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       ],
     );
   }
+
+  List<InlineSpan> _buildStyledBulletText(String text) {
+    if (!text.contains('\$200')) return [TextSpan(text: text)];
+
+    final parts = text.split('\$200');
+    return [
+      TextSpan(text: parts[0]),
+      WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [
+                Color(0xFF60A5FA),
+                Color(0xFF3B82F6),
+              ],
+            ).createShader(bounds),
+            child: Text(
+              '\$200',
+              style: GoogleFonts.inter(
+                fontSize: 22, // Larger font size
+                fontWeight: FontWeight.w800, // Bolder weight
+                color: Colors.white,
+                height: 1.1,
+                letterSpacing: -0.5,
+                shadows: [
+                  const Shadow(
+                    color: Color(0xFF60A5FA),
+                    blurRadius: 12,
+                    offset: Offset(0, 2),
+                  ),
+                  Shadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      TextSpan(text: parts[1]),
+    ];
+  }
+
+  Widget _buildScrollIndicator() {
+    if (_hasUserInteracted) return const SizedBox.shrink();
+
+    return Positioned(
+      bottom: MediaQuery.of(context).size.height * 0.45,
+      right: 20,
+      child: FadeTransition(
+        opacity: _scrollIndicatorAnimation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.2, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: _scrollIndicatorAnimation,
+            curve: Curves.easeOutCubic,
+          )),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.15),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: AnimatedBuilder(
+              animation: _scrollIndicatorController,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(
+                    3 * math.sin(_scrollIndicatorController.value * math.pi),
+                    0,
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white.withOpacity(0.95),
+                    size: 18,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class ModernOnboardingPage {
@@ -873,6 +1166,8 @@ class ModernOnboardingPage {
   final String subtitle;
   final List<BulletPoint> bullets;
   final Color overlayColor;
+  final bool showEmoji;
+  final String? emojiType;
 
   const ModernOnboardingPage({
     required this.image,
@@ -880,6 +1175,8 @@ class ModernOnboardingPage {
     required this.subtitle,
     required this.bullets,
     required this.overlayColor,
+    this.showEmoji = false,
+    this.emojiType = 'moneyFace',
   });
 }
 
