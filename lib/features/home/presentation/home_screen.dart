@@ -1207,73 +1207,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       final authService = Provider.of<auth.AuthService>(context, listen: false);
 
-      // First check if user has an active advance
-      final activeAdvanceResponse = await authService.getActiveBlinkAdvance();
-
-      if (!mounted) return;
-
-      // Check for active advance first
-      if (activeAdvanceResponse != null &&
-          activeAdvanceResponse['success'] == true) {
-        final hasActiveAdvance =
-            activeAdvanceResponse['hasActiveAdvance'] ?? false;
-        final activeAdvance = activeAdvanceResponse['activeAdvance'];
-
-        if (hasActiveAdvance && activeAdvance != null) {
-          setState(() {
-            _hasActiveAdvance = true;
-            _activeAdvance = activeAdvance;
-            _isBlinkAdvanceApproved = true;
-            _blinkAdvanceStatus = 'Active';
-            _isBlinkAdvanceLoading = false;
-          });
-          return;
-        }
-      }
-
-      // If no active advance, check approval status
+      // Check approval status
       final approvalResponse =
           await authService.getBlinkAdvanceApprovalStatus();
 
       if (!mounted) return;
 
       // Handle the approval status response
-      if (approvalResponse != null &&
-          approvalResponse['success'] == true &&
-          approvalResponse['data'] != null) {
-        final data = approvalResponse['data'] as Map<String, dynamic>;
-
+      if (approvalResponse != null && approvalResponse['success'] == true) {
         setState(() {
-          _isBlinkAdvanceApproved = data['isApproved'] ?? false;
-          _blinkAdvanceStatus = data['status'] ?? 'On Review';
+          _isBlinkAdvanceApproved =
+              approvalResponse['data']['isApproved'] ?? false;
+          _blinkAdvanceStatus =
+              _isBlinkAdvanceApproved ? 'Approved' : 'On Review';
           _hasActiveAdvance = false;
           _activeAdvance = null;
           _isBlinkAdvanceLoading = false;
         });
-
-        // Log approval status for debugging
-        _logger.d('Blink Advance Status: $_blinkAdvanceStatus');
-        _logger.d('Is Approved: $_isBlinkAdvanceApproved');
-      } else {
-        setState(() {
-          _isBlinkAdvanceLoading = false;
-          _blinkAdvanceStatus = 'On Review';
-          _hasActiveAdvance = false;
-          _activeAdvance = null;
-          _isBlinkAdvanceApproved = false;
-        });
+        return;
       }
+
+      setState(() {
+        _isBlinkAdvanceApproved = false;
+        _blinkAdvanceStatus = 'On Review';
+        _hasActiveAdvance = false;
+        _activeAdvance = null;
+        _isBlinkAdvanceLoading = false;
+      });
     } catch (e) {
-      _logger.e('Error loading Blink Advance status: $e');
-      if (mounted) {
-        setState(() {
-          _isBlinkAdvanceLoading = false;
-          _blinkAdvanceStatus = 'On Review';
-          _hasActiveAdvance = false;
-          _activeAdvance = null;
-          _isBlinkAdvanceApproved = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _isBlinkAdvanceApproved = false;
+        _blinkAdvanceStatus = 'Error';
+        _hasActiveAdvance = false;
+        _activeAdvance = null;
+        _isBlinkAdvanceLoading = false;
+      });
     }
   }
 

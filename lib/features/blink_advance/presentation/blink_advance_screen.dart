@@ -13,6 +13,9 @@ import 'package:blink_app/widgets/typing_indicator.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:blink_app/providers/profile_provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:blink_app/config/api_config.dart';
 
 const Color kPrimaryColor = Color(0xFF0E6BA8);
 const Color kSecondaryColor = Color(0xFF1A237E);
@@ -654,7 +657,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   String _userName = '';
   final double _advanceAmount = 200.0;
   late Animation<Offset> _inputSectionAnimation;
-  String? _bankAccountId = '';
+  String? _bankAccountId;
+  String? _bankAccountName;
+  bool _isLoadingBankAccount = false;
   bool _isLoading = false;
   bool _isTyping = false;
   late AnimationController _confettiController;
@@ -673,6 +678,20 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     _initializeControllers();
     _loadUserName();
     _addInitialMessage();
+
+    // Initialize bank account ID from constructor
+    _bankAccountId = widget.bankAccountId;
+
+    // Only load from API if no bank account ID was provided
+    if (_bankAccountId == null || _bankAccountId!.isEmpty) {
+      _loadBankAccountDetails();
+    } else {
+      // If we have a bank account ID, still verify it's valid
+      _loadBankAccountDetails().then((_) {
+        // If loading fails, the error will be shown to the user
+        // If it succeeds, we'll have the latest account details
+      });
+    }
   }
 
   void _initializeControllers() {
@@ -1461,9 +1480,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
   void _handleDateSelection(RepaymentDate date) {
     HapticFeedback.selectionClick();
     setState(() {
-      _selectedDate = date == RepaymentDate.sevenDays
-          ? DateTime.now().add(Duration(days: 7))
-          : DateTime.now().add(Duration(days: 15));
+      _selectedDate = DateTime.now()
+          .add(Duration(days: date == RepaymentDate.sevenDays ? 7 : 15));
       _showQuickActions = false;
     });
 
@@ -1504,54 +1522,390 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     });
   }
 
-  Future<void> _processAdvance() async {
+  Future<void> _loadBankAccountDetails() async {
     try {
       setState(() {
-        _isLoading = true;
+        _isLoadingBankAccount = true;
       });
 
-      // Show processing dialog for at least 2 seconds
-      await Future.delayed(const Duration(seconds: 2));
+      final authService = Provider.of<AuthService>(context, listen: false);
 
-      if (!mounted) return;
+      // Get detailed bank accounts using new simplified endpoint
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/bank-accounts/details'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${await authService.getToken()}',
+        },
+      );
 
-      final baseFee = _selectedSpeed == TransferSpeed.instant ? 25.00 : 20.00;
-      final isSevenDayRepayment =
-          _selectedDate!.difference(DateTime.now()).inDays <= 7;
-      final feeDiscount = isSevenDayRepayment ? 0.1 : 0.0;
-      final finalFee = baseFee * (1 - feeDiscount);
+      print('Bank accounts response status: ${response.statusCode}');
+      print('Bank accounts response body: ${response.body}');
 
-      final advanceData = {
-        'amount': 200.0,
-        'repayment_amount': finalFee + 200.0, // Add advance amount to fee
-        'repayment_date': _selectedDate!.toIso8601String(),
-        'status': 'active',
-        'transfer_speed':
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true &&
+            data['data'] != null &&
+            data['data']['accounts'] is List &&
+            data['data']['accounts'].isNotEmpty) {
+          // Get the first (primary) account
+          final primaryAccount = data['data']['accounts'][0];
+
+          // Verify account is active
+          if (primaryAccount['isActive'] != true) {
+            throw Exception(
+                'Selected bank account is not active. Please link an active bank account.');
+          }
+
+          setState(() {
+            // Use id instead of accountId for the bank account ID
+            _bankAccountId = primaryAccount['id'];
+            _bankAccountName = primaryAccount['name'];
+          });
+          print('Loaded bank account ID: $_bankAccountId');
+          print('Loaded bank account name: $_bankAccountName');
+          print(
+              'Account type: ${primaryAccount['type']} (${primaryAccount['subtype']})');
+          print('Account mask: ${primaryAccount['mask']}');
+          print(
+              'Account balance: ${primaryAccount['balances']['available']} ${primaryAccount['balances']['currency']}');
+          print('Account created: ${primaryAccount['createdAt']}');
+          print('Last updated: ${primaryAccount['metadata']['lastUpdated']}');
+          print('Is verified: ${primaryAccount['metadata']['isVerified']}');
+        } else {
+          throw Exception(
+              'No active bank accounts found. Please link a bank account first.');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            errorData['message'] ??
+            'Failed to load bank account details.');
+      }
+    } catch (e) {
+      print('Error loading bank account details: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to load bank account details: ${e.toString().replaceAll('Exception: ', '')}',
+            style: const TextStyle(
+              fontFamily: 'Onest',
+              color: Colors.white,
+            ),
+          ),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Dismiss',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingBankAccount = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _processAdvance() async {
+    BuildContext? dialogContext;
+    try {
+      // Verify bank account ID first
+      if (_bankAccountId == null || _bankAccountId!.isEmpty) {
+        // Try to load bank account details again
+        await _loadBankAccountDetails();
+
+        // Check again after loading
+        if (_bankAccountId == null || _bankAccountId!.isEmpty) {
+          throw Exception(
+              'No bank account found. Please link a bank account first.');
+        }
+      }
+
+      // Get the auth token
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final token = await authService.getToken();
+
+      if (token.isEmpty) {
+        throw Exception('Authentication token not found. Please log in again.');
+      }
+
+      setState(() {
+        _isLoading = true;
+        _showQuickActions = false;
+      });
+
+      // Show processing dialog
+      dialogContext = context;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withOpacity(0.5),
+        builder: (BuildContext context) {
+          dialogContext = context;
+          return WillPopScope(
+            onWillPop: () async => false,
+            child: Dialog(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.9,
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF061535),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        spreadRadius: 2,
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/blink_logo_white.png',
+                        width: 48,
+                        height: 48,
+                      ).animate().scale(
+                            duration: 1000.ms,
+                            curve: Curves.easeOutCubic,
+                            begin: const Offset(0.8, 0.8),
+                            end: const Offset(1, 1),
+                          ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        height: 32,
+                        width: 32,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Processing your advance...',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 16,
+                          fontFamily: 'Onest',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+      // Fixed advance amount of $200
+      const advanceAmount = 200.0;
+
+      // Calculate repayment date
+      final repaymentDate = _selectedDate!.toUtc().toIso8601String();
+
+      // Prepare API request data
+      final requestData = {
+        'bankAccountId': _bankAccountId,
+        'transferSpeed':
             _selectedSpeed == TransferSpeed.instant ? 'instant' : 'standard',
-        'fee': finalFee,
-        'created_at': DateTime.now().toIso8601String()
+        'repaymentTermDays':
+            _selectedDate!.difference(DateTime.now()).inDays == 15 ? 15 : 7,
       };
 
-      _addMessage(ChatMessage(
-        text: "Great! Your \$200 advance has been approved! 🎉\n\n"
-            "${_selectedSpeed == TransferSpeed.instant ? 'Your funds will be in your account within minutes. ⚡️' : 'Your funds will arrive in 1-3 business days. 📅'}\n\n"
-            "Thanks for using Blink! Need anything else? Just let me know. 💫",
-        isUser: false,
-        timestamp: DateTime.now(),
-        emoji: AnimatedEmoji(AnimatedEmojis.partyPopper, size: 24),
-      ));
+      // Log the request for debugging
+      print('Making request to: ${ApiConfig.baseUrl}/api/blink-advances');
+      print('Request data: ${jsonEncode(requestData)}');
+      print(
+          'Using token: Bearer ${token.substring(0, 10)}...'); // Only log first 10 chars of token
 
-      // Show success message for 2 seconds before returning to home
-      await Future.delayed(const Duration(seconds: 2));
+      // Call API endpoint
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/blink-advances'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(requestData),
+      );
 
-      if (!mounted) return;
-      Navigator.of(context).pop(advanceData);
+      print('Response status code: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      // Close processing dialog
+      if (dialogContext != null && mounted) {
+        Navigator.of(dialogContext!).pop();
+      }
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['success'] == true) {
+          final advanceData = responseData['data'];
+
+          // Show success message with enhanced UI
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.check_circle_outline_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Advance Successful!',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _selectedSpeed == TransferSpeed.instant
+                                ? 'Your funds will be available within minutes'
+                                : 'Your funds will arrive in 1-3 business days',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              backgroundColor: const Color(0xFF2E7D32),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              margin: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+
+          // Add success message to chat
+          _addMessage(ChatMessage(
+            text: "Great! Your \$200 advance has been approved! 🎉\n\n"
+                "${_selectedSpeed == TransferSpeed.instant ? 'Your funds will be in your account within minutes. ⚡️' : 'Your funds will arrive in 1-3 business days. 📅'}\n\n"
+                "Thanks for using Blink! Need anything else? Just let me know. 💫",
+            isUser: false,
+            timestamp: DateTime.now(),
+            emoji: AnimatedEmoji(AnimatedEmojis.partyPopper, size: 24),
+          ));
+
+          // Wait for message animation and snackbar
+          await Future.delayed(const Duration(milliseconds: 1500));
+
+          if (!mounted) return;
+
+          // Return to home screen with smooth transition
+          Navigator.of(context).pop(advanceData);
+        } else {
+          throw Exception(
+              responseData['message'] ?? 'Failed to process advance request');
+        }
+      } else {
+        final responseData = jsonDecode(response.body);
+        String errorMessage = responseData['error'] ??
+            responseData['message'] ??
+            'Unknown error occurred';
+
+        if (response.statusCode == 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        } else if (response.statusCode == 400) {
+          errorMessage = responseData['message'] ?? 'Invalid request data';
+        } else if (response.statusCode >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+
+        throw Exception(errorMessage);
+      }
     } catch (e) {
+      // Close processing dialog if still showing
+      if (dialogContext != null && mounted) {
+        Navigator.of(dialogContext!).pop();
+      }
+
       if (!mounted) return;
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+            style: const TextStyle(
+              fontFamily: 'Onest',
+              color: Colors.white,
+            ),
+          ),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Dismiss',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
 
       _addMessage(ChatMessage(
         text:
-            "We encountered an issue processing your advance. Please try again or contact support if the problem persists.",
+            "We encountered an issue processing your advance. Please try again or contact support if the problem persists.\n\nError: ${e.toString().replaceAll('Exception: ', '')}",
         isUser: false,
         timestamp: DateTime.now(),
         emoji: AnimatedEmoji(AnimatedEmojis.thinkingFace, size: 24),
@@ -1752,65 +2106,6 @@ Ready to proceed?""",
 
   void _handleConfirmation(bool confirmed) {
     if (confirmed) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withOpacity(0.5),
-        builder: (BuildContext context) {
-          return WillPopScope(
-            onWillPop: () async => false,
-            child: Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF061535),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      spreadRadius: 2,
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 32,
-                      width: 32,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white.withOpacity(0.9)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Processing your advance...',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'Onest',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      );
       _processAdvance();
     } else {
       _handleCancellation();

@@ -22,7 +22,6 @@ class _QuickActionsScreenState extends State<QuickActionsScreen>
   late Animation<double> _scaleAnimation;
   bool _isDarkMode = false;
   bool _isBlinkAdvanceApproved = false;
-  bool _hasActiveAdvance = false;
   String _bankAccountId = '';
   bool _isCheckingEligibility = false;
 
@@ -55,16 +54,12 @@ class _QuickActionsScreenState extends State<QuickActionsScreen>
               Provider.of<StorageService>(context, listen: false);
 
           final status = await authService.getBlinkAdvanceApprovalStatus();
-          final activeAdvanceResponse =
-              await authService.getActiveBlinkAdvance();
           final bankAccountId = storageService.getBankAccountId();
 
           _isBlinkAdvanceApproved = status?['isApproved'] ?? false;
-          _hasActiveAdvance =
-              activeAdvanceResponse?['hasActiveAdvance'] ?? false;
           _bankAccountId = bankAccountId ?? '';
 
-          if (_hasActiveAdvance || _isBlinkAdvanceApproved) {
+          if (_isBlinkAdvanceApproved) {
             if (mounted) {
               Navigator.of(context).pop();
               Navigator.push(
