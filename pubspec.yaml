@@ -31,7 +31,7 @@ dependencies:
   sentry_flutter: ^8.12.0
   animate_do: ^3.3.4
   confetti: ^0.8.0
-  intl: ^0.20.1
+  intl: ^0.18.0
   flutter_shake_animated: ^0.0.5
   fl_chart: ^0.69.2
   get_it: ^8.0.2
@@ -81,6 +81,16 @@ flutter:
     - assets/animations/
     - assets/images/blink_logo.png
     - assets/images/blink_logo_white.png
+    # Icons
+    - assets/images/icons/icons8-expensive-price-80.png
+    - assets/images/icons/icons8-profit-analysis-100.png
+    - assets/images/icons/icons8-transaction-80.png
+    - assets/images/icons/icons8-transaction-100.png
+    - assets/images/icons/icons8-money-circulation-96.png
+    - assets/images/icons/icons8-time-is-money-96.png
+    - assets/images/icons/icons8-receive-dollar-96.png
+    - assets/images/icons/icons8-pie-chart-96.png
+    - assets/images/icons/icons8-check-dollar-96.png
     # Onboarding images
     - assets/images/onboarding/pexels-mizunokozuki-13431763.jpg
     - assets/images/onboarding/pexels-shvets-production-7544453.jpg

@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +19,8 @@ import 'package:blink_app/providers/profile_provider.dart';
 import 'package:blink_app/features/account/presentation/personal_information_screen.dart';
 import 'package:blink_app/features/account/presentation/security_screen.dart';
 import 'package:blink_app/features/account/presentation/help_support_screen.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter/rendering.dart' as ui;
 
 class BankAccount {
   final String bankAccountId;
@@ -73,6 +77,8 @@ class _AccountScreenState extends State<AccountScreen> {
   List<BankAccount>? _bankAccounts;
   bool _isLoadingBankAccounts = false;
   Map<String, dynamic>? _accountData;
+  final ScrollController _scrollController = ScrollController();
+  double _scrollOffset = 0;
 
   @override
   void initState() {
@@ -81,6 +87,19 @@ class _AccountScreenState extends State<AccountScreen> {
     _loadUserData();
     _loadBankAccounts();
     _loadAccountData();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    setState(() {
+      _scrollOffset = _scrollController.offset;
+    });
   }
 
   Future<void> _loadUserData() async {
@@ -481,119 +500,266 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _buildHeader() {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    final size = MediaQuery.of(context).size;
+    final padding = MediaQuery.of(context).padding;
+    final headerHeight = min(size.height * 0.38, 320.0);
+
     return Container(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        bottom: 32,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            isDarkMode ? const Color(0xFF1A2942) : const Color(0xFF2196F3),
-            isDarkMode
-                ? const Color(0xFF1A2942).withOpacity(0.85)
-                : const Color(0xFF64B5F6),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
+      height: headerHeight,
+      padding: EdgeInsets.only(top: padding.top + 56), // Add padding for AppBar
+      child: Stack(
         children: [
-          Padding(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 16,
-              bottom: 24,
-            ),
-            child: Row(
-              children: [
-                _buildHeaderButton(
-                  icon: Icons.arrow_back,
-                  onTap: () {
-                    haptics.Haptics.vibrate(haptics.HapticsType.light);
-                    Navigator.pop(context);
-                  },
+          // Add gradient overlay for better text readability
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.2),
+                  ],
                 ),
-                const Expanded(
-                  child: Text(
-                    'Profile',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          // Profile section
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final availableHeight = constraints.maxHeight;
+              final profileSize = min(availableHeight * 0.45, 110.0);
+
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Profile picture with edit button
+                  Center(
+                    child: Stack(
+                      children: [
+                        Hero(
+                          tag: 'profilePicture',
+                          child: GestureDetector(
+                            onTap:
+                                _isLoading ? null : _showImagePickerBottomSheet,
+                            child: Container(
+                              width: profileSize,
+                              height: profileSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 3,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 16,
+                                    spreadRadius: 3,
+                                  ),
+                                ],
+                              ),
+                              child: _buildProfilePictureContent(),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: GestureDetector(
+                            onTap:
+                                _isLoading ? null : _showImagePickerBottomSheet,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.edit_outlined,
+                                color: Color(0xFF1A237E),
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 40),
-              ],
-            ),
-          ),
-          FadeInDown(
-            duration: const Duration(milliseconds: 500),
-            child: _buildProfilePicture(),
-          ),
-          const SizedBox(height: 20),
-          FadeInUp(
-            duration: const Duration(milliseconds: 500),
-            child: Text(
-              _userName,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          FadeInUp(
-            duration: const Duration(milliseconds: 600),
-            child: Text(
-              _email,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.white.withOpacity(0.9),
-                letterSpacing: 0.3,
-              ),
-            ),
+                  SizedBox(height: min(availableHeight * 0.04, 16.0)),
+                  // Name with shadow for better readability
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 4,
+                    ),
+                    child: FadeInUp(
+                      duration: const Duration(milliseconds: 500),
+                      child: Text(
+                        _userName,
+                        style: TextStyle(
+                          fontSize: min(26, availableHeight * 0.1),
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                          shadows: [
+                            Shadow(
+                              offset: const Offset(0, 2),
+                              blurRadius: 4,
+                              color: Colors.black.withOpacity(0.2),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: min(availableHeight * 0.02, 8.0)),
+                  // Enhanced email container
+                  FadeInUp(
+                    duration: const Duration(milliseconds: 600),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.15),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.email_outlined,
+                              size: 15,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _email,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.9),
+                                letterSpacing: 0.2,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildBackButton() {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 24,
+        onTap: () {
+          haptics.Haptics.vibrate(haptics.HapticsType.light);
+          Navigator.pop(context);
+        },
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 0.5,
+              ),
+            ),
+            child: Icon(
+              Icons.arrow_back_ios_new,
+              color: Colors.white.withOpacity(0.9),
+              size: 12,
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildProfilePictureContent() {
+    return Consumer<ProfileProvider>(
+      builder: (context, profileProvider, child) {
+        final profilePictureUrl = profileProvider.profilePictureUrl;
+        return ClipOval(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (profilePictureUrl != null)
+                Image.network(
+                  profilePictureUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: Colors.white.withOpacity(0.1),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                )
+              else
+                Container(
+                  color: Colors.white.withOpacity(0.1),
+                  child: const Icon(
+                    Icons.person,
+                    size: 80,
+                    color: Colors.white70,
+                  ),
+                ),
+              if (_isLoading)
+                Container(
+                  color: Colors.black.withOpacity(0.5),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -609,23 +775,22 @@ class _AccountScreenState extends State<AccountScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: isDarkMode
                       ? Colors.white.withOpacity(0.1)
-                      : const Color(0xFF2196F3).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+                      : Colors.grey.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   icon,
-                  color: isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                  size: 22,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 16),
@@ -636,9 +801,9 @@ class _AccountScreenState extends State<AccountScreen> {
                     Text(
                       title,
                       style: TextStyle(
-                        color: isDarkMode ? Colors.white : Colors.black87,
-                        fontWeight: FontWeight.w600,
                         fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: isDarkMode ? Colors.white : Colors.black87,
                       ),
                     ),
                     if (subtitle != null) ...[
@@ -646,8 +811,8 @@ class _AccountScreenState extends State<AccountScreen> {
                       Text(
                         subtitle,
                         style: TextStyle(
-                          color: isDarkMode ? Colors.white70 : Colors.black54,
-                          fontSize: 13,
+                          fontSize: 14,
+                          color: isDarkMode ? Colors.white60 : Colors.black54,
                         ),
                       ),
                     ],
@@ -658,7 +823,7 @@ class _AccountScreenState extends State<AccountScreen> {
               trailing ??
                   Icon(
                     Icons.chevron_right_rounded,
-                    color: isDarkMode ? Colors.white70 : Colors.black45,
+                    color: isDarkMode ? Colors.white60 : Colors.black45,
                     size: 24,
                   ),
             ],
@@ -671,11 +836,34 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget _buildSettingsGroup(
       {required String title, required List<Widget> children}) {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+          child: Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+              color: isDarkMode ? Colors.white60 : Colors.grey[700],
+            ),
+          ),
+        ),
+        ...children,
+      ],
+    );
+  }
+
+  Widget _buildSettingsSection() {
+    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: isDarkMode
               ? Colors.white.withOpacity(0.1)
@@ -694,577 +882,35 @@ class _AccountScreenState extends State<AccountScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: Text(
-              title.toUpperCase(),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-                color: isDarkMode ? Colors.white70 : Colors.grey[700],
-              ),
-            ),
-          ),
-          ...children,
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: isDestructive
-                ? (isDarkMode
-                    ? Colors.red.withOpacity(0.15)
-                    : Colors.red.withOpacity(0.08))
-                : (isDarkMode
-                    ? Colors.white.withOpacity(0.08)
-                    : const Color(0xFF2196F3).withOpacity(0.08)),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDestructive
-                  ? (isDarkMode
-                      ? Colors.red.withOpacity(0.3)
-                      : Colors.red.withOpacity(0.2))
-                  : (isDarkMode
-                      ? Colors.white.withOpacity(0.15)
-                      : const Color(0xFF2196F3).withOpacity(0.15)),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDestructive
-                      ? (isDarkMode
-                          ? Colors.red.withOpacity(0.2)
-                          : Colors.red.withOpacity(0.1))
-                      : (isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : const Color(0xFF2196F3).withOpacity(0.1)),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  size: 22,
-                  color: isDestructive
-                      ? Colors.red
-                      : (isDarkMode ? Colors.white : const Color(0xFF2196F3)),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: isDestructive
-                            ? Colors.red
-                            : (isDarkMode ? Colors.white : Colors.black87),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: isDarkMode ? Colors.white70 : Colors.black54,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: isDestructive
-                    ? Colors.red.withOpacity(0.7)
-                    : (isDarkMode ? Colors.white70 : Colors.black45),
-                size: 24,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBankAccountCard(BankAccount account) {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDarkMode ? Colors.white.withOpacity(0.03) : Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDarkMode
-              ? Colors.white.withOpacity(0.05)
-              : Colors.grey.withOpacity(0.1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      account.accountName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: isDarkMode ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${account.accountType} - ${account.accountSubtype}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDarkMode ? Colors.white70 : Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? Colors.white.withOpacity(0.05)
-                      : const Color(0xFF2196F3).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '**** ${account.accountMask}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color:
-                        isDarkMode ? Colors.white70 : const Color(0xFF2196F3),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildBalanceInfo(
-                'Available',
-                account.availableBalance,
-                account.currency,
-                isDarkMode,
-              ),
-              _buildBalanceInfo(
-                'Current',
-                account.currentBalance,
-                account.currency,
-                isDarkMode,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isDarkMode
-                  ? Colors.white.withOpacity(0.05)
-                  : const Color(0xFF2196F3).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(6),
-            ),
+            padding: const EdgeInsets.all(24),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.access_time,
-                  size: 14,
-                  color: isDarkMode ? Colors.white60 : const Color(0xFF2196F3),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Added on ${account.createdAt.toLocal().toString().split(' ')[0]}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color:
-                        isDarkMode ? Colors.white60 : const Color(0xFF2196F3),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBalanceInfo(
-      String label, double amount, String currency, bool isDarkMode) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: isDarkMode ? Colors.white60 : Colors.black54,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${currency.toUpperCase()} ${amount.toStringAsFixed(2)}',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: isDarkMode ? Colors.white : Colors.black87,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBankAccountSection() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-
-    if (_isLoadingBankAccounts) {
-      return FadeIn(
-        duration: const Duration(milliseconds: 300),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.2),
-            ),
-            boxShadow: [
-              if (!isDarkMode)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-            ],
-          ),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Loading bank details...',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDarkMode ? Colors.white70 : Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (_bankAccounts == null || _bankAccounts!.isEmpty) {
-      return FadeInUp(
-        duration: const Duration(milliseconds: 400),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.2),
-            ),
-            boxShadow: [
-              if (!isDarkMode)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : const Color(0xFF2196F3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.account_balance,
-                      color:
-                          isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Bank Account',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isDarkMode ? Colors.white : Colors.black87,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? Colors.white.withOpacity(0.03)
-                      : Colors.grey[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDarkMode
-                        ? Colors.white.withOpacity(0.05)
-                        : Colors.grey.withOpacity(0.1),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 18,
-                          color: isDarkMode
-                              ? Colors.white70
-                              : const Color(0xFF2196F3),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'No bank account connected',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: isDarkMode ? Colors.white70 : Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Connect your bank account to start using all features',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDarkMode ? Colors.white60 : Colors.black45,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          haptics.Haptics.vibrate(haptics.HapticsType.light);
-                          // Navigate to bank connection flow
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isDarkMode
-                              ? Colors.white.withOpacity(0.1)
-                              : const Color(0xFF2196F3),
-                          foregroundColor:
-                              isDarkMode ? Colors.white : Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text(
-                          'Connect Bank Account',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return FadeInUp(
-      duration: const Duration(milliseconds: 400),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.grey.withOpacity(0.2),
-          ),
-          boxShadow: [
-            if (!isDarkMode)
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : const Color(0xFF2196F3).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.account_balance,
-                        color:
-                            isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Connected Accounts',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: isDarkMode ? Colors.white : Colors.black87,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? Colors.white.withOpacity(0.1)
-                        : const Color(0xFF2196F3).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
+                        : Colors.grey.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Text(
-                    '${_bankAccounts?.length ?? 0} Active',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                    ),
+                  child: Icon(
+                    Icons.settings,
+                    color: isDarkMode ? Colors.white : Colors.black87,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  'Settings',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : Colors.black87,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            ...(_bankAccounts ?? [])
-                .map((account) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _buildBankAccountCard(account),
-                    ))
-                .toList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsSection() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? Colors.white.withOpacity(0.1)
-                      : const Color(0xFF2196F3).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.settings,
-                  color: isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Settings',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
           ),
-          const SizedBox(height: 24),
           _buildSettingsGroup(
             title: 'Account',
             children: [
@@ -1298,7 +944,6 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
           _buildSettingsGroup(
             title: 'Preferences',
             children: [
@@ -1322,7 +967,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 subtitle: 'Toggle dark mode appearance',
                 trailing: Switch.adaptive(
                   value: isDarkMode,
-                  activeColor: const Color(0xFF2196F3),
+                  activeColor: Colors.blue,
                   onChanged: (value) {
                     haptics.Haptics.vibrate(haptics.HapticsType.light);
                     Provider.of<ThemeProvider>(context, listen: false)
@@ -1337,11 +982,429 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
+  Widget _buildBankAccountSection() {
+    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+
+    if (_isLoadingBankAccounts) {
+      return FadeIn(
+        duration: const Duration(milliseconds: 300),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDarkMode
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.2),
+            ),
+            boxShadow: [
+              if (!isDarkMode)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isDarkMode ? Colors.white : Colors.black87,
+                    ),
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Loading Account Details',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final bankAccount = _bankAccounts?.firstOrNull;
+
+    if (bankAccount == null) {
+      return FadeInUp(
+        duration: const Duration(milliseconds: 400),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDarkMode
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.2),
+            ),
+            boxShadow: [
+              if (!isDarkMode)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      Icons.account_balance,
+                      color: isDarkMode ? Colors.white : Colors.black87,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bank Account',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Connect your account to get started',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDarkMode ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.03)
+                      : Colors.grey.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDarkMode
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.grey.withOpacity(0.1),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 20,
+                          color: isDarkMode ? Colors.white70 : Colors.black87,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Account connection required',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color:
+                                  isDarkMode ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'To use Blink, you need to connect your bank account through Plaid. This allows us to securely access your financial data.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDarkMode ? Colors.white60 : Colors.black54,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    haptics.Haptics.vibrate(haptics.HapticsType.light);
+                    // TODO: Implement Plaid connection
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDarkMode
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Connect Bank Account',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return FadeInUp(
+      duration: const Duration(milliseconds: 400),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.grey.withOpacity(0.2),
+          ),
+          boxShadow: [
+            if (!isDarkMode)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.1)
+                              : Colors.grey.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.account_balance,
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              bankAccount.accountName,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color:
+                                    isDarkMode ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${bankAccount.accountType} Account',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDarkMode
+                                    ? Colors.white60
+                                    : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.05)
+                              : Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '**** ${bankAccount.accountMask}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDarkMode ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDarkMode
+                    ? Colors.white.withOpacity(0.03)
+                    : Colors.grey.withOpacity(0.03),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Available Balance',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDarkMode
+                                    ? Colors.white60
+                                    : Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            RichText(
+                              text: TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text:
+                                        '\$${bankAccount.availableBalance.toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDarkMode
+                                          ? Colors.white
+                                          : Colors.black87,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        '.${bankAccount.availableBalance.toStringAsFixed(2).split('.')[1]}',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDarkMode
+                                          ? Colors.white70
+                                          : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? Colors.white.withOpacity(0.05)
+                          : Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDarkMode
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.black.withOpacity(0.1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: isDarkMode ? Colors.white60 : Colors.black54,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Connected on ${DateFormat('MMM d, yyyy').format(bankAccount.createdAt)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDarkMode ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionButtons() {
+    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildActionButton(
             icon: Icons.support_outlined,
@@ -1381,31 +1444,276 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildActionButton({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Scaffold(
-      backgroundColor: isDarkMode ? const Color(0xFF121212) : Colors.grey[100],
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            SafeArea(
-              top: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildBankAccountSection(),
-                  _buildSettingsSection(),
-                  _buildActionButtons(),
-                  const SizedBox(height: 24),
-                ],
-              ),
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDestructive
+              ? (isDarkMode
+                  ? Colors.red.withOpacity(0.1)
+                  : Colors.red.withOpacity(0.05))
+              : (isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDestructive
+                ? (isDarkMode
+                    ? Colors.red.withOpacity(0.2)
+                    : Colors.red.withOpacity(0.1))
+                : (isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.2)),
+          ),
+          boxShadow: !isDarkMode && !isDestructive
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDestructive
+                        ? (isDarkMode
+                            ? Colors.red.withOpacity(0.15)
+                            : Colors.red.withOpacity(0.1))
+                        : (isDarkMode
+                            ? Colors.white.withOpacity(0.1)
+                            : Colors.grey.withOpacity(0.1)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 24,
+                    color: isDestructive
+                        ? Colors.red
+                        : (isDarkMode ? Colors.white : Colors.black87),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isDestructive
+                              ? Colors.red
+                              : (isDarkMode ? Colors.white : Colors.black87),
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDarkMode ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDestructive
+                      ? Colors.red.withOpacity(0.7)
+                      : (isDarkMode ? Colors.white60 : Colors.black45),
+                  size: 24,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    final appBarOpacity = (_scrollOffset / 100).clamp(0.0, 0.8);
+
+    return Scaffold(
+      backgroundColor:
+          isDarkMode ? const Color(0xFF121212) : const Color(0xFFF5F5F7),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor:
+            (isDarkMode ? const Color(0xFF1A237E) : const Color(0xFF1A237E))
+                .withOpacity(appBarOpacity),
+        elevation: appBarOpacity > 0 ? 1 : 0,
+        leadingWidth: 56,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(
+              sigmaX: appBarOpacity * 10,
+              sigmaY: appBarOpacity * 10,
+            ),
+            child: Container(
+              color: Colors.transparent,
+            ),
+          ),
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: _buildBackButton(),
+        ),
+        title: Text(
+          'Account',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.white.withOpacity(0.95),
+          ),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  // TODO: Implement settings
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.settings_outlined,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Enhanced background gradient
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.2, 0.5, 1.0],
+                  colors: [
+                    const Color(0xFF1A237E).withOpacity(0.95),
+                    const Color(0xFF0D47A1).withOpacity(0.8),
+                    isDarkMode
+                        ? const Color(0xFF121212).withOpacity(0.95)
+                        : const Color(0xFFF5F5F7).withOpacity(0.95),
+                    isDarkMode
+                        ? const Color(0xFF121212)
+                        : const Color(0xFFF5F5F7),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Subtle pattern overlay
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.02,
+              child: CustomPaint(
+                painter: PatternPainter(),
+              ),
+            ),
+          ),
+          // Main content
+          SingleChildScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(),
+                // Content sections with glass effect background
+                Container(
+                  margin: const EdgeInsets.only(top: 16),
+                  decoration: BoxDecoration(
+                    color: (isDarkMode ? Colors.white : Colors.black)
+                        .withOpacity(0.03),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(32)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 24),
+                        _buildBankAccountSection(),
+                        const SizedBox(height: 16),
+                        _buildSettingsSection(),
+                        const SizedBox(height: 16),
+                        _buildActionButtons(),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    final spacing = 20.0;
+    for (double i = 0; i < size.width + size.height; i += spacing) {
+      canvas.drawLine(
+        Offset(0, i),
+        Offset(i, 0),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

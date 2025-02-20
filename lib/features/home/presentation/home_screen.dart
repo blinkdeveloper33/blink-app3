@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import 'package:blink_app/features/account/presentation/account_screen.dart';
 import 'package:blink_app/features/blink_advance/presentation/blink_advance_screen.dart';
+import 'package:blink_app/features/blink_advance/presentation/splash/blink_advance_splash_screen.dart';
 import 'package:blink_app/widgets/confetti_overlay.dart';
 import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart'
     as insights;
@@ -40,6 +41,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final Logger _logger = Logger();
   bool _isDarkMode = false;
+  static const cashAdvanceBlue = Color(0xFF1E3A4F);
   final NumberFormat currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   List<auth.Transaction> _recentTransactions = [];
@@ -656,7 +658,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               Navigator.of(context).push(
                 PageRouteBuilder(
                   pageBuilder: (context, animation, secondaryAnimation) =>
-                      BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+                      BlinkAdvanceSplashScreen(bankAccountId: _bankAccountId),
                   transitionsBuilder:
                       (context, animation, secondaryAnimation, child) {
                     return FadeTransition(opacity: animation, child: child);
@@ -665,6 +667,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   settings: const RouteSettings(name: '/blink-advance'),
                   opaque: true,
                   barrierDismissible: false,
+                  transitionDuration: const Duration(milliseconds: 500),
                 ),
               );
             }
@@ -727,12 +730,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _isBlinkAdvanceExpanded = !_isBlinkAdvanceExpanded;
     });
 
-    if (_hasActiveAdvance) {
+    if (_hasActiveAdvance || _isBlinkAdvanceApproved) {
       Navigator.of(context)
           .push(
-        MaterialPageRoute(
-          builder: (context) =>
-              BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return BlinkAdvanceSplashScreen(bankAccountId: _bankAccountId);
+          },
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 500),
         ),
       )
           .then((result) {
@@ -743,92 +754,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           });
         }
       });
-    } else if (_isBlinkAdvanceApproved) {
-      if (_bankAccountId.isNotEmpty) {
-        Navigator.of(context)
-            .push(
-          MaterialPageRoute(
-            builder: (context) =>
-                BlinkAdvanceScreen(bankAccountId: _bankAccountId),
-          ),
-        )
-            .then((result) {
-          if (result != null && result is Map<String, dynamic>) {
-            setState(() {
-              _activeAdvanceData = result;
-              _hasActiveAdvance = true;
-            });
-          }
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.white, size: 20),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Bank account ID not found. Please link your bank account.',
-                    style: TextStyle(
-                      fontFamily: 'Onest',
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red[700],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
-      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
-            children: [
-              Icon(
-                _blinkAdvanceStatus.toLowerCase() == 'on review'
-                    ? Icons.pending_outlined
-                    : Icons.info_outline,
-                color: Colors.white,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _blinkAdvanceStatus.toLowerCase() == 'on review'
-                      ? 'Your \$200 Blink Advance application is currently under review. This typically takes 1-2 business days. We\'ll notify you once a decision has been made.'
-                      : 'You are not currently eligible for a \$200 Blink Advance. Our system will automatically notify you when you become eligible.',
-                  style: const TextStyle(
-                    fontFamily: 'Onest',
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
+          content: Text(
+            _blinkAdvanceStatus == 'On Review'
+                ? 'Your Blink Advance application is still under review.'
+                : 'You are not currently eligible for Blink Advance.',
           ),
-          backgroundColor: _blinkAdvanceStatus.toLowerCase() == 'on review'
-              ? Colors.orange[700]
-              : Colors.red[700],
-          duration: const Duration(seconds: 6),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          action: _blinkAdvanceStatus.toLowerCase() == 'on review'
-              ? SnackBarAction(
-                  label: 'Got it',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  },
-                )
-              : null,
+          backgroundColor: Colors.orange,
         ),
       );
     }
@@ -2006,62 +1940,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth =
         (screenWidth - 56) / 2; // Half width minus padding and gap
-    final cardHeight = cardWidth * 1.9; // Keep current height ratio
 
     return Container(
-      height: cardHeight,
+      height: cardWidth * 1.8,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Flexible(
+          Expanded(
             child: Container(
               width: cardWidth,
-              height: cardHeight,
               child: _buildBlinkAdvanceCard(),
             ),
           ),
-          Container(
-            width: cardWidth,
-            height: cardHeight,
-            margin: const EdgeInsets.only(left: 16),
-            child: Column(
-              children: [
-                Expanded(
-                  flex: 1,
-                  child: _buildQuickActionCard(
-                    title: 'Repayment',
-                    color: _isDarkMode
-                        ? const Color(0xFF1E3B2F)
-                        : Colors.green[100]!,
-                    textColor: _isDarkMode ? Colors.white : Colors.green[800]!,
-                    onTap: () {
-                      _performHapticFeedback(haptics.HapticsType.medium);
-                      // TODO: Implement repayment functionality
-                    },
+          const SizedBox(width: 16),
+          Expanded(
+            child: Container(
+              width: cardWidth,
+              child: Column(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: _buildQuickActionCard(
+                      title: 'Repayment',
+                      color: _isDarkMode
+                          ? const Color(0xFF1E3B2F)
+                          : Colors.green[100]!,
+                      textColor:
+                          _isDarkMode ? Colors.white : Colors.green[800]!,
+                      onTap: () {
+                        _performHapticFeedback(haptics.HapticsType.medium);
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  flex: 1,
-                  child: _buildQuickActionCard(
-                    title: 'Insights',
-                    color: _isDarkMode
-                        ? const Color(0xFF2A1E45)
-                        : Colors.purple[100]!,
-                    textColor: _isDarkMode ? Colors.white : Colors.purple[800]!,
-                    onTap: () {
-                      _performHapticFeedback(haptics.HapticsType.medium);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const insights.FinancialInsightsScreen(),
-                        ),
-                      );
-                    },
+                  const SizedBox(height: 16),
+                  Expanded(
+                    flex: 1,
+                    child: _buildQuickActionCard(
+                      title: 'Insights',
+                      color: _isDarkMode
+                          ? const Color(0xFF2A1E45)
+                          : Colors.purple[100]!,
+                      textColor:
+                          _isDarkMode ? Colors.white : Colors.purple[800]!,
+                      onTap: () {
+                        _performHapticFeedback(haptics.HapticsType.medium);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const insights.FinancialInsightsScreen(),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -2075,137 +2009,315 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     required Color textColor,
     required VoidCallback onTap,
   }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (title == 'Repayment') {
-          return GestureDetector(
-            onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
-            child: AnimatedBuilder(
-              animation: _repaymentFlipAnimation,
-              builder: (context, child) {
-                final showFrontSide =
-                    _repaymentFlipAnimation.value < (math.pi / 2);
-                return Transform(
-                  transform: Matrix4.identity()
-                    ..setEntry(3, 2, 0.001)
-                    ..rotateY(_repaymentFlipAnimation.value),
-                  alignment: Alignment.center,
-                  child: showFrontSide
-                      ? _buildRepaymentFrontCard(color, textColor)
-                      : Transform(
-                          transform: Matrix4.identity()..rotateY(math.pi),
-                          alignment: Alignment.center,
-                          child: _buildRepaymentBackCard(color, textColor),
-                        ),
-                );
-              },
-            ),
-          );
-        }
+    if (title == 'Repayment') {
+      return GestureDetector(
+        onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
+        child: AnimatedBuilder(
+          animation: _repaymentFlipAnimation,
+          builder: (context, child) {
+            final showFrontSide = _repaymentFlipAnimation.value < (math.pi / 2);
+            return Transform(
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.001)
+                ..rotateX(_repaymentFlipAnimation.value),
+              alignment: Alignment.center,
+              child: showFrontSide
+                  ? _buildRepaymentFrontCard(color, textColor)
+                  : Transform(
+                      transform: Matrix4.identity()..rotateX(math.pi),
+                      alignment: Alignment.center,
+                      child: _buildRepaymentBackCard(color, textColor),
+                    ),
+            );
+          },
+        ),
+      );
+    }
 
-        // Original implementation for non-repayment cards
-        return GestureDetector(
-          onTapDown: (_) {
-            _performHapticFeedback(haptics.HapticsType.light);
-            setState(() {
-              _insightsEmojiAnimationController.forward();
-            });
-          },
-          onTapUp: (_) {
-            _insightsEmojiAnimationController.reverse();
-            onTap();
-          },
-          onTapCancel: () {
-            _insightsEmojiAnimationController.reverse();
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  color.withOpacity(0.9),
-                  color.withOpacity(0.7),
-                ],
+    // Insights card
+    if (title == 'Insights') {
+      const insightsBlue = Color.fromRGBO(55, 168, 222, 1.0);
+      return GestureDetector(
+        onTapDown: (_) {
+          _performHapticFeedback(haptics.HapticsType.light);
+          setState(() {
+            _insightsEmojiAnimationController.forward();
+          });
+        },
+        onTapUp: (_) {
+          _insightsEmojiAnimationController.reverse();
+          onTap();
+        },
+        onTapCancel: () {
+          _insightsEmojiAnimationController.reverse();
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                insightsBlue.withOpacity(0.98),
+                insightsBlue.withOpacity(0.95),
+              ],
+              stops: const [0.2, 0.9],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 0.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: insightsBlue.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+                spreadRadius: -2,
               ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: _isDarkMode
-                    ? Colors.white.withOpacity(0.1)
-                    : textColor.withOpacity(0.2),
+              BoxShadow(
+                color: insightsBlue.withOpacity(0.2),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+                spreadRadius: -4,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(_isDarkMode ? 0.3 : 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                  spreadRadius: 0,
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.1),
+                          Colors.white.withOpacity(0.05),
+                          Colors.black.withOpacity(0.05),
+                        ],
+                        stops: const [0.2, 0.5, 0.8],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -100,
+                  left: -100,
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.1),
+                          Colors.white.withOpacity(0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.white.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/images/icons/icons8-pie-chart-96.png',
+                              width: 32,
+                              height: 32,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          ),
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.white.withOpacity(0.9),
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Blink\n',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                                height: 0.15,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Insights',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 22,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                  ),
                 ),
               ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ),
+      );
+    }
+
+    // Original implementation for other cards
+    return GestureDetector(
+      onTapDown: (_) {
+        _performHapticFeedback(haptics.HapticsType.light);
+        setState(() {
+          _insightsEmojiAnimationController.forward();
+        });
+      },
+      onTapUp: (_) {
+        _insightsEmojiAnimationController.reverse();
+        onTap();
+      },
+      onTapCancel: () {
+        _insightsEmojiAnimationController.reverse();
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.9),
+              color.withOpacity(0.7),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : textColor.withOpacity(0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(_isDarkMode ? 0.3 : 0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: textColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Image.asset(
+                  'assets/images/icons/icons8-transaction-100.png',
+                  color: textColor,
+                  width: 28,
+                  height: 28,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                title,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 18,
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Text(
+                    'Analyze',
+                    style: TextStyle(
+                      color: textColor.withOpacity(0.7),
+                      fontSize: 13,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 24,
+                    height: 24,
                     decoration: BoxDecoration(
                       color: textColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      shape: BoxShape.circle,
                     ),
-                    child: Image.asset(
-                      'assets/images/glasses_3d.png',
-                      width: 24,
-                      height: 24,
-                      color: textColor,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 20,
-                      fontFamily: 'Onest',
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Analyze',
-                        style: TextStyle(
-                          color: textColor.withOpacity(0.7),
-                          fontSize: 14,
-                          fontFamily: 'Onest',
-                        ),
+                    child: Center(
+                      child: Icon(
+                        Icons.arrow_forward,
+                        color: textColor,
+                        size: 14,
                       ),
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: textColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Icon(
-                            Icons.arrow_forward,
-                            color: textColor,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -2758,23 +2870,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBlinkAdvanceCard() {
+    const cashAdvanceBlue = Color(0xFF1E3A4F);
     return GestureDetector(
       onTap: () {
         _performHapticFeedback(haptics.HapticsType.medium);
-        if (_hasActiveAdvance) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) =>
-                  BlinkAdvanceScreen(bankAccountId: _bankAccountId),
+        if (_hasActiveAdvance || _isBlinkAdvanceApproved) {
+          Navigator.of(context)
+              .push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) {
+                return BlinkAdvanceSplashScreen(bankAccountId: _bankAccountId);
+              },
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: child,
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 500),
             ),
-          );
-        } else if (_isBlinkAdvanceApproved) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) =>
-                  BlinkAdvanceScreen(bankAccountId: _bankAccountId),
-            ),
-          );
+          )
+              .then((result) {
+            if (result != null && result is Map<String, dynamic>) {
+              setState(() {
+                _activeAdvanceData = result;
+                _hasActiveAdvance = true;
+              });
+            }
+          });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -2793,121 +2917,189 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: _isDarkMode
-                ? [
-                    const Color(0xFF1E2A45).withOpacity(0.9),
-                    const Color(0xFF1A2942).withOpacity(0.95),
-                  ]
-                : [
-                    Colors.blue[100]!.withOpacity(0.9),
-                    Colors.blue[50]!.withOpacity(0.95),
-                  ],
+            colors: [
+              cashAdvanceBlue.withOpacity(0.98),
+              const Color(0xFF0A2540).withOpacity(0.95),
+            ],
+            stops: const [0.2, 0.9],
           ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: _isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.blue.withOpacity(0.2),
+            color: Colors.white.withOpacity(0.2),
+            width: 0.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: _isDarkMode
-                  ? Colors.black.withOpacity(0.3)
-                  : Colors.blue.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-              spreadRadius: 0,
+              color: cashAdvanceBlue.withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+              spreadRadius: -2,
+            ),
+            BoxShadow(
+              color: cashAdvanceBlue.withOpacity(0.2),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+              spreadRadius: -4,
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
             children: [
-              FluentUiEmojiIcon(
-                fl: Fluents.flHighVoltage,
-                w: 48,
-                h: 48,
-              ),
-              const Spacer(),
-              SvgPicture.asset(
-                _isDarkMode
-                    ? 'assets/images/blink-logo2.svg'
-                    : 'assets/images/blink-logo3.svg',
-                height: 28,
-                width: 100,
-                fit: BoxFit.contain,
-                colorFilter: ColorFilter.mode(
-                  Colors.white,
-                  BlendMode.srcIn,
+              // Subtle gradient overlay for depth
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.05),
+                        Colors.black.withOpacity(0.05),
+                      ],
+                      stops: const [0.2, 0.5, 0.8],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Cash Advance',
-                style: TextStyle(
-                  color: _isDarkMode ? Colors.white : Colors.blue[800],
-                  fontSize: 24,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.bold,
+              // Premium shine effect
+              Positioned(
+                top: -100,
+                left: -100,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.0),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Status',
-                        style: TextStyle(
-                          color:
-                              _isDarkMode ? Colors.white70 : Colors.blue[600],
-                          fontSize: 14,
-                          fontFamily: 'Onest',
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Modern icon container with refined styling
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            _hasActiveAdvance ? 'Active' : _blinkAdvanceStatus,
-                            style: TextStyle(
-                              color:
-                                  _isDarkMode ? Colors.white : Colors.blue[800],
-                              fontSize: 14,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.bold,
-                            ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                          const SizedBox(width: 4),
-                          _getStatusEmoji(),
                         ],
                       ),
-                    ],
-                  ),
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: _isDarkMode ? Colors.white : Colors.blue[800],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.arrow_forward,
-                        color: _isDarkMode
-                            ? const Color(0xFF141B2E)
-                            : Colors.white,
-                        size: 16,
+                      child: Image.asset(
+                        'assets/images/icons/icons8-check-dollar-96.png',
+                        width: 32,
+                        height: 32,
+                        filterQuality: FilterQuality.high,
                       ),
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    // Title and subtitle
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Cash Advance',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Quick Funds',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 14,
+                            fontFamily: 'Onest',
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Status and action section
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Status',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 13,
+                                fontFamily: 'Onest',
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(
+                                  _hasActiveAdvance
+                                      ? 'Active'
+                                      : _blinkAdvanceStatus,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontFamily: 'Onest',
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                _getStatusEmoji(),
+                              ],
+                            ),
+                          ],
+                        ),
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white.withOpacity(0.9),
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -2917,119 +3109,191 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildRepaymentFrontCard(Color color, Color textColor) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withOpacity(0.9),
-            color.withOpacity(0.7),
+    const repaymentBlue = Color.fromRGBO(30, 54, 100, 1.0);
+    return GestureDetector(
+      onTap: () {
+        _flipRepaymentCard();
+        _performHapticFeedback(haptics.HapticsType.medium);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              repaymentBlue.withOpacity(0.98),
+              repaymentBlue.withOpacity(0.95),
+            ],
+            stops: const [0.2, 0.9],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+            width: 0.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: repaymentBlue.withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+              spreadRadius: -2,
+            ),
+            BoxShadow(
+              color: repaymentBlue.withOpacity(0.2),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+              spreadRadius: -4,
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isDarkMode
-              ? Colors.white.withOpacity(0.1)
-              : textColor.withOpacity(0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(_isDarkMode ? 0.3 : 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
+        child: Stack(
+          children: [
+            // Subtle gradient overlay for depth
+            Positioned.fill(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: textColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: textColor,
-                  size: 24,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'Repayment',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 20,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'View Details',
-                    style: TextStyle(
-                      color: textColor.withOpacity(0.7),
-                      fontSize: 14,
-                      fontFamily: 'Onest',
-                    ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.1),
+                      Colors.white.withOpacity(0.05),
+                      Colors.black.withOpacity(0.05),
+                    ],
+                    stops: const [0.2, 0.5, 0.8],
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      _flipRepaymentCard();
-                      _performHapticFeedback(haptics.HapticsType.medium);
-                    },
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: textColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            // Premium shine effect
+            Positioned(
+              top: -100,
+              left: -100,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.1),
+                      Colors.white.withOpacity(0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Modern icon container with refined styling
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/images/icons/icons8-time-is-money-96.png',
+                          width: 28,
+                          height: 28,
+                          filterQuality: FilterQuality.high,
+                        ),
                       ),
-                      child: Center(
-                        child: AnimatedRotation(
-                          duration: const Duration(milliseconds: 300),
-                          turns: _isRepaymentCardFlipped ? 0.5 : 0,
-                          child: Icon(
-                            Icons.chevron_right_rounded,
-                            color: textColor,
-                            size: 14,
+                      // Flip button
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: AnimatedRotation(
+                            duration: const Duration(milliseconds: 300),
+                            turns: _isRepaymentCardFlipped ? 0.75 : 0.25,
+                            child: Icon(
+                              Icons.chevron_right_rounded,
+                              color: Colors.white.withOpacity(0.9),
+                              size: 16,
+                            ),
                           ),
                         ),
                       ),
+                    ],
+                  ),
+                  const Spacer(),
+                  // Professional title with trademark
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Blink\n',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.bold,
+                            height: 0.15,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Repay',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 22,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 8),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildRepaymentBackCard(Color color, Color textColor) {
+    const repaymentBlue = Color.fromRGBO(30, 54, 100, 1.0);
     final hasActiveAdvance = _activeAdvanceData != null;
     final repaymentAmount = hasActiveAdvance
-        ? _activeAdvanceData!['repayment_amount'] as double
+        ? (double.tryParse(
+                _activeAdvanceData!['total_repayment_amount']?.toString() ??
+                    '0') ??
+            0.0)
         : 0.0;
     final repaymentDate = hasActiveAdvance
-        ? DateTime.parse(_activeAdvanceData!['repayment_date'])
+        ? DateTime.tryParse(
+                _activeAdvanceData!['repayment_date']?.toString() ?? '') ??
+            DateTime.now()
         : DateTime.now();
-    final daysUntilRepayment =
-        hasActiveAdvance ? repaymentDate.difference(DateTime.now()).inDays : 0;
-    final transferSpeed =
-        hasActiveAdvance ? _activeAdvanceData!['transfer_speed'] as String : '';
-    final fee = hasActiveAdvance ? _activeAdvanceData!['fee'] as double : 0.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -3037,623 +3301,220 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            color.withOpacity(0.95),
-            color.withOpacity(0.85),
+            repaymentBlue.withOpacity(0.98),
+            repaymentBlue.withOpacity(0.95),
           ],
+          stops: const [0.2, 0.9],
         ),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(_isDarkMode ? 0.4 : 0.3),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-            spreadRadius: -8,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: textColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.calendar_today_rounded,
-                          color: textColor,
-                          size: 10,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          hasActiveAdvance
-                              ? 'Next Payment'
-                              : 'No Active Advance',
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 10,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (hasActiveAdvance)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: textColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            transferSpeed == 'instant'
-                                ? Icons.bolt
-                                : Icons.schedule,
-                            color: textColor,
-                            size: 10,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            transferSpeed == 'instant' ? 'Instant' : 'Standard',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 10,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              if (hasActiveAdvance) ...[
-                const SizedBox(height: 12),
-                Text(
-                  currencyFormatter.format(repaymentAmount),
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 24,
-                    fontFamily: 'Onest',
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Due in $daysUntilRepayment days',
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.7),
-                    fontSize: 12,
-                    fontFamily: 'Onest',
-                  ),
-                ),
-                Text(
-                  'Includes ${currencyFormatter.format(fee)} fee',
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.6),
-                    fontSize: 11,
-                    fontFamily: 'Onest',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      _performHapticFeedback(haptics.HapticsType.medium);
-                      // TODO: Implement pay now functionality
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    child: Ink(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: textColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: textColor.withOpacity(0.2),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Pay Now',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 12,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Icon(
-                            Icons.arrow_forward_rounded,
-                            color: textColor,
-                            size: 14,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ] else ...[
-                const SizedBox(height: 8),
-                Text(
-                  'No active advance to repay',
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.7),
-                    fontSize: 12,
-                    fontFamily: 'Onest',
-                  ),
-                ),
-              ],
-            ],
-          ),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 0.5,
         ),
       ),
-    );
-  }
-
-  Future<void> _loadProfilePicture() async {
-    if (!mounted) return;
-
-    try {
-      final storageService =
-          Provider.of<StorageService>(context, listen: false);
-      final profileProvider =
-          Provider.of<ProfileProvider>(context, listen: false);
-      final userId = storageService.getUserId();
-
-      if (userId != null) {
-        await profileProvider.loadProfilePicture(userId);
-      }
-    } catch (e) {
-      _logger.e('Error in _loadProfilePicture: $e');
-    }
-  }
-
-  Widget _buildProfileImage() {
-    return Consumer<ProfileProvider>(
-      builder: (context, profileProvider, child) {
-        final profilePictureUrl = profileProvider.profilePictureUrl;
-        if (profilePictureUrl == null) {
-          return _buildAvatarFallback();
-        }
-
-        return Image.network(
-          profilePictureUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            _logger.e('Error loading profile image: $error');
-            return _buildAvatarFallback();
-          },
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                    _isDarkMode ? Colors.white70 : Colors.blue[200]!),
-              ),
-            );
-          },
-          // Force image refresh by using key with URL
-          key: ValueKey(profilePictureUrl),
-          // Disable image caching
-          cacheWidth: null,
-          cacheHeight: null,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-          },
-        );
-      },
-    );
-  }
-
-  void _showTemporaryMessage() {
-    if (!mounted) return;
-    setState(() {
-      _showHistoricalDataMessage = true;
-    });
-    _messageTimer?.cancel();
-    _messageTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _showHistoricalDataMessage = false;
-        });
-      }
-    });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reload profile picture when dependencies change (e.g., after navigation)
-    _loadProfilePicture();
-  }
-
-  Widget _buildShimmerEffect() {
-    return AnimatedBuilder(
-      animation: _shimmerAnimation,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0),
-                Colors.white.withOpacity(0.1),
-                Colors.white.withOpacity(0),
-              ],
-              stops: const [
-                0.0,
-                0.5,
-                1.0,
-              ],
-              transform:
-                  GradientRotation(_shimmerAnimation.value * math.pi * 2),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _loadDailyTransactionSummary() async {
-    if (!mounted) return;
-
-    try {
-      setState(() {
-        _isChartLoading = true;
-      });
-
-      final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final response = await authService.getDailyTransactionSummary();
-
-      final List<auth.DailyTransactionSummary> summary =
-          (response['summary'] as List)
-              .map((item) => auth.DailyTransactionSummary.fromJson(item))
-              .toList();
-
-      if (!mounted) return;
-
-      setState(() {
-        _dailyTransactionSummary = summary;
-        _isChartLoading = false;
-      });
-    } catch (e) {
-      _logger.e('Error loading daily transaction summary: $e');
-      if (mounted) {
-        setState(() {
-          _isChartLoading = false;
-        });
-      }
-    }
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good morning';
-    } else if (hour < 17) {
-      return 'Good afternoon';
-    } else {
-      return 'Good evening';
-    }
-  }
-
-  void _showTransactionDetails(Transaction transaction) {
-    _performHapticFeedback(haptics.HapticsType.medium);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.75,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: _isDarkMode ? const Color(0xFF1A2942) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Main Content
-              CustomScrollView(
-                controller: scrollController,
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  // Header Section
-                  SliverToBoxAdapter(
+      child: Stack(
+        children: [
+          // Main content
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Drag Handle
-                        Container(
-                          margin: const EdgeInsets.only(top: 12, bottom: 16),
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color:
-                                _isDarkMode ? Colors.white24 : Colors.black12,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        // Amount Section
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: transaction.isOutflow
-                                  ? [
-                                      Colors.red[400]!.withOpacity(0.15),
-                                      Colors.red[300]!.withOpacity(0.05),
-                                    ]
-                                  : [
-                                      Colors.green[400]!.withOpacity(0.15),
-                                      Colors.green[300]!.withOpacity(0.05),
-                                    ],
-                            ),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: transaction.isOutflow
-                                  ? Colors.red[400]!.withOpacity(0.2)
-                                  : Colors.green[400]!.withOpacity(0.2),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8, right: 36),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: RichText(
+                              textAlign: TextAlign.left,
+                              text: TextSpan(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: transaction.isOutflow
-                                          ? Colors.red[400]!.withOpacity(0.1)
-                                          : Colors.green[400]!.withOpacity(0.1),
-                                      shape: BoxShape.circle,
+                                  TextSpan(
+                                    text: '\$',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontFamily: 'Onest',
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    child: Icon(
-                                      transaction.isOutflow
-                                          ? Icons.arrow_upward
-                                          : Icons.arrow_downward,
-                                      color: transaction.isOutflow
-                                          ? Colors.red[400]
-                                          : Colors.green[400],
-                                      size: 24,
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        '${currencyFormatter.format(repaymentAmount).split('.')[0].substring(1)}.',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontFamily: 'Onest',
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: currencyFormatter
+                                        .format(repaymentAmount)
+                                        .split('.')[1],
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 16,
+                                      fontFamily: 'Onest',
+                                      fontWeight: FontWeight.normal,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              ShaderMask(
-                                shaderCallback: (bounds) => LinearGradient(
-                                  colors: transaction.isOutflow
-                                      ? [Colors.red[400]!, Colors.red[300]!]
-                                      : [
-                                          Colors.green[400]!,
-                                          Colors.green[300]!
-                                        ],
-                                ).createShader(bounds),
-                                child: Text(
-                                  currencyFormatter.format(transaction.amount),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 36,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: -0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Center(
+                          child: Container(
+                            width: 160,
+                            height: 32,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: StreamBuilder<int>(
+                              stream: Stream.periodic(
+                                  const Duration(seconds: 1), (count) => count),
+                              builder: (context, snapshot) {
+                                final now = DateTime.now();
+                                final difference =
+                                    repaymentDate.difference(now);
+
+                                final days = difference.inDays;
+                                final hours = difference.inHours.remainder(24);
+                                final minutes =
+                                    difference.inMinutes.remainder(60);
+                                final seconds =
+                                    difference.inSeconds.remainder(60);
+
+                                return Center(
+                                  child: Text(
+                                    '$days days, $hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Onest',
+                                    ),
                                   ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 180),
+                            child: GestureDetector(
+                              onTap: () {
+                                _performHapticFeedback(
+                                    haptics.HapticsType.medium);
+                                // TODO: Implement repayment action
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF40916C),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF40916C)
+                                          .withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      'Repay Now',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontFamily: 'Onest',
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.all(
+                                          3), // Reduced padding
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Icon(
+                                        Icons.arrow_forward_rounded,
+                                        color: Colors.white,
+                                        size: 12, // Reduced size
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                transaction.isOutflow ? 'Outflow' : 'Inflow',
-                                style: TextStyle(
-                                  color: transaction.isOutflow
-                                      ? Colors.red[400]
-                                      : Colors.green[400],
-                                  fontSize: 16,
-                                  fontFamily: 'Onest',
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-
-                  // Transaction Details
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Merchant Section
-                          _buildDetailSection(
-                            'Merchant Details',
-                            [
-                              _buildDetailTile(
-                                icon: Icons.storefront_rounded,
-                                title: transaction.merchantName ??
-                                    'Unknown Merchant',
-                                subtitle: transaction.displayCategory,
-                                iconColor:
-                                    transaction.getCategoryColor(_isDarkMode),
-                                onTap: () {
-                                  _performHapticFeedback(
-                                      haptics.HapticsType.light);
-                                  // TODO: Show merchant details/history
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Transaction Information
-                          _buildDetailSection(
-                            'Transaction Details',
-                            [
-                              _buildDetailTile(
-                                icon: Icons.calendar_today_rounded,
-                                title: 'Date',
-                                subtitle: DateFormat('EEEE, MMMM d, y')
-                                    .format(transaction.date),
-                                showCopy: false,
-                              ),
-                              _buildDetailTile(
-                                icon: Icons.access_time_rounded,
-                                title: 'Time',
-                                subtitle: DateFormat('h:mm a')
-                                    .format(transaction.date),
-                                showCopy: false,
-                              ),
-                              _buildDetailTile(
-                                icon: Icons.tag_rounded,
-                                title: 'Transaction ID',
-                                subtitle: transaction.id,
-                                showCopy: true,
-                              ),
-                              _buildDetailTile(
-                                icon: Icons.check_circle_outline_rounded,
-                                title: 'Status',
-                                subtitle: transaction.displayStatus,
-                                iconColor: Colors.green[400],
-                                showCopy: false,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Category Section
-                          _buildDetailSection(
-                            'Category',
-                            [
-                              _buildCategoryTile(transaction),
-                            ],
-                          ),
-                          if (transaction.description != null) ...[
-                            const SizedBox(height: 24),
-                            _buildDetailSection(
-                              'Additional Information',
-                              [
-                                _buildDetailTile(
-                                  icon: Icons.description_outlined,
-                                  title: 'Note',
-                                  subtitle: transaction.description!,
-                                  showCopy: false,
-                                ),
-                              ],
-                            ),
-                          ],
-                          const SizedBox(height: 32),
-
-                          // Action Buttons
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildActionButton(
-                                  icon: Icons.receipt_long_rounded,
-                                  label: 'Export Receipt',
-                                  onPressed: () {
-                                    _performHapticFeedback(
-                                        haptics.HapticsType.light);
-                                    // TODO: Implement export functionality
-                                  },
-                                  isPrimary: false,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildActionButton(
-                                  icon: Icons.flag_rounded,
-                                  label: 'Report Issue',
-                                  onPressed: () {
-                                    _performHapticFeedback(
-                                        haptics.HapticsType.light);
-                                    // TODO: Implement report functionality
-                                  },
-                                  isPrimary: true,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 32),
-                        ],
-                      ),
-                    ),
+                ),
+              ],
+            ),
+          ),
+          // Flip button positioned at top right
+          Positioned(
+            top: 12,
+            right: 12,
+            child: GestureDetector(
+              onTap: () {
+                _flipRepaymentCard();
+                _performHapticFeedback(haptics.HapticsType.medium);
+              },
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1,
                   ),
-                ],
-              ),
-
-              // Close Button
-              Positioned(
-                top: 12,
-                right: 12,
-                child: IconButton(
-                  onPressed: () {
-                    _performHapticFeedback(haptics.HapticsType.light);
-                    Navigator.pop(context);
-                  },
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.black.withOpacity(0.05),
-                      shape: BoxShape.circle,
-                    ),
+                ),
+                child: Center(
+                  child: AnimatedRotation(
+                    duration: const Duration(milliseconds: 300),
+                    turns: _isRepaymentCardFlipped ? 0.75 : 0.25,
                     child: Icon(
-                      Icons.close_rounded,
-                      color: _isDarkMode ? Colors.white70 : Colors.black54,
-                      size: 24,
+                      Icons.chevron_right_rounded,
+                      color: Colors.white.withOpacity(0.9),
+                      size: 18,
                     ),
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -4391,5 +4252,72 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       },
     );
+  }
+
+  Future<void> _loadProfilePicture() async {
+    if (!mounted) return;
+
+    try {
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+      final profileProvider =
+          Provider.of<ProfileProvider>(context, listen: false);
+      final userId = storageService.getUserId();
+
+      if (userId != null) {
+        await profileProvider.loadProfilePicture(userId);
+      }
+    } catch (e) {
+      _logger.e('Error in _loadProfilePicture: $e');
+    }
+  }
+
+  Future<void> _loadDailyTransactionSummary() async {
+    if (!mounted) return;
+
+    try {
+      setState(() {
+        _isChartLoading = true;
+      });
+
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final response = await authService.getDailyTransactionSummary();
+
+      final List<auth.DailyTransactionSummary> summary =
+          (response['summary'] as List)
+              .map((item) => auth.DailyTransactionSummary.fromJson(item))
+              .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _dailyTransactionSummary = summary;
+        _isChartLoading = false;
+      });
+    } catch (e) {
+      _logger.e('Error loading daily transaction summary: $e');
+      if (mounted) {
+        setState(() {
+          _isChartLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showTransactionDetails(Transaction transaction) {
+    _performHapticFeedback(haptics.HapticsType.medium);
+    // Implementation of transaction details view
+    // This can be expanded based on your needs
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Good morning';
+    } else if (hour < 17) {
+      return 'Good afternoon';
+    } else {
+      return 'Good evening';
+    }
   }
 }

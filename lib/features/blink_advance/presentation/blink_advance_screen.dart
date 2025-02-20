@@ -1769,67 +1769,12 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         if (responseData['success'] == true) {
           final advanceData = responseData['data'];
 
-          // Show success message with enhanced UI
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.check_circle_outline_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Advance Successful!',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _selectedSpeed == TransferSpeed.instant
-                                ? 'Your funds will be available within minutes'
-                                : 'Your funds will arrive in 1-3 business days',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 14,
-                              fontFamily: 'Onest',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              backgroundColor: const Color(0xFF2E7D32),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              margin: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          // Close processing dialog
+          if (dialogContext != null && mounted) {
+            Navigator.of(dialogContext!).pop();
+          }
+
+          if (!mounted) return;
 
           // Add success message to chat
           _addMessage(ChatMessage(
@@ -1841,12 +1786,77 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
             emoji: AnimatedEmoji(AnimatedEmojis.partyPopper, size: 24),
           ));
 
-          // Wait for message animation and snackbar
+          // Show success message with enhanced UI
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.check_circle_outline_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Advance Successful!',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _selectedSpeed == TransferSpeed.instant
+                                  ? 'Your funds will be available within minutes'
+                                  : 'Your funds will arrive in 1-3 business days',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 14,
+                                fontFamily: 'Onest',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                backgroundColor: const Color(0xFF2E7D32),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+
+          // Wait for message animation
           await Future.delayed(const Duration(milliseconds: 1500));
 
           if (!mounted) return;
 
-          // Return to home screen with smooth transition
+          // Return to home screen with advance data
           Navigator.of(context).pop(advanceData);
         } else {
           throw Exception(
