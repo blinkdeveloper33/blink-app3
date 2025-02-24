@@ -20,6 +20,16 @@ class _AuthScreenState extends State<AuthScreen>
   @override
   void initState() {
     super.initState();
+    // Set status bar to light (white icons)
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarBrightness:
+          Brightness.dark, // For iOS: dark background = white content
+      statusBarIconBrightness: Brightness.light, // For Android: white icons
+      systemNavigationBarColor:
+          Colors.transparent, // Make bottom bar transparent
+      systemNavigationBarDividerColor: Colors.transparent,
+    ));
+
     _tabController = TabController(length: 2, vsync: this);
 
     // Add listener for tab changes
@@ -37,6 +47,12 @@ class _AuthScreenState extends State<AuthScreen>
 
   @override
   void dispose() {
+    // Reset to default
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarBrightness:
+          Brightness.light, // For iOS: light background = dark content
+      statusBarIconBrightness: Brightness.dark, // For Android: dark icons
+    ));
     _tabController.dispose();
     super.dispose();
   }

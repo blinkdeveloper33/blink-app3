@@ -1960,7 +1960,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     final finalFee = baseFee * (1 - feeDiscount);
 
     _addMessage(ChatMessage(
-      text: """Here's your advance summary ✨
+      text: """Here's your advance summary:
 
 💰 Amount: \$200
 ⚡️ Transfer: ${_selectedSpeed == TransferSpeed.instant ? 'Instant' : 'Standard'}

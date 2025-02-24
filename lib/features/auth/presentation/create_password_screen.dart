@@ -120,6 +120,13 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
   late Animation<double> _fadeInAnimation;
   late ConfettiController _confettiController;
 
+  // Add new fields to track individual requirements
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasLowercase = false;
+  bool _hasNumbers = false;
+  bool _hasSpecialChars = false;
+
   @override
   void initState() {
     super.initState();
@@ -152,29 +159,58 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
     String text = '';
     Color color = Colors.grey;
 
+    // Reset all requirements
+    _hasMinLength = false;
+    _hasUppercase = false;
+    _hasLowercase = false;
+    _hasNumbers = false;
+    _hasSpecialChars = false;
+
     if (password.isEmpty) {
       text = 'Enter a password';
       score = 0.0;
       color = Colors.grey;
     } else {
-      if (password.length >= 8) score += 0.2;
-      if (password.contains(RegExp(r'[A-Z]'))) score += 0.2;
-      if (password.contains(RegExp(r'[a-z]'))) score += 0.2;
-      if (password.contains(RegExp(r'[0-9]'))) score += 0.2;
-      if (password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) score += 0.2;
+      // Check each requirement
+      _hasMinLength = password.length >= 8;
+      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      _hasLowercase = password.contains(RegExp(r'[a-z]'));
+      _hasNumbers = password.contains(RegExp(r'[0-9]'));
+      _hasSpecialChars = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
 
-      if (score < 0.3) {
+      // Calculate score only if requirement is met
+      if (_hasMinLength) score += 0.2;
+      if (_hasUppercase) score += 0.2;
+      if (_hasLowercase) score += 0.2;
+      if (_hasNumbers) score += 0.2;
+      if (_hasSpecialChars) score += 0.2;
+
+      // Only allow certain strength levels if ALL requirements are met
+      bool allRequirementsMet = _hasMinLength &&
+          _hasUppercase &&
+          _hasLowercase &&
+          _hasNumbers &&
+          _hasSpecialChars;
+
+      if (!allRequirementsMet) {
         text = 'Weak';
         color = Colors.red;
-      } else if (score < 0.6) {
-        text = 'Medium';
-        color = Colors.orange;
-      } else if (score < 0.8) {
-        text = 'Strong';
-        color = Colors.yellow;
+        score = 0.2; // Keep progress bar showing some progress
       } else {
-        text = 'Very Strong';
-        color = Colors.green;
+        // All requirements met, now we can show proper strength
+        if (score < 0.6) {
+          text = 'Weak';
+          color = Colors.red;
+        } else if (score < 0.8) {
+          text = 'Medium';
+          color = Colors.orange;
+        } else if (score < 1.0) {
+          text = 'Strong';
+          color = Colors.yellow;
+        } else {
+          text = 'Very Strong';
+          color = Colors.green;
+        }
       }
     }
 
@@ -488,7 +524,25 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
         TextFormField(
           controller: controller,
           obscureText: obscureText,
-          validator: validator,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter a password';
+            }
+
+            List<String> missingRequirements = [];
+            if (!_hasMinLength)
+              missingRequirements.add('minimum length of 8 characters');
+            if (!_hasUppercase) missingRequirements.add('uppercase letter');
+            if (!_hasLowercase) missingRequirements.add('lowercase letter');
+            if (!_hasNumbers) missingRequirements.add('number');
+            if (!_hasSpecialChars) missingRequirements.add('special character');
+
+            if (missingRequirements.isNotEmpty) {
+              return 'Password missing: ${missingRequirements.join(', ')}';
+            }
+
+            return null;
+          },
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -852,14 +906,26 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
   }
 
   Widget _buildRequirementItem(String text) {
+    bool isMetForText(String text) {
+      if (text.contains('8 characters')) return _hasMinLength;
+      if (text.contains('uppercase and lowercase'))
+        return _hasUppercase && _hasLowercase;
+      if (text.contains('numbers')) return _hasNumbers;
+      if (text.contains('special characters')) return _hasSpecialChars;
+      return false;
+    }
+
+    bool isMet = isMetForText(text);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            Icons.check_circle_outline,
-            color: Colors.white.withOpacity(0.7),
+            isMet ? Icons.check_circle : Icons.check_circle_outline,
+            color:
+                isMet ? const Color(0xFF2196F3) : Colors.white.withOpacity(0.7),
             size: 16,
           ),
           const SizedBox(width: 8),
@@ -867,7 +933,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
             child: Text(
               text,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: isMet ? Colors.white : Colors.white.withOpacity(0.7),
                 fontSize: 14,
                 fontFamily: 'Onest',
                 height: 1.4,

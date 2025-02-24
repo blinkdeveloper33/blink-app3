@@ -7,6 +7,7 @@ import 'package:logger/logger.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:animated_emoji/animated_emoji.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class SignUpScreen extends StatefulWidget {
   final bool showAppBar;
@@ -346,9 +347,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                         duration: const Duration(milliseconds: 600),
                         child: Row(
                           children: [
-                            const Text(
-                              'Welcome to Blink',
-                              style: TextStyle(
+                            Text(
+                              AppLocalizations.of(context)!.welcomeToBlink,
+                              style: const TextStyle(
                                 fontFamily: 'Onest',
                                 color: Colors.white,
                                 fontSize: 28,
@@ -371,7 +372,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                         duration: const Duration(milliseconds: 600),
                         delay: const Duration(milliseconds: 200),
                         child: Text(
-                          'Are you new to Blink? Sign up to get Cash',
+                          AppLocalizations.of(context)!.signUpToContinue,
                           style: TextStyle(
                             fontFamily: 'Onest',
                             color: Colors.white.withOpacity(0.9),
@@ -413,7 +414,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
-                            'or continue with',
+                            AppLocalizations.of(context)!.orContinueWith,
                             style: TextStyle(
                               fontFamily: 'Onest',
                               color: Colors.white.withOpacity(0.7),

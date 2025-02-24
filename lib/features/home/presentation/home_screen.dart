@@ -30,6 +30,8 @@ import 'package:blink_app/features/transactions/presentation/screens/all_transac
 import 'package:blink_app/features/quick_actions/presentation/screens/quick_actions_screen.dart';
 import 'package:blink_app/features/favorites/presentation/screens/favorites_screen.dart';
 import 'dart:async';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:blink_app/features/home/presentation/news_story_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -77,28 +79,329 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   final List<Map<String, String>> _newsItems = [
     {
+      'title':
+          'The Cascading Effects of Late Debt Payments on Creditworthiness and Purchasing Power',
+      'description':
+          'The failure to meet debt obligations punctually initiates a complex chain of financial consequences that extend far beyond immediate penalties. This analysis synthesizes empirical evidence from credit industry studies, legal frameworks, and economic research to elucidate how payment delays degrade credit standing, erode purchasing capacity, and alter long-term financial trajectories.',
+      'imageUrl':
+          'assets/images/onboarding/pexels-shvets-production-7544453.jpg',
+      'content':
+          r'''# The Cascading Effects of Late Debt Payments on Creditworthiness and Purchasing Power
+
+The failure to meet debt obligations punctually initiates a complex chain of financial consequences that extend far beyond immediate penalties. This analysis synthesizes empirical evidence from credit industry studies, legal frameworks, and economic research to elucidate how payment delays degrade credit standing, erode purchasing capacity, and alter long-term financial trajectories.
+
+## Structural Mechanisms of Credit Score Degradation
+
+### The 30-Day Threshold and Credit Reporting
+Creditors universally recognize a 30-day delinquency as the first major inflection point in credit reporting. While lenders may impose late fees immediately after a missed due date, the 30-day mark triggers mandatory reporting to credit bureaus under the Fair Credit Reporting Act. Experian's longitudinal data reveals that a single 30-day delinquency can reduce FICO scores by 90-110 points for consumers with previously excellent credit. This penalty escalates nonlinearly—90-day delinquencies often compound the damage by an additional 130-150 points due to increased risk weighting in scoring algorithms.
+
+The temporal aspect of delinquency reporting creates a pernicious feedback loop. Each subsequent 30-day interval (60, 90, 120 days past due) updates the derogatory mark's severity on credit reports, with FICO models interpreting extended delinquency periods as probability multipliers for default. This algorithmic reality explains why 43% of mortgage applicants with recent 60-day delinquencies face outright denials, compared to 11% rejection rates for those with isolated 30-day lates.
+
+### Interest Rate Spiral Dynamics
+Contemporary credit instruments frequently embed penalty APR clauses that activate upon delinquency. Analysis of 2024 credit card agreements shows 78% of issuers impose penalty rates averaging 29.99% after a single 60-day late payment. This creates a debt acceleration effect—the combination of compounded interest and late fees can increase total repayment obligations by 37-42% over 12 months for balances under $5,000.
+
+Mortgage products demonstrate similar punitive mechanisms. LendingTree's 2024 survey found that borrowers with recent 30-day mortgage lates faced average rate increases of 1.25 percentage points upon refinancing, translating to $18,750 in additional interest over a $300,000 30-year loan. The rate premium persists for 24-36 months post-delinquency, creating long-term cost multipliers.
+
+## Acquisition Power Erosion Pathways
+
+### Credit Availability Contraction
+Delinquency-induced score drops fundamentally alter access to capital markets. FICO score bands below 580 reduce unsecured credit approval rates to 18.7% compared to 83.4% for scores above 720. More critically, credit limits for approved applications show exponential decay—a 150-point score decrease corresponds to 67% lower average credit lines across personal loan products.
+
+The commercial lending landscape amplifies these effects through automated underwriting systems (AUS). VA loan programs illustrate how even minor delinquencies during mortgage processing can downgrade applications from automated approval to manual underwriting, a process that extends approval timelines by 22 days on average while reducing approval probabilities by 31%.
+
+### Risk-Based Pricing Penalties
+Risk-tiered pricing models convert credit imperfections into direct cost increments. Auto loan data from Q4 2024 demonstrates that a 60-day delinquency within the past year increases APRs by 4.2 percentage points for subprime borrowers versus 1.8 points for prime candidates. This bifurcation reflects lenders' use of delinquency recency as a key risk proxy in pricing models.
+
+The capitalization of these penalties creates durable financial headwinds. A $45,000 auto loan at 6% APR carries $8,598 total interest over 72 months. With a delinquency-induced rate hike to 10.2%, interest costs balloon to $15,318—a 78% increase that directly reduces disposable income available for other acquisitions.
+
+## Secondary Market Contagion Effects
+
+### Debt Sale Dynamics and Collection Multipliers
+Original creditors frequently liquidate delinquent accounts through tertiary markets, with 2024 data showing 38% of credit card debts 120+ days delinquent being sold to collection agencies. This secondary market transaction irrevocably alters the debtor's position—while statutory rights remain intact under FDCPA guidelines, the economic incentives of debt purchasers intensify collection pressures.'''
+    },
+    {
       'title': 'Roth IRA vs. 401(k): What\'s the Difference?',
       'description':
           'Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals...',
       'imageUrl': 'assets/images/roth_ira_vs_401k.png',
+      'content': '''# Roth IRA vs. 401(k): Understanding the Key Differences
+
+Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals.
+
+## Key Differences
+
+### Contribution Limits
+* **401(k)**: Higher contribution limits (\$22,500 for 2024, plus \$7,500 catch-up if age 50+)
+* **Roth IRA**: Lower limits (\$7,000 for 2024, plus \$1,000 catch-up if age 50+)
+
+### Tax Treatment
+* **401(k)**: Contributions are pre-tax, reducing your current taxable income
+* **Roth IRA**: Contributions are after-tax, but qualified withdrawals are tax-free
+
+### Employer Involvement
+* **401(k)**: Typically offered through employers, often with matching contributions
+* **Roth IRA**: Opened independently, no employer involvement required
+
+### Income Limits
+* **401(k)**: No income limits for contributions
+* **Roth IRA**: Income limits may restrict or prevent contributions
+
+## Making Your Choice
+
+Consider these factors when choosing between a Roth IRA and 401(k):
+
+1. Current vs. future tax rates
+2. Employer matching availability
+3. Investment options
+4. Withdrawal flexibility
+5. Current income level
+
+## Best Practices
+
+Many financial experts recommend:
+
+* Contribute enough to your 401(k) to get full employer match
+* Consider additional Roth IRA contributions for tax diversification
+* Review and adjust your strategy periodically
+* Consult with a financial advisor for personalized advice
+
+## Conclusion
+
+Both Roth IRAs and 401(k)s offer valuable benefits for retirement savings. The best choice often involves using both accounts strategically to maximize tax advantages and employer benefits while maintaining flexibility for your future needs.
+
+---
+
+*This article is for informational purposes only and should not be considered financial advice. Always consult with a qualified financial advisor before making investment decisions.*'''
     },
     {
       'title': 'The Basics of Budgeting: A Step-by-Step Guide',
       'description':
           'Creating and sticking to a budget is a fundamental step in managing your finances. This guide walks you through the process of setting up a budget that works for your lifestyle and financial goals...',
       'imageUrl': 'assets/images/budgeting_basics.png',
+      'content': '''# The Basics of Budgeting: Your Path to Financial Success
+
+Creating and maintaining a budget is the foundation of sound financial management. This comprehensive guide will help you develop a budget that works for your unique situation and goals.
+
+## Why Budget?
+
+Budgeting helps you:
+* Track spending patterns
+* Identify areas for savings
+* Plan for future goals
+* Reduce financial stress
+* Make informed decisions
+
+## Step-by-Step Budgeting Process
+
+### 1. Calculate Your Income
+* List all sources of income
+* Use after-tax (take-home) amounts
+* Include regular and variable income
+
+### 2. Track Your Expenses
+* Fixed expenses (rent, utilities)
+* Variable expenses (groceries, entertainment)
+* Debt payments
+* Savings and investments
+
+### 3. Set Financial Goals
+* Short-term (emergency fund)
+* Medium-term (debt repayment)
+* Long-term (retirement)
+
+### 4. Choose a Budgeting Method
+Popular options include:
+* 50/30/20 rule
+* Zero-based budgeting
+* Envelope system
+* Digital tracking apps
+
+## Smart Budgeting Tips
+
+1. Start with realistic goals
+2. Build an emergency fund
+3. Review and adjust regularly
+4. Use technology to your advantage
+5. Plan for irregular expenses
+
+## Common Challenges and Solutions
+
+* **Challenge**: Unexpected expenses
+* **Solution**: Build emergency fund
+
+* **Challenge**: Variable income
+* **Solution**: Budget based on lowest month
+
+* **Challenge**: Overspending
+* **Solution**: Track expenses daily
+
+## Conclusion
+
+Successful budgeting is a journey, not a destination. Start small, be consistent, and adjust as needed. Remember, the goal is progress, not perfection.
+
+---
+
+*This guide provides general information and should be adapted to your personal financial situation.*
+'''
     },
     {
       'title': 'Understanding Credit Scores: What You Need to Know',
       'description':
           'Your credit score plays a crucial role in your financial life. Learn what factors influence your credit score, how to check it, and steps you can take to improve it over time...',
       'imageUrl': 'assets/images/credit_scores.png',
+      'content': '''
+# Understanding Credit Scores: Your Financial Report Card
+
+Your credit score is a crucial number that influences many aspects of your financial life, from loan approvals to interest rates. Understanding how it works is key to maintaining good financial health.
+
+## What Is a Credit Score?
+
+A credit score is a three-digit number (typically 300-850) that represents your creditworthiness. It's calculated based on information in your credit reports.
+
+## Key Factors Affecting Your Score
+
+### 1. Payment History (35%)
+* On-time payments
+* Late payments
+* Missed payments
+* Bankruptcies
+
+### 2. Credit Utilization (30%)
+* Amount of credit used
+* Credit limits
+* Number of accounts with balances
+
+### 3. Length of Credit History (15%)
+* Age of accounts
+* Average age of credit
+* Recently opened accounts
+
+### 4. Credit Mix (10%)
+* Types of credit accounts
+* Diversity of credit
+
+### 5. New Credit (10%)
+* Recent credit applications
+* New account openings
+
+## How to Check Your Credit Score
+
+* Annual free credit reports
+* Credit monitoring services
+* Bank/credit card services
+* Credit score websites
+
+## Tips to Improve Your Score
+
+1. Pay bills on time
+2. Keep credit utilization low
+3. Maintain old accounts
+4. Limit new applications
+5. Monitor for errors
+
+## Common Myths Debunked
+
+* Checking your score doesn't hurt it
+* Closing old accounts can harm your score
+* Income isn't directly factored in
+* Marriage doesn't merge scores
+
+## Conclusion
+
+Your credit score is a vital financial tool. Regular monitoring and good credit habits can help you maintain a strong score and access better financial opportunities.
+
+---
+
+*This article provides general information about credit scores. Consult with financial professionals for personalized advice.*
+'''
     },
     {
       'title': 'Investing for Beginners: Getting Started in the Stock Market',
       'description':
           'Thinking about investing in stocks? This article covers the basics of stock market investing, including how to open a brokerage account, understanding stock types, and strategies for beginners...',
       'imageUrl': 'assets/images/investing_beginners.png',
+      'content': '''
+# Investing for Beginners: Your Guide to the Stock Market
+
+Starting your investment journey can seem daunting, but understanding the basics can help you build confidence and make informed decisions in the stock market.
+
+## Why Invest in Stocks?
+
+* Potential for long-term growth
+* Beat inflation
+* Build wealth
+* Generate passive income
+* Participate in company growth
+
+## Getting Started
+
+### 1. Choose a Brokerage Account
+Consider factors like:
+* Minimum investment requirements
+* Trading fees
+* Research tools
+* User interface
+* Customer support
+
+### 2. Understanding Stock Types
+* Common stocks
+* Preferred stocks
+* Growth stocks
+* Value stocks
+* Dividend stocks
+
+### 3. Basic Investment Strategies
+
+#### Dollar-Cost Averaging
+* Invest fixed amounts regularly
+* Reduces timing risk
+* Builds good habits
+
+#### Diversification
+* Spread investments across:
+  * Different companies
+  * Various sectors
+  * Multiple asset types
+  * Geographic regions
+
+## Important Concepts
+
+### Risk Management
+* Start small
+* Don't invest money you can't lose
+* Understand your risk tolerance
+* Have a long-term perspective
+
+### Research and Analysis
+* Company fundamentals
+* Industry trends
+* Market conditions
+* Economic factors
+
+## Common Mistakes to Avoid
+
+1. Investing without a plan
+2. Chasing hot tips
+3. Neglecting diversification
+4. Emotional trading
+5. Trying to time the market
+
+## Building Your Portfolio
+
+Start with:
+* Index funds
+* Blue-chip stocks
+* ETFs
+* Dividend-paying stocks
+
+## Conclusion
+
+Successful investing requires patience, research, and discipline. Start small, stay informed, and focus on long-term goals rather than short-term gains.
+
+---
+
+*This guide is for educational purposes only. Consider consulting with a financial advisor before making investment decisions.*
+'''
     },
   ];
 
@@ -152,9 +455,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     pageBuilder: (context, animation, secondaryAnimation) =>
                         FadeTransition(
                       opacity: animation,
-                      child: NewsStoriesViewer(
-                        newsItems: _newsItems,
-                        initialIndex: index,
+                      child: NewsStoryDetailScreen(
+                        story: newsItem,
+                        index: index,
+                        allStories: _newsItems,
                       ),
                     ),
                   ),
@@ -1274,6 +1578,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildFinancialSummary() {
+    final localizations = AppLocalizations.of(context)!;
     return GestureDetector(
       onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
       child: Container(
@@ -1302,6 +1607,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildFrontCard() {
+    final localizations = AppLocalizations.of(context)!;
     return Container(
       height: 220,
       decoration: BoxDecoration(
@@ -1365,7 +1671,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Last Known Balance',
+                    localizations.last_known_balance,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 14,
@@ -1383,7 +1689,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Updated ${DateFormat('MMM d').format(DateTime.now())}',
+                        localizations.updated_on(
+                            DateFormat('MMM d').format(DateTime.now())),
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.5),
                           fontSize: 12,
@@ -2322,6 +2629,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildRecentTransactions() {
+    final localizations = AppLocalizations.of(context)!;
     if (_isLoading) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
@@ -2355,10 +2663,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ],
                     ).createShader(bounds),
                     child: Text(
-                      'Recent Transactions',
+                      localizations.recent_transactions,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 24,
+                        fontSize:
+                            Localizations.localeOf(context).languageCode == 'es'
+                                ? 20
+                                : 24,
                         fontFamily: 'Onest',
                         fontWeight: FontWeight.bold,
                         letterSpacing: -0.5,
@@ -2366,7 +2677,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
                   Text(
-                    'Your latest financial activities',
+                    localizations.latest_financial_activities,
                     style: TextStyle(
                       color: _isDarkMode ? Colors.white60 : Colors.black54,
                       fontSize: 14,
@@ -2410,7 +2721,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'View All',
+                          localizations.view_all,
                           style: TextStyle(
                             color: _isDarkMode
                                 ? Colors.white
@@ -2673,6 +2984,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildNewsAndUpdates() {
+    final localizations = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2694,7 +3006,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ],
                       ).createShader(bounds),
                       child: Text(
-                        'Stories',
+                        localizations.stories,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -2705,7 +3017,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     Text(
-                      'Stay informed with latest updates',
+                      localizations.stories_subtitle,
                       style: TextStyle(
                         color: _isDarkMode ? Colors.white60 : Colors.black54,
                         fontSize: 14,
@@ -2738,9 +3050,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               (context, animation, secondaryAnimation) =>
                                   FadeTransition(
                             opacity: animation,
-                            child: NewsStoriesViewer(
-                              newsItems: _newsItems,
-                              initialIndex: 0,
+                            child: NewsStoryDetailScreen(
+                              story: _newsItems[0],
+                              index: 0,
+                              allStories: _newsItems,
                             ),
                           ),
                         ),
@@ -2756,7 +3069,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'View All',
+                            localizations.view_all,
                             style: TextStyle(
                               color: _isDarkMode
                                   ? Colors.white
@@ -2822,6 +3135,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final themeProvider = Provider.of<ThemeProvider>(context);
     _isDarkMode = themeProvider.isDarkMode;
 
+    // Set status bar style based on theme
+    SystemChrome.setSystemUIOverlayStyle(
+      _isDarkMode ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+    );
+
     return Scaffold(
       backgroundColor: _isDarkMode ? const Color(0xFF0A0F1E) : Colors.white,
       body: Stack(
@@ -2871,6 +3189,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildBlinkAdvanceCard() {
     const cashAdvanceBlue = Color(0xFF1E3A4F);
+    final localizations = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: () {
         _performHapticFeedback(haptics.HapticsType.medium);
@@ -3018,7 +3337,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Cash Advance',
+                          localizations.cash_advance,
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 22,
@@ -3029,7 +3348,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Quick Funds',
+                          localizations.quick_funds,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.7),
                             fontSize: 14,
@@ -3330,149 +3649,200 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8, right: 36),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: RichText(
-                              textAlign: TextAlign.left,
-                              text: TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: '\$',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontFamily: 'Onest',
-                                      fontWeight: FontWeight.bold,
+                        if (hasActiveAdvance) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, right: 36),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: RichText(
+                                textAlign: TextAlign.left,
+                                text: TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: '\$',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontFamily: 'Onest',
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                  TextSpan(
-                                    text:
-                                        '${currencyFormatter.format(repaymentAmount).split('.')[0].substring(1)}.',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontFamily: 'Onest',
-                                      fontWeight: FontWeight.bold,
+                                    TextSpan(
+                                      text:
+                                          '${currencyFormatter.format(repaymentAmount).split('.')[0].substring(1)}.',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontFamily: 'Onest',
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                  TextSpan(
-                                    text: currencyFormatter
-                                        .format(repaymentAmount)
-                                        .split('.')[1],
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 16,
-                                      fontFamily: 'Onest',
-                                      fontWeight: FontWeight.normal,
+                                    TextSpan(
+                                      text: currencyFormatter
+                                          .format(repaymentAmount)
+                                          .split('.')[1],
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 16,
+                                        fontFamily: 'Onest',
+                                        fontWeight: FontWeight.normal,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Center(
-                          child: Container(
-                            width: 160,
-                            height: 32,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
+                          const SizedBox(height: 4),
+                          Center(
+                            child: Container(
+                              width: 160,
+                              height: 32,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: StreamBuilder<int>(
+                                stream: Stream.periodic(
+                                    const Duration(seconds: 1),
+                                    (count) => count),
+                                builder: (context, snapshot) {
+                                  final now = DateTime.now();
+                                  final difference =
+                                      repaymentDate.difference(now);
+
+                                  final days = difference.inDays;
+                                  final hours =
+                                      difference.inHours.remainder(24);
+                                  final minutes =
+                                      difference.inMinutes.remainder(60);
+                                  final seconds =
+                                      difference.inSeconds.remainder(60);
+
+                                  return Center(
+                                    child: Text(
+                                      '$days days, $hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'Onest',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                            child: StreamBuilder<int>(
-                              stream: Stream.periodic(
-                                  const Duration(seconds: 1), (count) => count),
-                              builder: (context, snapshot) {
-                                final now = DateTime.now();
-                                final difference =
-                                    repaymentDate.difference(now);
-
-                                final days = difference.inDays;
-                                final hours = difference.inHours.remainder(24);
-                                final minutes =
-                                    difference.inMinutes.remainder(60);
-                                final seconds =
-                                    difference.inSeconds.remainder(60);
-
-                                return Center(
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 180),
+                              child: GestureDetector(
+                                onTap: () {
+                                  _performHapticFeedback(
+                                      haptics.HapticsType.medium);
+                                  // TODO: Implement repayment action
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF40916C),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF40916C)
+                                            .withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text(
+                                        'Repay Now',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontFamily: 'Onest',
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.all(
+                                            3), // Reduced padding
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: const Icon(
+                                          Icons.arrow_forward_rounded,
+                                          color: Colors.white,
+                                          size: 12, // Reduced size
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          // No active advance message
+                          Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.info_outline_rounded,
+                                    color: Colors.white.withOpacity(0.9),
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No Active Advance',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontSize: 18,
+                                    fontFamily: 'Onest',
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16),
                                   child: Text(
-                                    '$days days, $hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                                    'Apply for a Blink Advance to see repayment details',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: Colors.white.withOpacity(0.9),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 15,
                                       fontFamily: 'Onest',
+                                      height: 1.3,
                                     ),
                                   ),
-                                );
-                              },
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 180),
-                            child: GestureDetector(
-                              onTap: () {
-                                _performHapticFeedback(
-                                    haptics.HapticsType.medium);
-                                // TODO: Implement repayment action
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF40916C),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF40916C)
-                                          .withOpacity(0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text(
-                                      'Repay Now',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontFamily: 'Onest',
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.all(
-                                          3), // Reduced padding
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: const Icon(
-                                        Icons.arrow_forward_rounded,
-                                        color: Colors.white,
-                                        size: 12, // Reduced size
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -4113,139 +4483,165 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           offset: Offset(0, 20 * (1 - value)),
           child: Opacity(
             opacity: value.clamp(0.0, 1.0),
-            child: Container(
-              width: 200,
-              margin: const EdgeInsets.only(right: 16),
-              decoration: BoxDecoration(
-                color: _isDarkMode
-                    ? const Color(0xFF1A2942).withOpacity(0.7)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _isDarkMode
-                      ? Colors.white.withOpacity(0.1)
-                      : Colors.grey.withOpacity(0.1),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _isDarkMode
-                        ? Colors.black.withOpacity(0.3)
-                        : Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Hero(
-                    tag: 'newsImage-$index',
-                    child: Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(20),
-                        ),
-                        image: DecorationImage(
-                          image: AssetImage(newsItem['imageUrl']!),
-                          fit: BoxFit.cover,
-                        ),
+            child: GestureDetector(
+              onTapDown: (_) =>
+                  _performHapticFeedback(haptics.HapticsType.light),
+              onTap: () {
+                Navigator.of(context).push(
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        FadeTransition(
+                      opacity: animation,
+                      child: NewsStoryDetailScreen(
+                        story: newsItem,
+                        index: index,
+                        allStories: _newsItems,
                       ),
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                width: 200,
+                margin: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(
+                  color: _isDarkMode
+                      ? const Color(0xFF1A2942).withOpacity(0.7)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _isDarkMode
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _isDarkMode
+                          ? Colors.black.withOpacity(0.3)
+                          : Colors.grey.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Hero(
+                      tag: 'story-image-$index',
                       child: Container(
+                        height: 120,
                         decoration: BoxDecoration(
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(20),
                           ),
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.5),
-                            ],
-                            stops: const [0.5, 1.0],
+                          image: DecorationImage(
+                            image: AssetImage(newsItem['imageUrl']!),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(20),
+                            ),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.5),
+                              ],
+                              stops: const [0.5, 1.0],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            newsItem['title']!,
-                            style: TextStyle(
-                              color:
-                                  _isDarkMode ? Colors.white : Colors.black87,
-                              fontSize: 14,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.bold,
-                              height: 1.3,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Expanded(
-                            child: Text(
-                              newsItem['description']!,
-                              style: TextStyle(
-                                color: _isDarkMode
-                                    ? Colors.white70
-                                    : Colors.black54,
-                                fontSize: 12,
-                                fontFamily: 'Onest',
-                                height: 1.4,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _isDarkMode
-                                      ? Colors.white.withOpacity(0.1)
-                                      : Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Hero(
+                              tag: 'story-title-$index',
+                              child: Material(
+                                color: Colors.transparent,
                                 child: Text(
-                                  'Financial Tips',
+                                  newsItem['title']!,
                                   style: TextStyle(
                                     color: _isDarkMode
                                         ? Colors.white
-                                        : Colors.blue[700],
-                                    fontSize: 10,
+                                        : Colors.black87,
+                                    fontSize: 14,
                                     fontFamily: 'Onest',
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.3,
                                   ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              Icon(
-                                Icons.arrow_forward_rounded,
-                                color: _isDarkMode
-                                    ? Colors.white70
-                                    : Colors.blue[700],
-                                size: 16,
+                            ),
+                            const SizedBox(height: 4),
+                            Expanded(
+                              child: Text(
+                                newsItem['description']!,
+                                style: TextStyle(
+                                  color: _isDarkMode
+                                      ? Colors.white70
+                                      : Colors.black54,
+                                  fontSize: 12,
+                                  fontFamily: 'Onest',
+                                  height: 1.4,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                          ),
-                        ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _isDarkMode
+                                        ? Colors.white.withOpacity(0.1)
+                                        : Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    'Financial Tips',
+                                    style: TextStyle(
+                                      color: _isDarkMode
+                                          ? Colors.white
+                                          : Colors.blue[700],
+                                      fontSize: 10,
+                                      fontFamily: 'Onest',
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: _isDarkMode
+                                      ? Colors.white70
+                                      : Colors.blue[700],
+                                  size: 16,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -4284,7 +4680,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final response = await authService.getDailyTransactionSummary();
 
       final List<auth.DailyTransactionSummary> summary =
-          (response['summary'] as List)
+          (response['data'] as List)
               .map((item) => auth.DailyTransactionSummary.fromJson(item))
               .toList();
 
@@ -4311,13 +4707,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   String _getGreeting() {
+    final localizations = AppLocalizations.of(context)!;
     final hour = DateTime.now().hour;
     if (hour < 12) {
-      return 'Good morning';
+      return localizations.greeting_morning;
     } else if (hour < 17) {
-      return 'Good afternoon';
+      return localizations.greeting_afternoon;
     } else {
-      return 'Good evening';
+      return localizations.greeting_evening;
     }
   }
 }

@@ -23,6 +23,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:blink_app/services/biometric_service.dart';
 import 'package:blink_app/features/auth/presentation/auth_screen.dart';
+import 'package:blink_app/providers/locale_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,6 +76,7 @@ void main() async {
         Provider<SupabaseStorageService>(create: (_) => supabaseStorageService),
         Provider<BiometricService>(create: (_) => biometricService),
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
+        ChangeNotifierProvider(create: (_) => LocaleProvider(prefs)),
         ChangeNotifierProvider(
             create: (_) => FinancialDataProvider(authService)),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
@@ -187,7 +189,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               },
             ),
           ),
-      localizationsDelegates: const [
+      locale: Provider.of<LocaleProvider>(context).locale,
+      localizationsDelegates: [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -195,6 +198,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       ],
       supportedLocales: const [
         Locale('en', ''),
+        Locale('es', ''),
       ],
       initialRoute: '/',
       routes: {

@@ -60,6 +60,10 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   app_links: ^6.3.3
   flutter_local_notifications: ^18.0.1
+  share_plus: ^10.1.4
+  flutter_markdown: ^0.6.20+1
+  onesignal_flutter: ^5.1.2
+
 
 dev_dependencies:
   flutter_test:
@@ -81,6 +85,7 @@ flutter:
     - assets/animations/
     - assets/images/blink_logo.png
     - assets/images/blink_logo_white.png
+    - assets/images/newsimages/
     # Icons
     - assets/images/icons/icons8-expensive-price-80.png
     - assets/images/icons/icons8-profit-analysis-100.png
@@ -136,4 +141,17 @@ flutter:
           weight: 700
         - asset: assets/fonts/Onest-SemiBold.ttf
           weight: 600
+
+flutter_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/blink_logo.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: false
 

@@ -12,6 +12,7 @@ import 'dart:math' as math;
 import 'package:shimmer/shimmer.dart';
 import 'dart:convert';
 import 'package:animated_emoji/animated_emoji.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool showAppBar;
@@ -664,9 +665,9 @@ class _LoginScreenState extends State<LoginScreen>
                         duration: const Duration(milliseconds: 600),
                         child: Row(
                           children: [
-                            const Text(
-                              'Welcome Back!',
-                              style: TextStyle(
+                            Text(
+                              AppLocalizations.of(context)!.welcomeBack,
+                              style: const TextStyle(
                                 fontFamily: 'Onest',
                                 color: Colors.white,
                                 fontSize: 28,
@@ -689,7 +690,7 @@ class _LoginScreenState extends State<LoginScreen>
                         duration: const Duration(milliseconds: 600),
                         delay: const Duration(milliseconds: 200),
                         child: Text(
-                          'Log in to enter your Blink account',
+                          AppLocalizations.of(context)!.loginToContinue,
                           style: TextStyle(
                             fontFamily: 'Onest',
                             color: Colors.white.withOpacity(0.9),
@@ -711,14 +712,14 @@ class _LoginScreenState extends State<LoginScreen>
                       _buildInputField(
                         controller: _emailController,
                         focusNode: _emailFocusNode,
-                        hintText: 'Enter your email',
+                        hintText: AppLocalizations.of(context)!.enterEmail,
                         icon: Icons.email_outlined,
                       ),
                       const SizedBox(height: 16),
                       _buildInputField(
                         controller: _passwordController,
                         focusNode: _passwordFocusNode,
-                        hintText: 'Enter your password',
+                        hintText: AppLocalizations.of(context)!.enterPassword,
                         icon: Icons.lock_outline,
                         isPassword: true,
                       ),
@@ -744,7 +745,7 @@ class _LoginScreenState extends State<LoginScreen>
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
-                            'or continue with',
+                            AppLocalizations.of(context)!.orContinueWith,
                             style: TextStyle(
                               fontFamily: 'Onest',
                               color: Colors.white.withOpacity(0.7),

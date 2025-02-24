@@ -8,6 +8,299 @@
   "back": "Back",
   "next": "Next",
   "getStarted": "Get Started",
-  "skip": "Skip"
+  "skip": "Skip",
+  "@@locale": "en",
+  "welcomeBack": "Welcome Back!",
+  "@welcomeBack": {
+    "description": "Welcome back message on login screen"
+  },
+  "loginToContinue": "Log in to enter your Blink account",
+  "@loginToContinue": {
+    "description": "Login screen subtitle"
+  },
+  "welcomeToBlink": "Welcome to Blink",
+  "@welcomeToBlink": {
+    "description": "Welcome message on signup screen"
+  },
+  "signUpToContinue": "Are you new to Blink? Sign up to get Cash",
+  "@signUpToContinue": {
+    "description": "Signup screen subtitle"
+  },
+  "enterEmail": "Enter your email",
+  "@enterEmail": {
+    "description": "Email input placeholder"
+  },
+  "enterPassword": "Enter your password",
+  "@enterPassword": {
+    "description": "Password input placeholder"
+  },
+  "continueWithGoogle": "Continue with Google",
+  "@continueWithGoogle": {
+    "description": "Google sign in button"
+  },
+  "continueWithApple": "Continue with Apple",
+  "@continueWithApple": {
+    "description": "Apple sign in button"
+  },
+  "orContinueWith": "or continue with",
+  "@orContinueWith": {
+    "description": "Divider text for social login"
+  },
+  "forgotPassword": "Forgot Password?",
+  "@forgotPassword": {
+    "description": "Forgot password button"
+  },
+  "continueAction": "Continue",
+  "@continueAction": {
+    "description": "Continue button text"
+  },
+  "login": "Log In",
+  "@login": {
+    "description": "Login button text"
+  },
+  "signUp": "Sign Up",
+  "@signUp": {
+    "description": "Sign up tab/button text"
+  },
+  "account": "Account",
+  "@account": {
+    "description": "Account screen title"
+  },
+  "appSettings": "App Settings",
+  "@appSettings": {
+    "description": "App Settings screen title"
+  },
+  "general": "General",
+  "@general": {
+    "description": "General settings section title"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Language selection option"
+  },
+  "selectLanguage": "Select Language",
+  "@selectLanguage": {
+    "description": "Language selection dialog title"
+  },
+  "english": "English",
+  "@english": {
+    "description": "English language option"
+  },
+  "spanish": "Spanish",
+  "@spanish": {
+    "description": "Spanish language option"
+  },
+  "personalInformation": "Personal Information",
+  "@personalInformation": {
+    "description": "Personal Information section title"
+  },
+  "managePersonalDetails": "Manage your personal details",
+  "@managePersonalDetails": {
+    "description": "Personal Information section subtitle"
+  },
+  "security": "Security",
+  "@security": {
+    "description": "Security section title"
+  },
+  "manageSecuritySettings": "Manage your security settings",
+  "@manageSecuritySettings": {
+    "description": "Security section subtitle"
+  },
+  "notifications": "Notifications",
+  "@notifications": {
+    "description": "Notifications section title"
+  },
+  "configureNotifications": "Configure your notifications",
+  "@configureNotifications": {
+    "description": "Notifications section subtitle"
+  },
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Dark mode option"
+  },
+  "toggleDarkMode": "Toggle dark mode appearance",
+  "@toggleDarkMode": {
+    "description": "Dark mode toggle description"
+  },
+  "helpAndSupport": "Help & Support",
+  "@helpAndSupport": {
+    "description": "Help and support option"
+  },
+  "getHelpWithAccount": "Get help with your account",
+  "@getHelpWithAccount": {
+    "description": "Help and support description"
+  },
+  "logOut": "Log Out",
+  "@logOut": {
+    "description": "Log out button text"
+  },
+  "signOutOfAccount": "Sign out of your account",
+  "@signOutOfAccount": {
+    "description": "Log out description"
+  },
+  "bankAccount": "Bank Account",
+  "@bankAccount": {
+    "description": "Bank account section title"
+  },
+  "connectBankAccount": "Connect Bank Account",
+  "@connectBankAccount": {
+    "description": "Connect bank account button text"
+  },
+  "connectToGetStarted": "Connect your account to get started",
+  "@connectToGetStarted": {
+    "description": "Connect bank account subtitle"
+  },
+  "accountConnectionRequired": "Account connection required",
+  "@accountConnectionRequired": {
+    "description": "Account connection required title"
+  },
+  "accountConnectionMessage": "To use Blink, you need to connect your bank account through Plaid. This allows us to securely access your financial data.",
+  "@accountConnectionMessage": {
+    "description": "Account connection required message"
+  },
+  "availableBalance": "Available Balance",
+  "@availableBalance": {
+    "description": "Available balance label"
+  },
+  "connectedOn": "Connected on {date}",
+  "@connectedOn": {
+    "description": "Bank account connection date",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "Jan 1, 2024"
+      }
+    }
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings section title"
+  },
+  "accountSettings": "Account Settings",
+  "@accountSettings": {
+    "description": "Account settings section title"
+  },
+  "preferences": "Preferences",
+  "@preferences": {
+    "description": "Preferences section title"
+  },
+  "greeting_morning": "Good Morning",
+  "@greeting_morning": {
+    "description": "Morning greeting on home screen"
+  },
+  "greeting_afternoon": "Good Afternoon",
+  "@greeting_afternoon": {
+    "description": "Afternoon greeting on home screen"
+  },
+  "greeting_evening": "Good Evening",
+  "@greeting_evening": {
+    "description": "Evening greeting on home screen"
+  },
+  "available_balance": "Available Balance",
+  "@available_balance": {
+    "description": "Available balance label"
+  },
+  "account_number": "Account Number",
+  "@account_number": {
+    "description": "Account number label"
+  },
+  "view_details": "View Details",
+  "@view_details": {
+    "description": "View details button text"
+  },
+  "stories": "Stories",
+  "@stories": {
+    "description": "Stories section title"
+  },
+  "stories_subtitle": "Stay informed with latest updates",
+  "@stories_subtitle": {
+    "description": "Stories section subtitle"
+  },
+  "view_all": "View All",
+  "@view_all": {
+    "description": "View all button text"
+  },
+  "loading_account_details": "Loading Account Details",
+  "@loading_account_details": {
+    "description": "Loading account details message"
+  },
+  "days": "days",
+  "@days": {
+    "description": "Days text for countdown"
+  },
+  "repay_now": "Repay Now",
+  "@repay_now": {
+    "description": "Repay now button text"
+  },
+  "send_money": "Send Money",
+  "@send_money": {
+    "description": "Send money button text"
+  },
+  "request_money": "Request Money",
+  "@request_money": {
+    "description": "Request money button text"
+  },
+  "recent_transactions": "Recent Transactions",
+  "@recent_transactions": {
+    "description": "Recent transactions section title"
+  },
+  "no_transactions": "No recent transactions",
+  "@no_transactions": {
+    "description": "No transactions message"
+  },
+  "see_all_transactions": "See All Transactions",
+  "@see_all_transactions": {
+    "description": "See all transactions button text"
+  },
+  "quick_actions": "Quick Actions",
+  "@quick_actions": {
+    "description": "Quick actions section title"
+  },
+  "favorites": "Favorites",
+  "@favorites": {
+    "description": "Favorites section title"
+  },
+  "last_known_balance": "Last Known Balance",
+  "@last_known_balance": {
+    "description": "Label for last known balance"
+  },
+  "updated_on": "Updated {date}",
+  "@updated_on": {
+    "description": "Updated date label",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "Jan 1, 2024"
+      }
+    }
+  },
+  "quick_funds": "Quick Funds",
+  "@quick_funds": {
+    "description": "Quick funds label"
+  },
+  "status": "Status",
+  "@status": {
+    "description": "Status label"
+  },
+  "analyze": "Analyze",
+  "@analyze": {
+    "description": "Analyze action label"
+  },
+  "latest_financial_activities": "Your latest financial activities",
+  "@latest_financial_activities": {
+    "description": "Subtitle for recent transactions section"
+  },
+  "cash_advance": "Cash Advance",
+  "@cash_advance": {
+    "description": "Title for cash advance section"
+  },
+  "blink_repay": "Blink Repay",
+  "@blink_repay": {
+    "description": "Title for Blink Repay section"
+  },
+  "blink_insights": "Blink Insights",
+  "@blink_insights": {
+    "description": "Title for Blink Insights section"
+  }
 }
 

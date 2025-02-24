@@ -21,6 +21,8 @@ import 'package:blink_app/features/account/presentation/security_screen.dart';
 import 'package:blink_app/features/account/presentation/help_support_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/rendering.dart' as ui;
+import 'package:blink_app/features/account/presentation/app_settings_screen.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class BankAccount {
   final String bankAccountId;
@@ -678,32 +680,17 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget _buildBackButton() {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
+      child: IconButton(
+        onPressed: () {
           haptics.Haptics.vibrate(haptics.HapticsType.light);
           Navigator.pop(context);
         },
-        borderRadius: BorderRadius.circular(6),
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 0.5,
-              ),
-            ),
-            child: Icon(
-              Icons.arrow_back_ios_new,
-              color: Colors.white.withOpacity(0.9),
-              size: 12,
-            ),
-          ),
+        icon: Icon(
+          Icons.arrow_back_ios_new,
+          color: Colors.white.withOpacity(0.9),
+          size: 20,
         ),
+        splashRadius: 24,
       ),
     );
   }
@@ -778,6 +765,7 @@ class _AccountScreenState extends State<AccountScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Row(
+            mainAxisSize: MainAxisSize.max,
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
@@ -805,6 +793,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         fontWeight: FontWeight.w600,
                         color: isDarkMode ? Colors.white : Colors.black87,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 4),
@@ -814,6 +803,7 @@ class _AccountScreenState extends State<AccountScreen> {
                           fontSize: 14,
                           color: isDarkMode ? Colors.white60 : Colors.black54,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ],
@@ -858,6 +848,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _buildSettingsSection() {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    final localizations = AppLocalizations.of(context)!;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -901,7 +892,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  'Settings',
+                  localizations.settings,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -912,12 +903,12 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
           ),
           _buildSettingsGroup(
-            title: 'Account',
+            title: localizations.account,
             children: [
               _buildSettingTile(
                 icon: Icons.person_outline,
-                title: 'Personal Information',
-                subtitle: 'Manage your personal details',
+                title: localizations.personalInformation,
+                subtitle: localizations.managePersonalDetails,
                 onTap: () {
                   haptics.Haptics.vibrate(haptics.HapticsType.light);
                   Navigator.push(
@@ -930,8 +921,8 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
               _buildSettingTile(
                 icon: Icons.security_outlined,
-                title: 'Security',
-                subtitle: 'Manage your security settings',
+                title: localizations.security,
+                subtitle: localizations.manageSecuritySettings,
                 onTap: () {
                   haptics.Haptics.vibrate(haptics.HapticsType.light);
                   Navigator.push(
@@ -945,12 +936,12 @@ class _AccountScreenState extends State<AccountScreen> {
             ],
           ),
           _buildSettingsGroup(
-            title: 'Preferences',
+            title: localizations.general,
             children: [
               _buildSettingTile(
                 icon: Icons.notifications_outlined,
-                title: 'Notifications',
-                subtitle: 'Configure your notifications',
+                title: localizations.notifications,
+                subtitle: localizations.configureNotifications,
                 onTap: () {
                   haptics.Haptics.vibrate(haptics.HapticsType.light);
                   Navigator.push(
@@ -961,20 +952,6 @@ class _AccountScreenState extends State<AccountScreen> {
                   );
                 },
               ),
-              _buildSettingTile(
-                icon: Icons.dark_mode_outlined,
-                title: 'Dark Mode',
-                subtitle: 'Toggle dark mode appearance',
-                trailing: Switch.adaptive(
-                  value: isDarkMode,
-                  activeColor: Colors.blue,
-                  onChanged: (value) {
-                    haptics.Haptics.vibrate(haptics.HapticsType.light);
-                    Provider.of<ThemeProvider>(context, listen: false)
-                        .toggleTheme();
-                  },
-                ),
-              ),
             ],
           ),
         ],
@@ -984,6 +961,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _buildBankAccountSection() {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    final localizations = AppLocalizations.of(context)!;
 
     if (_isLoadingBankAccounts) {
       return FadeIn(
@@ -1093,20 +1071,22 @@ class _AccountScreenState extends State<AccountScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Bank Account',
+                          localizations.bankAccount,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: isDarkMode ? Colors.white : Colors.black87,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Connect your account to get started',
+                          localizations.connectToGetStarted,
                           style: TextStyle(
                             fontSize: 14,
                             color: isDarkMode ? Colors.white60 : Colors.black54,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -1139,20 +1119,21 @@ class _AccountScreenState extends State<AccountScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Account connection required',
+                            localizations.accountConnectionRequired,
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
                               color:
                                   isDarkMode ? Colors.white70 : Colors.black87,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'To use Blink, you need to connect your bank account through Plaid. This allows us to securely access your financial data.',
+                      localizations.accountConnectionMessage,
                       style: TextStyle(
                         fontSize: 14,
                         color: isDarkMode ? Colors.white60 : Colors.black54,
@@ -1181,9 +1162,9 @@ class _AccountScreenState extends State<AccountScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Connect Bank Account',
-                    style: TextStyle(
+                  child: Text(
+                    localizations.connectBankAccount,
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1313,7 +1294,7 @@ class _AccountScreenState extends State<AccountScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Available Balance',
+                              localizations.availableBalance,
                               style: TextStyle(
                                 fontSize: 14,
                                 color: isDarkMode
@@ -1380,11 +1361,16 @@ class _AccountScreenState extends State<AccountScreen> {
                           color: isDarkMode ? Colors.white60 : Colors.black54,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Connected on ${DateFormat('MMM d, yyyy').format(bankAccount.createdAt)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDarkMode ? Colors.white60 : Colors.black54,
+                        Flexible(
+                          child: Text(
+                            localizations.connectedOn(DateFormat('MMM d, yyyy')
+                                .format(bankAccount.createdAt)),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  isDarkMode ? Colors.white60 : Colors.black54,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -1401,6 +1387,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _buildActionButtons() {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    final localizations = AppLocalizations.of(context)!;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
@@ -1408,8 +1395,8 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           _buildActionButton(
             icon: Icons.support_outlined,
-            title: 'Help & Support',
-            subtitle: 'Get help with your account',
+            title: localizations.helpAndSupport,
+            subtitle: localizations.getHelpWithAccount,
             onTap: () {
               haptics.Haptics.vibrate(haptics.HapticsType.light);
               Navigator.push(
@@ -1423,8 +1410,8 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(height: 16),
           _buildActionButton(
             icon: Icons.logout,
-            title: 'Log Out',
-            subtitle: 'Sign out of your account',
+            title: localizations.logOut,
+            subtitle: localizations.signOutOfAccount,
             isDestructive: true,
             onTap: () async {
               haptics.Haptics.vibrate(haptics.HapticsType.heavy);
@@ -1556,6 +1543,7 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget build(BuildContext context) {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
     final appBarOpacity = (_scrollOffset / 100).clamp(0.0, 0.8);
+    final localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor:
@@ -1583,7 +1571,7 @@ class _AccountScreenState extends State<AccountScreen> {
           child: _buildBackButton(),
         ),
         title: Text(
-          'Account',
+          localizations.account,
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1597,7 +1585,13 @@ class _AccountScreenState extends State<AccountScreen> {
               color: Colors.transparent,
               child: InkWell(
                 onTap: () {
-                  // TODO: Implement settings
+                  haptics.Haptics.vibrate(haptics.HapticsType.light);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AppSettingsScreen(),
+                    ),
+                  );
                 },
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
