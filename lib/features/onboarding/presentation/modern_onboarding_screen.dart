@@ -47,7 +47,7 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       bullets: [
         BulletPoint(
           header: 'Get up to \$200 instantly',
-          description: 'No credit checks, no waiting',
+          description: 'Directly Sent to your bank account',
         ),
         BulletPoint(
           header: 'Simple, flat fee',
@@ -58,7 +58,7 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
           description: 'Connect your bank and get a decision in seconds',
         ),
         BulletPoint(
-          header: 'No impact on credit score',
+          header: 'No Credit Checks',
           description: 'Blink is not a loan',
         ),
       ],

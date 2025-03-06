@@ -13,6 +13,9 @@ import 'package:shimmer/shimmer.dart';
 import 'dart:convert';
 import 'package:animated_emoji/animated_emoji.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:blink_app/features/auth/presentation/forgot_password_screen.dart';
+import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
+import 'package:blink_app/features/home/presentation/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool showAppBar;
@@ -196,6 +199,7 @@ class _LoginScreenState extends State<LoginScreen>
             controller: controller,
             focusNode: focusNode,
             obscureText: isPassword ? !_passwordVisible : false,
+            cursorColor: Colors.white,
             style: const TextStyle(
               fontFamily: 'Onest',
               color: Colors.white,
@@ -366,30 +370,52 @@ class _LoginScreenState extends State<LoginScreen>
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isSubmitting = true;
-        _errorMessage = null;
+        _showPasswordError = false;
+        _passwordErrorMessage = null;
       });
 
       try {
         final authService = Provider.of<AuthService>(context, listen: false);
         final biometricService =
             Provider.of<BiometricService>(context, listen: false);
+        final storageService =
+            Provider.of<StorageService>(context, listen: false);
 
+        _logger.i('Attempting login...');
         final response = await authService.login(
-          email: _emailController.text,
-          password: _passwordController.text,
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
         );
+        _logger.i('Login response received: ${response.toString()}');
 
-        if (response['success'] == true) {
-          // Check if biometrics are available
+        // Check if login was successful by verifying token and user data exist
+        if (response['token'] != null && response['user'] != null) {
+          _logger.i('Login successful, storing user data...');
+          final user = response['user'];
+          await storageService.setUserId(user['id']);
+          await storageService
+              .setFullName('${user['firstName']} ${user['lastName']}');
+          await storageService.setEmail(user['email']);
+          _logger.i('User data stored successfully');
+
+          // Check for linked bank accounts
+          _logger.i('Checking for linked bank accounts...');
+          final bankAccountResponse =
+              await authService.checkLinkedBankAccount();
+          _logger.i('Bank account response: ${bankAccountResponse.toString()}');
+          final bool hasLinkedAccount =
+              bankAccountResponse['hasLinkedAccount'] ?? false;
+          _logger.i('Has linked account: $hasLinkedAccount');
+
+          // Handle biometrics setup if needed
           final bool canUseBiometrics =
               await biometricService.isBiometricsAvailable();
-
           if (canUseBiometrics && mounted) {
+            _logger.i('Biometrics available, showing setup dialog...');
             try {
-              // Show dialog to enable biometric authentication
               final bool? enableBiometrics = await showDialog<bool>(
                 context: context,
-                barrierDismissible: true, // Allow dismissing by tapping outside
+                barrierDismissible: true,
                 barrierColor: Colors.black.withOpacity(0.5),
                 builder: (BuildContext context) {
                   return BackdropFilter(
@@ -465,63 +491,17 @@ class _LoginScreenState extends State<LoginScreen>
               );
 
               if (enableBiometrics == true && mounted) {
+                _logger.i('Setting up biometrics...');
                 try {
-                  // Try to authenticate with biometrics
                   final bool authenticated =
                       await biometricService.authenticate();
                   if (authenticated && mounted) {
                     await biometricService.setBiometricEnabled(true);
                     await biometricService.updateLastActiveTime();
-
-                    // Show success message
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.check_circle, color: Colors.white),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'Face ID enabled successfully',
-                              style: TextStyle(fontFamily: 'Onest'),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: Colors.green,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        margin: const EdgeInsets.all(16),
-                      ),
-                    );
+                    _logger.i('Biometrics setup completed successfully');
                   }
                 } catch (e) {
                   _logger.e('Error during Face ID authentication: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.error_outline,
-                                color: Colors.white),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                'Failed to enable Face ID. Please try again later.',
-                                style: TextStyle(fontFamily: 'Onest'),
-                              ),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        margin: const EdgeInsets.all(16),
-                      ),
-                    );
-                  }
                 }
               }
             } catch (e) {
@@ -529,23 +509,52 @@ class _LoginScreenState extends State<LoginScreen>
             }
           }
 
+          // Navigate to appropriate screen
           if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/home');
+            _logger.i(
+                'Navigating to ${hasLinkedAccount ? 'HomeScreen' : 'LinkPlaidBankScreen'}...');
+
+            // Ensure we're using the root navigator
+            final navigator = Navigator.of(context, rootNavigator: true);
+
+            if (hasLinkedAccount) {
+              await navigator.pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const HomeScreen(),
+                ),
+                (route) => false,
+              );
+              _logger.i('Navigation to HomeScreen completed');
+            } else {
+              await navigator.pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const LinkPlaidBankScreen(),
+                ),
+                (route) => false,
+              );
+              _logger.i('Navigation to LinkPlaidBankScreen completed');
+            }
           }
         } else {
+          _logger.w('Login failed: Invalid response format');
           setState(() {
-            _isSubmitting = false;
             _showPasswordError = true;
-            _passwordErrorMessage = 'Incorrect email or password';
+            _passwordErrorMessage =
+                response['message'] ?? 'Invalid email or password';
           });
         }
-      } catch (e) {
-        _logger.e('Login error:', error: e);
+      } catch (e, stackTrace) {
+        _logger.e('Login error:', error: e, stackTrace: stackTrace);
         setState(() {
-          _isSubmitting = false;
           _showPasswordError = true;
-          _passwordErrorMessage = 'Unable to log in. Please try again.';
+          _passwordErrorMessage = 'An error occurred. Please try again.';
         });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
       }
     }
   }
@@ -593,7 +602,7 @@ class _LoginScreenState extends State<LoginScreen>
                       tag: 'logo',
                       child: Image.asset(
                         'assets/images/blink_logo_white.png',
-                        height: 49,
+                        height: 33,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -803,7 +812,11 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Center(
                     child: TextButton(
                       onPressed: () {
-                        // Handle forgot password
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ForgotPasswordScreen(),
+                          ),
+                        );
                       },
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
@@ -836,30 +849,40 @@ class _LoginScreenState extends State<LoginScreen>
       return mainContent;
     }
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      extendBody: true,
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1E3A8A),
-                  Color(0xFF2563EB),
-                ],
-                stops: [0.0, 1.0],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarBrightness:
+            Brightness.dark, // For iOS: dark background = white content
+        statusBarIconBrightness: Brightness.light, // For Android: white icons
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1E3A8A),
+                    Color(0xFF2563EB),
+                  ],
+                  stops: [0.0, 1.0],
+                ),
               ),
             ),
-          ),
-          mainContent,
-        ],
+            mainContent,
+          ],
+        ),
       ),
     );
   }

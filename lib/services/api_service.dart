@@ -1,67 +1,75 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:blink_app/models/transaction.dart';
+import 'package:blink_app/config/api_config.dart';
 import 'package:blink_app/services/storage_service.dart';
 
 class ApiService {
-  final String baseUrl = 'https://1f33-12-162-124-34.ngrok-free.app';
   final StorageService _storageService;
 
   ApiService(this._storageService);
 
-  Future<List<Transaction>> fetchAllTransactions() async {
-    List<Transaction> allTransactions = [];
-    int page = 1;
-    bool hasMorePages = true;
+  // Base headers for API requests
+  Future<Map<String, String>> _getHeaders({bool requiresAuth = true}) async {
+    final headers = {
+      'Content-Type': 'application/json',
+    };
 
-    while (hasMorePages) {
-      try {
-        final response = await _fetchTransactionsPage(page);
-        if (response['success'] == true) {
-          final transactions = (response['data']['transactions'] as List)
-              .map((json) => Transaction.fromJson(json))
-              .toList();
-          allTransactions.addAll(transactions);
-
-          final pagination = response['data']['pagination'];
-          if (page >= pagination['totalPages']) {
-            hasMorePages = false;
-          } else {
-            page++;
-          }
-        } else {
-          throw Exception('Failed to fetch transactions: ${response['error']}');
-        }
-      } catch (e) {
-        throw Exception('Error fetching transactions: $e');
+    if (requiresAuth) {
+      final token = await _storageService.getToken();
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
       }
     }
 
-    return allTransactions;
+    return headers;
   }
 
-  Future<Map<String, dynamic>> _fetchTransactionsPage(int page) async {
-    final token = await _storageService.getToken();
-    if (token == null) {
-      throw Exception('No authentication token found');
-    }
+  // Generic HTTP request method
+  Future<Map<String, dynamic>> _makeRequest({
+    required String endpoint,
+    required String method,
+    Map<String, dynamic>? body,
+    bool requiresAuth = true,
+  }) async {
+    try {
+      final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+      final headers = await _getHeaders(requiresAuth: requiresAuth);
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/plaid/all-transactions?page=$page&pageSize=100'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      late http.Response response;
+      switch (method) {
+        case 'GET':
+          response = await http.get(uri, headers: headers);
+          break;
+        case 'POST':
+          response = await http.post(
+            uri,
+            headers: headers,
+            body: body != null ? json.encode(body) : null,
+          );
+          break;
+        case 'PUT':
+          response = await http.put(
+            uri,
+            headers: headers,
+            body: body != null ? json.encode(body) : null,
+          );
+          break;
+        case 'DELETE':
+          response = await http.delete(uri, headers: headers);
+          break;
+        default:
+          throw Exception('Unsupported HTTP method: $method');
+      }
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else if (response.statusCode == 401) {
-      throw Exception('Unauthorized: Please log in again');
-    } else {
-      throw Exception('Failed to load transactions: ${response.statusCode}');
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('API Error: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Request failed: $e');
     }
   }
 
-  // Add more API methods here as needed, e.g., for other endpoints or data types
+  // New endpoints will be added here
 }

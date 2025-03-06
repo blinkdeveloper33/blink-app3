@@ -43,13 +43,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcomeBack => 'Welcome Back!';
 
   @override
-  String get loginToContinue => 'Log in to enter your Blink account';
+  String get loginToContinue => 'Log in to enter your Blink Account';
 
   @override
   String get welcomeToBlink => 'Welcome to Blink';
 
   @override
-  String get signUpToContinue => 'Are you new to Blink? Sign up to get Cash';
+  String get signUpToContinue => 'Are you new? Sign up to get Cash';
 
   @override
   String get enterEmail => 'Enter your email';

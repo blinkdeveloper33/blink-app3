@@ -86,7 +86,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final response = await authService.getAllTransactionsPaginated(
         page: _currentPage,
-        pageSize: 50,
+        limit: 50,
       );
 
       if (!mounted) return;
@@ -125,7 +125,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final response = await authService.getAllTransactionsPaginated(
         page: _currentPage + 1,
-        pageSize: 50,
+        limit: 50,
       );
 
       if (!mounted) return;
@@ -1211,6 +1211,9 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final details = await authService.getTransactionDetails(transaction.id);
 
+      // Convert response to TransactionDetail
+      final transactionDetail = TransactionDetail.fromJson(details['data']);
+
       if (!mounted) return;
 
       showModalBottomSheet(
@@ -1221,17 +1224,35 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           initialChildSize: 0.75,
           minChildSize: 0.5,
           maxChildSize: 0.95,
-          builder: (context, scrollController) => Container(
-            decoration: BoxDecoration(
-              color: _isDarkMode ? const Color(0xFF1A2942) : Colors.white,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: TransactionDetailsSheet(
-              transaction: transaction,
-              details: details,
-              isDarkMode: _isDarkMode,
-            ),
+          builder: (context, scrollController) => TransactionDetailsSheet(
+            transaction: transaction,
+            details: transactionDetail,
+            isDarkMode: _isDarkMode,
+            onCategoryChanged: (category) async {
+              try {
+                await authService.updateTransactionCategory(
+                  transactionId: transaction.id,
+                  category: category.id,
+                );
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Category updated to ${category.name}'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                // Refresh the transactions list
+                _loadTransactions();
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to update category'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
           ),
         ),
       );
@@ -1329,12 +1350,14 @@ class TransactionDetailsSheet extends StatelessWidget {
   final Transaction transaction;
   final TransactionDetail details;
   final bool isDarkMode;
+  final Function(TransactionCategory) onCategoryChanged;
 
   const TransactionDetailsSheet({
     Key? key,
     required this.transaction,
     required this.details,
     required this.isDarkMode,
+    required this.onCategoryChanged,
   }) : super(key: key);
 
   @override

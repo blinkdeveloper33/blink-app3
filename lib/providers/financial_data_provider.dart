@@ -31,7 +31,8 @@ class FinancialDataProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _authService.getCashFlowAnalysis(timeFrame);
+      final response =
+          await _authService.getCashFlowAnalysis(userId: timeFrame);
       _logger.d('Cash flow API response: $response');
 
       if (response['success'] == true && response['data'] != null) {
@@ -91,7 +92,8 @@ class FinancialDataProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _authService.getSpendingAnalysis(timeFrame);
+      final response =
+          await _authService.getSpendingAnalysis(userId: timeFrame);
 
       if (response['success'] == true && response['data'] != null) {
         final data = response['data'] as Map<String, dynamic>;

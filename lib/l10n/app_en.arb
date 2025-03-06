@@ -14,7 +14,7 @@
   "@welcomeBack": {
     "description": "Welcome back message on login screen"
   },
-  "loginToContinue": "Log in to enter your Blink account",
+  "loginToContinue": "Log in to enter your Blink Account",
   "@loginToContinue": {
     "description": "Login screen subtitle"
   },
@@ -22,7 +22,7 @@
   "@welcomeToBlink": {
     "description": "Welcome message on signup screen"
   },
-  "signUpToContinue": "Are you new to Blink? Sign up to get Cash",
+  "signUpToContinue": "Are you new? Sign up to get Cash",
   "@signUpToContinue": {
     "description": "Signup screen subtitle"
   },

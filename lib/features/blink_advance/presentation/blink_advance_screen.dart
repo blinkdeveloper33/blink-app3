@@ -1,3 +1,5 @@
+import 'dart:math' show pi, sin, cos, Random, sqrt, pow, min;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:blink_app/services/storage_service.dart';
@@ -5,7 +7,6 @@ import 'package:blink_app/services/auth_service.dart'
     show AuthService, TransferSpeed;
 import 'package:intl/intl.dart';
 import 'package:blink_app/features/home/presentation/home_screen.dart';
-import 'dart:math' show pi, sin, cos, Random, sqrt, pow;
 import 'package:blink_app/widgets/confetti_overlay.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animated_emoji/animated_emoji.dart';
@@ -1637,7 +1638,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       final authService = Provider.of<AuthService>(context, listen: false);
       final token = await authService.getToken();
 
-      if (token.isEmpty) {
+      // Check if token is null or empty
+      if (token == null || token.isEmpty) {
         throw Exception('Authentication token not found. Please log in again.');
       }
 
@@ -1743,7 +1745,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       print('Making request to: ${ApiConfig.baseUrl}/api/blink-advances');
       print('Request data: ${jsonEncode(requestData)}');
       print(
-          'Using token: Bearer ${token.substring(0, 10)}...'); // Only log first 10 chars of token
+          'Using token: Bearer ${token.substring(0, min(10, token.length))}...'); // Safely log first 10 chars of token
 
       // Call API endpoint
       final response = await http.post(

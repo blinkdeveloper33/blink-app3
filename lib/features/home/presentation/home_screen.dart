@@ -1178,7 +1178,8 @@ Successful investing requires patience, research, and discipline. Start small, s
       final userId = storageService.getUserId();
       if (userId == null) throw Exception('User ID not found');
 
-      final transactions = await authService.getRecentTransactions(userId);
+      final transactions =
+          await authService.getRecentTransactions(userId: userId);
 
       if (!mounted) return;
 
@@ -4187,6 +4188,92 @@ Successful investing requires patience, research, and discipline. Start small, s
     _showTransactionDetails(transaction);
   }
 
+  void _showTransactionDetails(Transaction transaction) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: _isDarkMode ? const Color(0xFF141B2E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SingleChildScrollView(
+            controller: scrollController,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailSection('Transaction Details', [
+                    _buildDetailTile(
+                      icon: Icons.store,
+                      title: 'Merchant',
+                      subtitle: transaction.merchantName ?? 'Unknown',
+                    ),
+                    _buildCategoryTile(transaction),
+                    _buildDetailTile(
+                      icon: Icons.calendar_today,
+                      title: 'Date',
+                      subtitle:
+                          DateFormat('MMMM d, yyyy').format(transaction.date),
+                    ),
+                    _buildDetailTile(
+                      icon: Icons.attach_money,
+                      title: 'Amount',
+                      subtitle: currencyFormatter.format(transaction.amount),
+                      iconColor: transaction.isOutflow
+                          ? Colors.red
+                          : Colors.green[700],
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  if (transaction.metadata != null &&
+                      transaction.metadata!.isNotEmpty)
+                    _buildDetailSection(
+                      'Additional Information',
+                      _buildMetadataRows(transaction.metadata!),
+                    ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildActionButton(
+                          icon: Icons.edit,
+                          label: 'Edit Category',
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _changeCategory(transaction);
+                          },
+                          isPrimary: false,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildActionButton(
+                          icon: Icons.flag,
+                          label: 'Report Issue',
+                          onPressed: () {
+                            // TODO: Implement report functionality
+                          },
+                          isPrimary: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Color _getTransactionColor(Transaction transaction) {
     return transaction.getCategoryColor(_isDarkMode);
   }
@@ -4677,17 +4764,12 @@ Successful investing requires patience, research, and discipline. Start small, s
       });
 
       final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final response = await authService.getDailyTransactionSummary();
-
-      final List<auth.DailyTransactionSummary> summary =
-          (response['data'] as List)
-              .map((item) => auth.DailyTransactionSummary.fromJson(item))
-              .toList();
+      final summaries = await authService.getDailyTransactionSummary(days: 30);
 
       if (!mounted) return;
 
       setState(() {
-        _dailyTransactionSummary = summary;
+        _dailyTransactionSummary = summaries;
         _isChartLoading = false;
       });
     } catch (e) {
@@ -4700,21 +4782,13 @@ Successful investing requires patience, research, and discipline. Start small, s
     }
   }
 
-  void _showTransactionDetails(Transaction transaction) {
-    _performHapticFeedback(haptics.HapticsType.medium);
-    // Implementation of transaction details view
-    // This can be expanded based on your needs
-  }
-
   String _getGreeting() {
-    final localizations = AppLocalizations.of(context)!;
     final hour = DateTime.now().hour;
     if (hour < 12) {
-      return localizations.greeting_morning;
+      return 'Good Morning';
     } else if (hour < 17) {
-      return localizations.greeting_afternoon;
-    } else {
-      return localizations.greeting_evening;
+      return 'Good Afternoon';
     }
+    return 'Good Evening';
   }
 }

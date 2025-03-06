@@ -30,8 +30,6 @@ void main() async {
   await dotenv.load();
 
   // Debug environment variables
-
-  // Debug environment variables
   print('API_URL: ${dotenv.env['API_URL']}');
   print('BACKEND_URL: ${dotenv.env['BACKEND_URL']}');
   print('SUPABASE_URL: ${dotenv.env['SUPABASE_URL']}');

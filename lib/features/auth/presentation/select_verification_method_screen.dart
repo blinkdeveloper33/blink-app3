@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:blink_app/features/auth/presentation/enter_otp_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/storage_service.dart';
@@ -6,6 +7,7 @@ import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
+import 'package:flutter/rendering.dart';
 
 class SelectVerificationMethodScreen extends StatefulWidget {
   final String email;
@@ -30,38 +32,64 @@ class _SelectVerificationMethodScreenState
       _isSending = true;
     });
 
+    // First navigate to OTP screen
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => EnterOtpScreen(email: widget.email),
+      ),
+    );
+
+    // Then make the API call
     final authService = Provider.of<AuthService>(context, listen: false);
 
     try {
-      final response = await authService.registerInitial(widget.email);
+      final response =
+          await authService.initiateEmailVerification(widget.email);
 
-      if (response['success'] == true) {
-        final storageService =
-            Provider.of<StorageService>(context, listen: false);
-        await storageService.setEmail(widget.email);
-
+      if (response['success'] != true) {
+        // Show error snackbar if API call fails
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => EnterOtpScreen(email: widget.email),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'There was an error processing your request. Please try again later.',
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
-      } else {
-        final message = response['error'] ??
-            'Failed to initiate verification. Please try again.';
-        _showErrorDialog(message);
       }
-    } on UserAlreadyExistsException catch (e) {
-      _logger.e('User already exists', error: e);
-      _showErrorDialog(e.message);
     } catch (e, stackTrace) {
       _logger.e('Error initiating verification',
           error: e, stackTrace: stackTrace);
-      String errorMessage = 'An unexpected error occurred. Please try again.';
-      if (e is Exception) {
-        errorMessage = e.toString();
-      }
-      _showErrorDialog(errorMessage);
+      // Show error snackbar if API call fails
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'There was an error processing your request. Please try again later.',
+            style: TextStyle(
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -69,47 +97,6 @@ class _SelectVerificationMethodScreenState
         });
       }
     }
-  }
-
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF061535),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
-            'Error',
-            style: TextStyle(
-              color: Colors.redAccent,
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Text(
-            message,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontFamily: 'Onest',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'OK',
-                style: TextStyle(
-                  color: Color(0xFF2196F3),
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   Widget _buildVerificationOptions() {
@@ -313,108 +300,107 @@ class _SelectVerificationMethodScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1E3A8A),
-              Color(0xFF2563EB),
-            ],
-            stops: [0.0, 1.0],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarBrightness:
+            Brightness.dark, // For iOS: dark background = white content
+        statusBarIconBrightness: Brightness.light, // For Android: white icons
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.transparent,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1E3A8A),
+                Color(0xFF2563EB),
+              ],
+              stops: [0.0, 1.0],
+            ),
           ),
-        ),
-        child: Column(
-          children: [
-            // Fixed Header
-            Container(
-              color: const Color(0xFF1E3A8A).withOpacity(0.95),
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 24, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                          child:
+          child: Column(
+            children: [
+              // Fixed Header
+              Container(
+                color: const Color(0xFF1E3A8A).withOpacity(0.95),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 24, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon:
                               const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.of(context)
+                              .pushReplacementNamed('/auth'),
+                          tooltip: 'Go Back',
                         ),
-                        onPressed: () =>
-                            Navigator.of(context).pushReplacementNamed('/auth'),
-                        tooltip: 'Go Back',
-                      ),
-                      Hero(
-                        tag: 'logo',
-                        child: Image.asset(
-                          'assets/images/blink_logo_white.png',
-                          height: 35,
-                          fit: BoxFit.contain,
+                        Hero(
+                          tag: 'logo',
+                          child: Image.asset(
+                            'assets/images/blink_logo_white.png',
+                            height: 23,
+                            fit: BoxFit.contain,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Scrollable Content
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 24),
-                      ClipRect(
-                        child: FadeInDown(
-                          duration: const Duration(milliseconds: 600),
-                          child: Center(
-                            child: Lottie.asset(
-                              'assets/animations/verification.json',
-                              width: 180,
-                              height: 180,
-                              fit: BoxFit.contain,
+              // Scrollable Content
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
+                        ClipRect(
+                          child: FadeInDown(
+                            duration: const Duration(milliseconds: 600),
+                            child: Center(
+                              child: Lottie.asset(
+                                'assets/animations/verification.json',
+                                width: 180,
+                                height: 180,
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      FadeInUp(
-                        duration: const Duration(milliseconds: 600),
-                        child: _buildVerificationOptions(),
-                      ),
-                      const SizedBox(height: 32),
-                      FadeInUp(
-                        duration: const Duration(milliseconds: 600),
-                        delay: const Duration(milliseconds: 200),
-                        child: _buildContinueButton(),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                        const SizedBox(height: 24),
+                        FadeInUp(
+                          duration: const Duration(milliseconds: 600),
+                          child: _buildVerificationOptions(),
+                        ),
+                        const SizedBox(height: 32),
+                        FadeInUp(
+                          duration: const Duration(milliseconds: 600),
+                          delay: const Duration(milliseconds: 200),
+                          child: _buildContinueButton(),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

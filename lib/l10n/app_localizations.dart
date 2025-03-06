@@ -167,7 +167,7 @@ abstract class AppLocalizations {
   /// Login screen subtitle
   ///
   /// In en, this message translates to:
-  /// **'Log in to enter your Blink account'**
+  /// **'Log in to enter your Blink Account'**
   String get loginToContinue;
 
   /// Welcome message on signup screen
@@ -179,7 +179,7 @@ abstract class AppLocalizations {
   /// Signup screen subtitle
   ///
   /// In en, this message translates to:
-  /// **'Are you new to Blink? Sign up to get Cash'**
+  /// **'Are you new? Sign up to get Cash'**
   String get signUpToContinue;
 
   /// Email input placeholder

@@ -233,7 +233,17 @@ class StorageService {
     }
   }
 
-  String? getToken() {
+  Future<void> clearToken() async {
+    try {
+      await _prefs.remove(StorageKeys.token);
+      _logger.i('Token cleared successfully.');
+    } catch (e) {
+      _logger.e('Failed to clear token: $e');
+      throw Exception('Failed to clear token: $e');
+    }
+  }
+
+  Future<String?> getToken() async {
     try {
       if (!_isInitialized) _init();
 
@@ -246,7 +256,7 @@ class StorageService {
       // Add validation for encrypted token format
       if (!_isBase64(encryptedToken)) {
         _logger.e('Stored token is not in valid base64 format');
-        _prefs.remove(StorageKeys.token);
+        await _prefs.remove(StorageKeys.token);
         return null;
       }
 
@@ -256,7 +266,7 @@ class StorageService {
     } catch (e) {
       _logger.e('Failed to get token: $e');
       // Clear corrupted token
-      _prefs.remove(StorageKeys.token);
+      await _prefs.remove(StorageKeys.token);
       return null;
     }
   }

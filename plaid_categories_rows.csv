@@ -1,0 +1,101 @@
+category_id,category_group,hierarchy,created_at,updated_at
+10000000,special,"[""Bank Fees""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10001000,special,"[""Bank Fees"",""Overdraft""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10002000,special,"[""Bank Fees"",""ATM""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10003000,special,"[""Bank Fees"",""Late Payment""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10004000,special,"[""Bank Fees"",""Fraud Dispute""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10005000,special,"[""Bank Fees"",""Foreign Transaction""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10006000,special,"[""Bank Fees"",""Wire Transfer""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10007000,special,"[""Bank Fees"",""Insufficient Funds""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10008000,special,"[""Bank Fees"",""Cash Advance""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+10009000,special,"[""Bank Fees"",""Excess Activity""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+11000000,special,"[""Cash Advance""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12000000,place,"[""Community""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12001000,place,"[""Community"",""Animal Shelter""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12002000,place,"[""Community"",""Assisted Living Services""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12002001,place,"[""Community"",""Assisted Living Services"",""Facilities and Nursing Homes""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12002002,place,"[""Community"",""Assisted Living Services"",""Caretakers""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12003000,place,"[""Community"",""Cemetery""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12004000,place,"[""Community"",""Courts""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12005000,place,"[""Community"",""Day Care and Preschools""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12006000,place,"[""Community"",""Disabled Persons Services""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12007000,place,"[""Community"",""Drug and Alcohol Services""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008000,place,"[""Community"",""Education""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008001,place,"[""Community"",""Education"",""Vocational Schools""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008002,place,"[""Community"",""Education"",""Tutoring and Educational Services""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008003,place,"[""Community"",""Education"",""Primary and Secondary Schools""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008004,place,"[""Community"",""Education"",""Fraternities and Sororities""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008005,place,"[""Community"",""Education"",""Driving Schools""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008006,place,"[""Community"",""Education"",""Dance Schools""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008007,place,"[""Community"",""Education"",""Culinary Lessons and Schools""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008008,place,"[""Community"",""Education"",""Computer Training""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008009,place,"[""Community"",""Education"",""Colleges and Universities""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008010,place,"[""Community"",""Education"",""Art School""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12008011,place,"[""Community"",""Education"",""Adult Education""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12009000,place,"[""Community"",""Government Departments and Agencies""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12010000,place,"[""Community"",""Government Lobbyists""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12011000,place,"[""Community"",""Housing Assistance and Shelters""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12012000,place,"[""Community"",""Law Enforcement""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12012001,place,"[""Community"",""Law Enforcement"",""Police Stations""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12012002,place,"[""Community"",""Law Enforcement"",""Fire Stations""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12012003,place,"[""Community"",""Law Enforcement"",""Correctional Institutions""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12013000,place,"[""Community"",""Libraries""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12014000,place,"[""Community"",""Military""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12015000,place,"[""Community"",""Organizations and Associations""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12015001,place,"[""Community"",""Organizations and Associations"",""Youth Organizations""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12015002,place,"[""Community"",""Organizations and Associations"",""Environmental""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12015003,place,"[""Community"",""Organizations and Associations"",""Charities and Non-Profits""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12016000,place,"[""Community"",""Post Offices""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12017000,place,"[""Community"",""Public and Social Services""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12018000,place,"[""Community"",""Religious""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12018001,place,"[""Community"",""Religious"",""Temple""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12018002,place,"[""Community"",""Religious"",""Synagogues""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12018003,place,"[""Community"",""Religious"",""Mosques""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12018004,place,"[""Community"",""Religious"",""Churches""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12019000,place,"[""Community"",""Senior Citizen Services""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+12019001,place,"[""Community"",""Senior Citizen Services"",""Retirement""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13000000,place,"[""Food and Drink""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13001000,place,"[""Food and Drink"",""Bar""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13001001,place,"[""Food and Drink"",""Bar"",""Wine Bar""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13001002,place,"[""Food and Drink"",""Bar"",""Sports Bar""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13001003,place,"[""Food and Drink"",""Bar"",""Hotel Lounge""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13002000,place,"[""Food and Drink"",""Breweries""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13003000,place,"[""Food and Drink"",""Internet Cafes""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13004000,place,"[""Food and Drink"",""Nightlife""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13004001,place,"[""Food and Drink"",""Nightlife"",""Strip Club""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13004002,place,"[""Food and Drink"",""Nightlife"",""Night Clubs""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13004003,place,"[""Food and Drink"",""Nightlife"",""Karaoke""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13004004,place,"[""Food and Drink"",""Nightlife"",""Jazz and Blues Cafe""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13004005,place,"[""Food and Drink"",""Nightlife"",""Hookah Lounges""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13004006,place,"[""Food and Drink"",""Nightlife"",""Adult Entertainment""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005000,place,"[""Food and Drink"",""Restaurants""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005001,place,"[""Food and Drink"",""Restaurants"",""Winery""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005002,place,"[""Food and Drink"",""Restaurants"",""Vegan and Vegetarian""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005003,place,"[""Food and Drink"",""Restaurants"",""Turkish""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005004,place,"[""Food and Drink"",""Restaurants"",""Thai""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005005,place,"[""Food and Drink"",""Restaurants"",""Swiss""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005006,place,"[""Food and Drink"",""Restaurants"",""Sushi""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005007,place,"[""Food and Drink"",""Restaurants"",""Steakhouses""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005008,place,"[""Food and Drink"",""Restaurants"",""Spanish""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005009,place,"[""Food and Drink"",""Restaurants"",""Seafood""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005010,place,"[""Food and Drink"",""Restaurants"",""Scandinavian""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005011,place,"[""Food and Drink"",""Restaurants"",""Portuguese""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005012,place,"[""Food and Drink"",""Restaurants"",""Pizza""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005013,place,"[""Food and Drink"",""Restaurants"",""Moroccan""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005014,place,"[""Food and Drink"",""Restaurants"",""Middle Eastern""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005015,place,"[""Food and Drink"",""Restaurants"",""Mexican""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005016,place,"[""Food and Drink"",""Restaurants"",""Mediterranean""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005017,place,"[""Food and Drink"",""Restaurants"",""Latin American""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005018,place,"[""Food and Drink"",""Restaurants"",""Korean""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005019,place,"[""Food and Drink"",""Restaurants"",""Juice Bar""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005020,place,"[""Food and Drink"",""Restaurants"",""Japanese""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005021,place,"[""Food and Drink"",""Restaurants"",""Italian""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005022,place,"[""Food and Drink"",""Restaurants"",""Indonesian""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005023,place,"[""Food and Drink"",""Restaurants"",""Indian""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005024,place,"[""Food and Drink"",""Restaurants"",""Ice Cream""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005025,place,"[""Food and Drink"",""Restaurants"",""Greek""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005026,place,"[""Food and Drink"",""Restaurants"",""German""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005027,place,"[""Food and Drink"",""Restaurants"",""Gastropub""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005028,place,"[""Food and Drink"",""Restaurants"",""French""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005029,place,"[""Food and Drink"",""Restaurants"",""Food Truck""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00
+13005030,place,"[""Food and Drink"",""Restaurants"",""Fish and Chips""]",2025-01-20 14:24:21.10571+00,2025-01-20 15:53:35.114+00

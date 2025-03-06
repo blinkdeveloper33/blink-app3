@@ -5,6 +5,51 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logger/logger.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:blink_app/config/api_config.dart';
+
+class User {
+  final String id;
+  final String email;
+  final String firstName;
+  final String lastName;
+  final String state;
+  final String zipCode;
+  final bool isEmailVerified;
+
+  User({
+    required this.id,
+    required this.email,
+    required this.firstName,
+    required this.lastName,
+    required this.state,
+    required this.zipCode,
+    required this.isEmailVerified,
+  });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'] as String,
+      email: json['email'] as String,
+      firstName: json['firstName'] as String,
+      lastName: json['lastName'] as String,
+      state: json['state'] as String,
+      zipCode: json['zipCode'] as String,
+      isEmailVerified: json['isEmailVerified'] as bool,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'firstName': firstName,
+      'lastName': lastName,
+      'state': state,
+      'zipCode': zipCode,
+      'isEmailVerified': isEmailVerified,
+    };
+  }
+}
 
 class Transaction {
   final String id;
@@ -70,28 +115,11 @@ enum TransferSpeed {
 }
 
 class AuthService {
-  final String _baseUrl =
-      dotenv.env['BACKEND_URL'] ?? 'https://1f33-12-162-124-34.ngrok-free.app';
   final Logger _logger = Logger();
   final StorageService _storageService;
-  final SupabaseClient _supabase = Supabase.instance.client;
-  User? _currentUser;
   final http.Client _client = http.Client();
 
   AuthService(this._storageService);
-
-  User? get currentUser => _currentUser;
-
-  Future<void> init() async {
-    try {
-      _currentUser = _supabase.auth.currentUser;
-      _supabase.auth.onAuthStateChange.listen((data) {
-        _currentUser = data.session?.user;
-      });
-    } catch (e) {
-      _logger.e('Error initializing auth service', error: e);
-    }
-  }
 
   Future<Map<String, dynamic>> _makeRequest({
     required String endpoint,
@@ -100,17 +128,7 @@ class AuthService {
     bool requireAuth = true,
   }) async {
     try {
-      var baseUrl = dotenv.env['API_URL'] ??
-          dotenv.env['BACKEND_URL'] ??
-          'https://1f33-12-162-124-34.ngrok-free.app';
-
-      // Ensure baseUrl has https:// prefix
-      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-        baseUrl = 'https://$baseUrl';
-      }
-
-      // Handle query parameters for GET requests
-      var uri = Uri.parse('$baseUrl$endpoint');
+      var uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
       if (method == 'GET' && body != null && body.isNotEmpty) {
         uri = uri.replace(
             queryParameters:
@@ -122,10 +140,14 @@ class AuthService {
       };
 
       if (requireAuth) {
-        final token = await _storageService.getToken();
-        if (token != null && token.isNotEmpty) {
-          headers['Authorization'] = 'Bearer $token';
+        // First check if token is available
+        final hasToken = await verifyTokenAvailable();
+        if (!hasToken) {
+          throw Exception('Authentication token required but not found');
         }
+
+        // At this point we know _currentToken is available
+        headers['Authorization'] = 'Bearer $_currentToken';
       }
 
       _logger.i('Making request to: $uri');
@@ -156,18 +178,22 @@ class AuthService {
           response = await _client.delete(uri, headers: headers);
           break;
         default:
-          throw UnsupportedMethodException('Method $method not supported');
+          throw Exception('Method $method not supported');
       }
 
       _logger.i('Response status code: ${response.statusCode}');
+      _logger.i('Response headers: ${response.headers}');
       _logger.i('Response body: ${response.body}');
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return json.decode(response.body);
+        final decodedResponse = json.decode(response.body);
+        _logger.i('Decoded response: $decodedResponse');
+        return decodedResponse;
       } else {
-        throw ApiException(
-          message: response.body,
-          statusCode: response.statusCode,
+        _logger.e(
+            'API Error - Status: ${response.statusCode}, Body: ${response.body}');
+        throw Exception(
+          'API Error: ${response.statusCode} - ${response.body}',
         );
       }
     } catch (e) {
@@ -176,978 +202,626 @@ class AuthService {
     }
   }
 
-  // User Registration & Authentication methods
+  // Email Verification Endpoints
 
-  Future<Map<String, dynamic>> registerInitial(String email) async {
+  Future<Map<String, dynamic>> initiateEmailVerification(String email) async {
     try {
       final response = await _makeRequest(
-        endpoint: '/api/users/register-initial',
-        body: {'email': email},
+        endpoint: '/api/auth/email/verify/initiate',
         method: 'POST',
+        body: {'email': email},
         requireAuth: false,
       );
 
-      _logger.i('Initial registration response: $response');
+      _logger.i('Email verification initiated for: $email');
       return response;
     } catch (e) {
-      _logger.e('Error in registerInitial:', error: e);
-      if (e is ApiException && e.statusCode == 400) {
-        return {
-          'success': false,
-          'error': 'User already exists with this email.'
-        };
+      _logger.e('Error initiating email verification:', error: e);
+      rethrow;
+    }
+  }
+
+  // Initial registration step - verify email
+  Future<Map<String, dynamic>> registerInitial(String email) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/auth/email/verify/initiate',
+        method: 'POST',
+        body: {'email': email},
+        requireAuth: false,
+      );
+
+      _logger.i('Initial registration step completed for: $email');
+      return response;
+    } catch (e) {
+      if (e.toString().contains('already exists')) {
+        throw UserAlreadyExistsException(
+            'An account with this email already exists.');
       }
-      return {
-        'success': false,
-        'error': 'Failed to initiate registration: ${e.toString()}'
-      };
+      _logger.e('Error during initial registration:', error: e);
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
     try {
       final response = await _makeRequest(
-        endpoint: '/api/users/verify-otp',
-        body: {'email': email, 'otp': otp},
+        endpoint: '/api/auth/email/verify',
         method: 'POST',
-        requireAuth: false,
-      );
-
-      _logger.i('OTP verification response: $response');
-      return response;
-    } catch (e) {
-      _logger.e('Error in verifyOtp:', error: e);
-      if (e is ApiException && e.statusCode == 400) {
-        return {'success': false, 'error': 'Invalid OTP or OTP has expired.'};
-      }
-      return {
-        'success': false,
-        'error': 'Failed to verify OTP: ${e.toString()}'
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> sendOtp(String email) async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/resend-otp',
-        body: {'email': email},
-        method: 'POST',
-        requireAuth: false,
-      );
-
-      _logger.i('Resend OTP response: $response');
-      return response;
-    } catch (e) {
-      _logger.e('Error in sendOtp:', error: e);
-      return {'success': false, 'error': 'Failed to send OTP: ${e.toString()}'};
-    }
-  }
-
-  Future<Map<String, dynamic>> login({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/login',
-        body: {'email': email, 'password': password},
-        method: 'POST',
-      );
-
-      _logger.i('Login response: $response');
-
-      if (response['success'] == true && response['token'] != null) {
-        await _storageService.setToken(response['token']);
-        final userId = response['userId'];
-        if (userId != null) {
-          await _storageService.setUserId(userId);
-
-          // Fetch and store user profile
-          final userProfile = await fetchUserProfile();
-          if (userProfile['success'] == true) {
-            await _storeUserProfile(userProfile['data']);
-          } else {
-            _logger
-                .w('Failed to fetch user profile: ${userProfile['message']}');
-            throw Exception('Failed to fetch user profile');
-          }
-        } else {
-          _logger.e('User ID is missing in the login response.');
-          throw Exception('User ID missing in login response.');
-        }
-
-        return {'success': true, 'message': 'Login successful'};
-      } else {
-        _logger.w('Login failed: ${response['message']}');
-        return {
-          'success': false,
-          'message': response['message'] ?? 'Login failed'
-        };
-      }
-    } catch (e) {
-      _logger.e('Error during login', error: e);
-      rethrow;
-    }
-  }
-
-  Future<void> logout() async {
-    await _storageService.clearAll();
-    _logger.i('User logged out and all data cleared.');
-  }
-
-  // User Profile Management methods
-
-  Future<void> _storeUserProfile(Map<String, dynamic> userProfile) async {
-    await _storageService.setFirstName(userProfile['first_name'] ?? '');
-    await _storageService.setLastName(userProfile['last_name'] ?? '');
-    await _storageService.setEmail(userProfile['email'] ?? '');
-    await _storageService.setState(userProfile['state'] ?? '');
-    await _storageService.setZipcode(userProfile['zipcode'] ?? '');
-
-    final fullName =
-        '${userProfile['first_name'] ?? ''} ${userProfile['last_name'] ?? ''}'
-            .trim();
-    await _storageService.setFullName(fullName);
-
-    if (userProfile['bank_account_name'] != null) {
-      await _storageService
-          .setBankAccountName(userProfile['bank_account_name']);
-    }
-
-    _logger.i('User profile stored successfully');
-  }
-
-  // User Status & Bank Accounts methods
-
-  Future<UserStatus> getUserStatus() async {
-    final userId = _storageService.getUserId();
-    if (userId == null || userId.isEmpty) {
-      _logger.w('User ID not found or empty. Returning newUser status.');
-      return UserStatus.newUser;
-    }
-
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/status/$userId',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['hasBankAccount'] == true) {
-        return UserStatus.complete;
-      } else if (response['isNewUser'] == true) {
-        return UserStatus.newUser;
-      } else {
-        return UserStatus.noBankAccount;
-      }
-    } catch (e) {
-      _logger.e('Error getting user status', error: e);
-      return UserStatus.newUser;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getLinkedAccounts() async {
-    try {
-      _logger.i('Fetching user linked accounts...');
-      final response = await _makeRequest(
-        endpoint: '/api/users/bank-accounts/detailed',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success']) {
-        _logger.i('Linked accounts fetched successfully');
-        _logger.i('Linked accounts data: ${response['bankAccounts']}');
-        return List<Map<String, dynamic>>.from(
-            (response['bankAccounts'] as List).map((account) {
-          if (account is Map<String, dynamic>) {
-            return account;
-          } else if (account is Map) {
-            return Map<String, dynamic>.from(account);
-          } else {
-            throw ApiException(
-                message: 'Invalid bank account format', statusCode: 500);
-          }
-        }));
-      } else {
-        _logger.e('Failed to fetch linked accounts: ${response['error']}');
-        return [];
-      }
-    } catch (e) {
-      _logger.e('Error fetching linked accounts: $e');
-      return [];
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getDetailedBankAccounts() async {
-    try {
-      _logger.i('Fetching detailed user bank accounts...');
-      final response = await _makeRequest(
-        endpoint: '/api/users/bank-accounts/detailed',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success']) {
-        _logger.i('Detailed bank accounts fetched successfully');
-        _logger.i('Detailed Bank Accounts: ${response['bankAccounts']}');
-        return List<Map<String, dynamic>>.from(
-            (response['bankAccounts'] as List).map((account) {
-          if (account is Map<String, dynamic>) {
-            return account;
-          } else if (account is Map) {
-            return Map<String, dynamic>.from(account);
-          } else {
-            throw ApiException(
-                message: 'Invalid detailed bank account format',
-                statusCode: 500);
-          }
-        }));
-      } else {
-        _logger
-            .e('Failed to fetch detailed bank accounts: ${response['error']}');
-        return [];
-      }
-    } catch (e) {
-      _logger.e('Error fetching detailed bank accounts: $e');
-      return [];
-    }
-  }
-
-  Future<String?> getPrimaryAccountName(String userId) async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/bank-accounts/detailed',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success'] &&
-          response['bankAccounts'] is List &&
-          (response['bankAccounts'] as List).isNotEmpty) {
-        final primaryAccount = response['bankAccounts'].first;
-        if (primaryAccount is Map<String, dynamic>) {
-          return primaryAccount['accountName'] as String?;
-        } else if (primaryAccount is Map) {
-          final accountMap = Map<String, dynamic>.from(primaryAccount);
-          return accountMap['accountName'] as String?;
-        } else {
-          _logger.w('Primary account name not found due to invalid format');
-          return null;
-        }
-      } else {
-        _logger.w('Primary account name not found');
-        return null;
-      }
-    } catch (e) {
-      _logger.e('Error fetching primary account name: $e');
-      return null;
-    }
-  }
-
-  Future<Map<String, dynamic>> getAllTransactions() async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/transactions/all',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success'] == true && response['transactions'] is List) {
-        final transactions = (response['transactions'] as List)
-            .map((json) => Transaction.fromJson(json is Map<String, dynamic>
-                ? json
-                : Map<String, dynamic>.from(json as Map)))
-            .toList();
-
-        return {
-          'success': true,
-          'transactions': transactions,
-        };
-      } else {
-        throw ApiException(
-            message: 'Failed to fetch transactions: Unexpected response format',
-            statusCode: 500);
-      }
-    } catch (e) {
-      _logger.e('Error fetching transactions: $e');
-      return {
-        'success': false,
-        'error': 'Failed to fetch transactions. Please try again.',
-      };
-    }
-  }
-
-  // BlinkAdvance Endpoints
-
-  Future<Map<String, dynamic>> createBlinkAdvance({
-    required String userId,
-    required double requestedAmount,
-    required TransferSpeed transferSpeed,
-    required DateTime repayDate,
-    required String bankAccountId,
-  }) async {
-    return _makeRequest(
-      endpoint: '/api/blink-advances',
-      body: {
-        'userId': userId,
-        'requestedAmount': requestedAmount,
-        'transferSpeed':
-            transferSpeed == TransferSpeed.instant ? 'Instant' : 'Normal',
-        'repayDate': DateFormat('yyyy-MM-dd').format(repayDate),
-        'bankAccountId': bankAccountId,
-      },
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getBlinkAdvances(String userId) async {
-    final response = await _makeRequest(
-      endpoint: '/api/blink-advances',
-      body: {'userId': userId},
-      method: 'GET',
-      requireAuth: true,
-    );
-    if (response['blinkAdvances'] is List) {
-      return List<Map<String, dynamic>>.from(
-          (response['blinkAdvances'] as List).map((advance) {
-        if (advance is Map<String, dynamic>) {
-          return advance;
-        } else if (advance is Map) {
-          return Map<String, dynamic>.from(advance);
-        } else {
-          throw ApiException(
-              message: 'Invalid BlinkAdvance format', statusCode: 500);
-        }
-      }));
-    } else {
-      throw ApiException(
-          message: 'Invalid BlinkAdvances data format', statusCode: 500);
-    }
-  }
-
-  Future<Map<String, dynamic>> getBlinkAdvanceById(String id) async {
-    return _makeRequest(
-      endpoint: '/api/blink-advances/$id',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> updateBlinkAdvanceStatus(
-      String id, String status) async {
-    return _makeRequest(
-      endpoint: '/api/blink-advances/$id/status',
-      body: {'status': status},
-      method: 'PATCH',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>?> getBlinkAdvanceApprovalStatus() async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/blink-advances/approval-status',
-        method: 'GET',
-        body: {},
-        requireAuth: true,
-      );
-
-      if (response != null && response is Map<String, dynamic>) {
-        return response;
-      }
-
-      return null;
-    } catch (e) {
-      _logger.e('Error getting Blink Advance approval status: $e');
-      return null;
-    }
-  }
-
-  // Plaid Integration
-
-  Future<String> createLinkToken(String userId) async {
-    final response = await _makeRequest(
-      endpoint: '/api/plaid/create_link_token',
-      body: {'userId': userId},
-      method: 'POST',
-      requireAuth: true,
-    );
-
-    if (response.containsKey('link_token')) {
-      return response['link_token'] as String;
-    } else {
-      throw ApiException(message: 'Link token not found', statusCode: 500);
-    }
-  }
-
-  Future<Map<String, dynamic>> exchangePublicToken(
-      String publicToken, String userId) async {
-    return _makeRequest(
-      endpoint: '/api/plaid/exchange_public_token',
-      body: {'publicToken': publicToken, 'userId': userId},
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> syncTransactions(String userId) async {
-    return _makeRequest(
-      endpoint: '/api/plaid/sync',
-      body: {'userId': userId},
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> getTransactions({
-    required String userId,
-    String bankAccountId = 'all',
-    required String startDate,
-    required String endDate,
-    int page = 1,
-    int limit = 50,
-  }) async {
-    final Map<String, dynamic> body = {
-      'userId': userId,
-      'startDate': startDate,
-      'endDate': endDate,
-      'page': page,
-      'limit': limit,
-    };
-
-    if (bankAccountId != 'all') {
-      body['bankAccountId'] = bankAccountId;
-    }
-
-    return _makeRequest(
-      endpoint: '/api/plaid/get_transactions',
-      body: body,
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> syncBalances(String userId) async {
-    return _makeRequest(
-      endpoint: '/api/plaid/sync_balances',
-      body: {'userId': userId},
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  Future<List<Transaction>> getRecentTransactions(String userId) async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/plaid/recent-transactions/$userId',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success'] == true && response['transactions'] is List) {
-        return (response['transactions'] as List)
-            .map((json) => Transaction.fromJson(json is Map<String, dynamic>
-                ? json
-                : Map<String, dynamic>.from(json as Map)))
-            .toList();
-      } else {
-        _logger.e('Unexpected response format: $response');
-        throw ApiException(
-            message:
-                'Failed to fetch recent transactions: Unexpected response format',
-            statusCode: 500);
-      }
-    } catch (e) {
-      _logger.e('Error fetching recent transactions', error: e);
-      throw ApiException(
-          message: 'Failed to fetch recent transactions: ${e.toString()}',
-          statusCode: 500);
-    }
-  }
-
-  Future<Map<String, dynamic>> getCurrentBalances() async {
-    return _makeRequest(
-      endpoint: '/api/plaid/current-balances',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  // User Profile Management
-
-  Future<Map<String, dynamic>> updateUserProfile(
-      Map<String, dynamic> updatedInfo) async {
-    return _makeRequest(
-      endpoint: '/api/users/update-profile',
-      body: updatedInfo,
-      method: 'PATCH',
-      requireAuth: true,
-    );
-  }
-
-  // Linked Account Management
-
-  Future<Map<String, dynamic>> addLinkedAccount(String accountInfo) async {
-    return _makeRequest(
-      endpoint: '/api/users/add-account',
-      body: {'accountInfo': accountInfo},
-      method: 'POST',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> removeLinkedAccount(String accountId) async {
-    return _makeRequest(
-      endpoint: '/api/users/remove-account/$accountId',
-      body: {},
-      method: 'DELETE',
-      requireAuth: true,
-    );
-  }
-
-  // Account Statistics
-
-  Future<Map<String, dynamic>> getDetailedAccountStatistics() async {
-    return _makeRequest(
-      endpoint: '/api/users/account-statistics',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> getUserProfile() async {
-    return _makeRequest(
-      endpoint: '/api/users/profile',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> fetchUserProfile() async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/profile',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success'] == true) {
-        return {'success': true, 'data': response['data']};
-      } else {
-        return {
-          'success': false,
-          'message': response['message'] ?? 'Failed to fetch user profile'
-        };
-      }
-    } catch (e) {
-      _logger.e('Error fetching user profile', error: e);
-      return {'success': false, 'message': 'Error fetching user profile: $e'};
-    }
-  }
-
-  Future<Map<String, dynamic>> getAllTransactionsPaginated(
-      {int page = 1, int pageSize = 100}) async {
-    return _makeRequest(
-      endpoint: '/api/plaid/all-transactions',
-      body: {'page': page, 'pageSize': pageSize},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  Future<Map<String, dynamic>> handlePlaidWebhook(
-      Map<String, dynamic> webhookData) async {
-    return _makeRequest(
-      endpoint: '/api/plaid/webhook',
-      body: webhookData,
-      method: 'POST',
-      requireAuth: false,
-    );
-  }
-
-  Future<Map<String, dynamic>> getAccountData() async {
-    return _makeRequest(
-      endpoint: '/api/users/account-data',
-      body: {},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  // Daily Transaction Summary
-
-  Future<Map<String, dynamic>> getDailyTransactionSummary() async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/plaid/daily-transaction-summary',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      if (response['success'] == true) {
-        return response;
-      } else {
-        _logger.e('Unexpected response format: $response');
-        throw ApiException(
-            message: 'Failed to fetch daily transaction summary',
-            statusCode: 500);
-      }
-    } catch (e) {
-      _logger.e('Error fetching daily transaction summary', error: e);
-      throw ApiException(
-          message: 'Failed to fetch daily transaction summary: ${e.toString()}',
-          statusCode: 500);
-    }
-  }
-
-  // New Method for Category Analysis
-  Future<Map<String, dynamic>> getCategoryAnalysis(String timeFrame) async {
-    return _makeRequest(
-      endpoint: '/api/plaid/category-analysis',
-      body: {'timeFrame': timeFrame},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  // New Method for Cash Flow Analysis
-  Future<Map<String, dynamic>> getCashFlowAnalysis(String timeFrame) async {
-    return _makeRequest(
-      endpoint: '/api/cash-flow/analysis',
-      body: {'timeFrame': timeFrame},
-      method: 'GET',
-      requireAuth: true,
-    );
-  }
-
-  Future<TransactionDetail> getTransactionDetails(String transactionId) async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/transactions/$transactionId',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-      if (response['success'] == true) {
-        return TransactionDetail.fromJson(response['data']);
-      } else {
-        throw ApiException(
-            message: response['error'] ?? 'Failed to fetch transaction details',
-            statusCode: 400);
-      }
-    } catch (e) {
-      _logger.e('Error fetching transaction details: $e');
-      rethrow;
-    }
-  }
-
-  Future<Map<String, dynamic>> updateProfilePicture(
-      String userId, String pictureUrl) async {
-    try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/profile-picture',
         body: {
-          'userId': userId,
-          'profilePictureUrl': pictureUrl,
-          'updatedAt': DateTime.now().toIso8601String(),
+          'email': email,
+          'otp': otp,
         },
-        method: 'PUT',
-        requireAuth: true,
+        requireAuth: false,
       );
 
-      if (response['success'] == true) {
-        _logger.i('Profile picture URL updated successfully');
-        return {'success': true};
-      } else {
-        _logger
-            .e('Failed to update profile picture URL: ${response['message']}');
-        return {
-          'success': false,
-          'message': response['message'] ?? 'Failed to update profile picture'
-        };
-      }
+      _logger.i('OTP verification response received for email: $email');
+      return response;
     } catch (e) {
-      _logger.e('Error updating profile picture URL', error: e);
-      return {
-        'success': false,
-        'message': 'Error updating profile picture: $e'
-      };
+      _logger.e('Error verifying OTP:', error: e);
+      rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> getSpendingAnalysis(String timeFrame) async {
-    try {
-      _logger.i('Making spending analysis request for timeFrame: $timeFrame');
-
-      final response = await _makeRequest(
-        endpoint: '/api/plaid/spending-analysis',
-        body: {'timeFrame': timeFrame},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      _logger.d('Raw spending analysis response: $response');
-
-      if (response['success'] == true) {
-        if (response['data'] == null) {
-          _logger.w('Spending analysis response missing data field');
-          throw ApiException(
-              message: 'Invalid response format: missing data field',
-              statusCode: 500);
-        }
-
-        final data = response['data'] as Map<String, dynamic>;
-        final responseTimeFrame = data['timeFrame'] as String;
-
-        // Verify if the response timeFrame matches the requested timeFrame
-        if (responseTimeFrame != timeFrame) {
-          _logger.e(
-              'Server returned mismatched timeFrame. Requested: $timeFrame, Received: $responseTimeFrame');
-          throw ApiException(
-            message: 'Server returned incorrect time frame data',
-            statusCode: 500,
-          );
-        }
-
-        _logger.i('Successfully fetched spending analysis data');
-        _logger.d(
-            'Categories count: ${(data['categories'] as List?)?.length ?? 0}');
-        _logger.d('Total spending: ${data['totalSpending']}');
-
-        return response;
-      } else {
-        final errorMsg =
-            response['error'] ?? 'Failed to fetch spending analysis';
-        _logger.e('Spending analysis request failed: $errorMsg');
-        throw ApiException(message: errorMsg, statusCode: 500);
-      }
-    } catch (e) {
-      _logger.e('Error fetching spending analysis', error: e);
-      throw ApiException(
-          message: 'Failed to fetch spending analysis: ${e.toString()}',
-          statusCode: 500);
-    }
+  // Resend OTP endpoint
+  Future<Map<String, dynamic>> sendOtp(String email) async {
+    return initiateEmailVerification(
+        email); // Reuse the same endpoint for resending
   }
 
-  Future<Map<String, dynamic>> getHistoricalSpending() async {
-    try {
-      _logger.i('Fetching historical spending data');
-
-      final response = await _makeRequest(
-        endpoint: '/api/plaid/historical-spending',
-        body: {},
-        method: 'GET',
-        requireAuth: true,
-      );
-
-      _logger.d('Raw historical spending response: $response');
-
-      if (response['success'] == true) {
-        if (response['data'] == null || response['data']['periods'] == null) {
-          _logger
-              .w('Historical spending response missing data or periods field');
-          throw ApiException(
-              message: 'Invalid response format: missing required fields',
-              statusCode: 500);
-        }
-
-        final data = response['data'] as Map<String, dynamic>;
-        final periods = data['periods'] as Map<String, dynamic>;
-
-        // Validate the periods data
-        _validateHistoricalSpendingData(periods);
-
-        _logger.i('Successfully fetched historical spending data');
-        return response;
-      } else {
-        final errorMsg =
-            response['error'] ?? 'Failed to fetch historical spending';
-        _logger.e('Historical spending request failed: $errorMsg');
-        throw ApiException(message: errorMsg, statusCode: 500);
-      }
-    } catch (e) {
-      _logger.e('Error fetching historical spending: $e');
-      throw ApiException(
-          message: 'Failed to fetch historical spending: ${e.toString()}',
-          statusCode: 500);
-    }
-  }
-
-  void _validateHistoricalSpendingData(Map<String, dynamic> periods) {
-    final requiredPeriods = [
-      'lastWeek',
-      'lastMonth',
-      'lastQuarter',
-      'lastYear'
-    ];
-
-    for (final period in requiredPeriods) {
-      if (!periods.containsKey(period)) {
-        _logger.w('Missing $period period in response');
-        continue;
-      }
-
-      final periodData = periods[period] as Map<String, dynamic>?;
-      if (periodData == null) {
-        _logger.w('Invalid $period period data format');
-        continue;
-      }
-
-      if (periodData['start'] == null || periodData['end'] == null) {
-        _logger.w('Missing date range for $period period');
-      }
-
-      if (periodData['totalSpending'] == null) {
-        _logger.w('Missing totalSpending for $period period');
-      }
-    }
-  }
-
+  // Complete registration with login
   Future<Map<String, dynamic>> registerCompleteWithLogin({
     required String email,
     required String password,
     required String firstName,
     required String lastName,
     required String state,
-    required String zipcode,
+    required String zipCode,
+    required bool agreedToTerms,
   }) async {
     try {
-      _logger.i('Starting registration completion...');
       final response = await _makeRequest(
-        endpoint: '/api/users/register-complete-with-login',
+        endpoint: '/api/auth/register',
+        method: 'POST',
         body: {
           'email': email,
           'password': password,
-          'first_name': firstName,
-          'last_name': lastName,
+          'confirmPassword': password,
+          'firstName': firstName,
+          'lastName': lastName,
           'state': state,
-          'zipcode': zipcode,
+          'zipCode': zipCode,
+          'agreedToTerms': agreedToTerms,
         },
-        method: 'POST',
         requireAuth: false,
       );
 
-      _logger.i('Registration completion response: $response');
-
       if (response['success'] == true && response['token'] != null) {
         await _storageService.setToken(response['token']);
-        final userId = response['userId'];
-        if (userId != null) {
-          await _storageService.setUserId(userId);
-
-          // Store user profile data
-          await _storageService.setFirstName(firstName);
-          await _storageService.setLastName(lastName);
-          await _storageService.setState(state);
-          await _storageService.setZipcode(zipcode);
-          await _storageService.setEmail(email);
-
-          // Set full name
-          final fullName = '$firstName $lastName'.trim();
-          await _storageService.setFullName(fullName);
-
-          _logger.i('User registration and login successful');
-          return {
-            'success': true,
-            'token': response['token'],
-            'userId': userId,
-            'message': 'Registration successful'
-          };
-        }
       }
 
-      return {
-        'success': false,
-        'error': response['error'] ?? 'Registration failed'
-      };
+      _logger.i('Registration completed for user: $email');
+      return response;
     } catch (e) {
-      _logger.e('Error in registerCompleteWithLogin:', error: e);
-      if (e is ApiException) {
-        if (e.statusCode == 400) {
-          return {
-            'success': false,
-            'error': 'Invalid registration data or email not verified.'
-          };
-        }
-      }
-      return {
-        'success': false,
-        'error': 'Failed to complete registration: ${e.toString()}'
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> getRecurringExpenses(String timeFrame) async {
-    try {
-      final response = await _makeRequest(
-        method: 'GET',
-        endpoint: '/api/plaid/recurring-expenses',
-        body: {'timeFrame': timeFrame},
-      );
-
-      if (response['success'] == true) {
-        return response['data'];
-      } else {
-        throw Exception(
-            response['message'] ?? 'Failed to fetch recurring expenses');
-      }
-    } catch (e) {
-      _logger.e('Error fetching recurring expenses: $e');
+      _logger.e('Error during registration:', error: e);
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> getTransactionAnalysis() async {
+  // Login endpoint
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
     try {
-      _logger.i('Making request to transaction analysis endpoint');
       final response = await _makeRequest(
-        endpoint: '/api/plaid/transaction-analysis',
-        method: 'GET',
-        body: {},
+        endpoint: '/api/auth/login',
+        method: 'POST',
+        body: {
+          'email': email,
+          'password': password,
+        },
+        requireAuth: false,
+      );
+
+      // Validate response structure
+      if (response['token'] == null) {
+        throw Exception('Login response missing token');
+      }
+
+      // 1. Store the token first
+      await _storageService.setToken(response['token']);
+
+      // 2. Verify token was saved correctly
+      final savedToken = await _storageService.getToken();
+      if (savedToken == null || savedToken.isEmpty) {
+        throw Exception('Failed to save authentication token');
+      }
+
+      // 3. Set the token in memory for immediate use
+      _currentToken = savedToken;
+
+      // 4. Log success
+      _logger.i('Token stored successfully: ${savedToken.substring(0, 10)}...');
+
+      // 5. Parse and store user data if present
+      if (response['user'] != null) {
+        try {
+          currentUser = User.fromJson(response['user'] as Map<String, dynamic>);
+          _logger.i('User data stored for: ${currentUser?.email}');
+        } catch (e) {
+          _logger.e('Error parsing user data:', error: e);
+          // Don't throw here - we have the token, which is the most important part
+        }
+      }
+
+      _logger.i('Login successful for user: $email');
+      return response;
+    } catch (e) {
+      _logger.e('Error during login:', error: e);
+      // Clear any partially stored data on error
+      await _storageService.clearToken();
+      _currentToken = null;
+      currentUser = null;
+      rethrow;
+    }
+  }
+
+  // Add a method to verify token is available
+  Future<bool> verifyTokenAvailable() async {
+    try {
+      // First check in-memory token
+      if (_currentToken != null && _currentToken!.isNotEmpty) {
+        return true;
+      }
+
+      // Then check storage
+      final storedToken = await _storageService.getToken();
+      if (storedToken != null && storedToken.isNotEmpty) {
+        _currentToken = storedToken; // Update in-memory cache
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      _logger.e('Error verifying token availability:', error: e);
+      return false;
+    }
+  }
+
+  // Add a field to store the current token in memory
+  String? _currentToken;
+
+  // Plaid Integration Endpoints
+
+  Future<String> createLinkToken(String userId) async {
+    try {
+      _logger.i('Creating Plaid link token for user: $userId');
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/create-link-token',
+        method: 'POST',
+        body: {'userId': userId},
         requireAuth: true,
       );
 
-      _logger.d('Raw transaction analysis response: $response');
+      // Extract link_token from response
+      final linkToken = response['link_token'] as String?;
+      if (linkToken == null || linkToken.isEmpty) {
+        throw Exception('Link token not found in response');
+      }
 
-      // The response is already the data we need, no need to check success flag
-      final result = {
-        'topMerchants':
-            List<Map<String, dynamic>>.from(response['topMerchants'] ?? []),
-        'inflowProviders':
-            List<Map<String, dynamic>>.from(response['inflowProviders'] ?? []),
-        'mostExpensiveCategory': response['mostExpensiveCategory'] != null
-            ? Map<String, dynamic>.from(response['mostExpensiveCategory'])
-            : null,
-      };
-
-      _logger.i('Successfully parsed transaction analysis data');
-      _logger.d('Parsed result: $result');
-      return result;
+      _logger.i(
+          'Link token created successfully: ${linkToken.substring(0, 10)}...');
+      return linkToken;
     } catch (e) {
-      _logger.e('Error fetching transaction analysis', error: e);
+      _logger.e('Error creating Plaid link token:', error: e);
+      throw Exception('Failed to create Plaid link token: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> exchangePublicToken(
+      String publicToken, String userId) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/exchange-public-token',
+        method: 'POST',
+        body: {
+          'public_token': publicToken,
+        },
+        requireAuth: true,
+      );
+
+      _logger.i('Public token exchanged successfully');
+      return response;
+    } catch (e) {
+      _logger.e('Error exchanging public token:', error: e);
       rethrow;
     }
   }
 
-  // Get the authentication token
-  Future<String> getToken() async {
-    return await _storageService.getToken() ?? '';
+  Future<void> syncTransactions(String userId) async {
+    try {
+      await _makeRequest(
+        endpoint: '/api/plaid/sync-transactions',
+        method: 'POST',
+        body: {'userId': userId},
+        requireAuth: true,
+      );
+      _logger.i('Transactions synced successfully');
+    } catch (e) {
+      _logger.e('Error syncing transactions:', error: e);
+      rethrow;
+    }
   }
+
+  Future<List<Transaction>> getTransactions({
+    required String userId,
+    required String bankAccountId,
+    required String startDate,
+    required String endDate,
+  }) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/transactions',
+        method: 'GET',
+        body: {
+          'userId': userId,
+          'bankAccountId': bankAccountId,
+          'startDate': startDate,
+          'endDate': endDate,
+        },
+        requireAuth: true,
+      );
+
+      if (response['transactions'] != null) {
+        return (response['transactions'] as List)
+            .map((json) => Transaction.fromJson(json))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      _logger.e('Error getting transactions:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<void> syncBalances(String userId) async {
+    try {
+      await _makeRequest(
+        endpoint: '/api/plaid/sync-balances',
+        method: 'POST',
+        body: {'userId': userId},
+        requireAuth: true,
+      );
+      _logger.i('Balances synced successfully');
+    } catch (e) {
+      _logger.e('Error syncing balances:', error: e);
+      rethrow;
+    }
+  }
+
+  // User Management
+  User? currentUser;
+
+  Future<void> init() async {
+    try {
+      final token = await _storageService.getToken();
+      if (token != null) {
+        final response = await _makeRequest(
+          endpoint: '/api/users/profile',
+          method: 'GET',
+          requireAuth: true,
+        );
+        currentUser = User.fromJson(response['user']);
+      }
+    } catch (e) {
+      _logger.e('Error initializing auth service:', error: e);
+    }
+  }
+
+  Future<String?> getToken() async {
+    return await _storageService.getToken();
+  }
+
+  Future<Map<String, dynamic>> logout() async {
+    try {
+      // Get the refresh token from the login response
+      final refreshToken = await _storageService.getToken();
+      if (refreshToken == null) {
+        // If no refresh token, just clear storage and return success
+        await _storageService.clearAll();
+        return {'message': 'Logged out successfully'};
+      }
+
+      final response = await _makeRequest(
+        endpoint: '/api/auth/logout',
+        method: 'POST',
+        body: {'refreshToken': refreshToken},
+        requireAuth: true,
+      );
+
+      // Clear storage regardless of response
+      await _storageService.clearAll();
+      _currentToken = null;
+      currentUser = null;
+      return response;
+    } catch (e) {
+      _logger.e('Error during logout:', error: e);
+      // Still clear storage on error
+      await _storageService.clearAll();
+      _currentToken = null;
+      currentUser = null;
+      rethrow;
+    }
+  }
+
+  // Profile Management
+  Future<Map<String, dynamic>> updateUserProfile(
+      Map<String, dynamic> data) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/profile',
+        method: 'PUT',
+        body: data,
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error updating user profile:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getAccountData() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/account',
+        method: 'GET',
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting account data:', error: e);
+      rethrow;
+    }
+  }
+
+  // Password Reset
+  Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/auth/password/reset/request',
+        method: 'POST',
+        body: {'email': email},
+        requireAuth: false,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error requesting password reset:', error: e);
+      rethrow;
+    }
+  }
+
+  // Bank Account Management
+  Future<List<Map<String, dynamic>>> getDetailedBankAccounts() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/bank-accounts/detailed',
+        method: 'GET',
+        requireAuth: true,
+      );
+      return List<Map<String, dynamic>>.from(response['accounts']);
+    } catch (e) {
+      _logger.e('Error getting detailed bank accounts:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getCurrentBalances() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/balances',
+        method: 'GET',
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting current balances:', error: e);
+      rethrow;
+    }
+  }
+
+  // Transaction Management
+  Future<List<Transaction>> getRecentTransactions({String? userId}) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/recent',
+        method: 'GET',
+        body: userId != null ? {'userId': userId} : null,
+        requireAuth: true,
+      );
+      return (response['transactions'] as List)
+          .map((json) => Transaction.fromJson(json))
+          .toList();
+    } catch (e) {
+      _logger.e('Error getting recent transactions:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getAllTransactionsPaginated({
+    required int page,
+    required int limit,
+    String? searchQuery,
+    String? category,
+    String? startDate,
+    String? endDate,
+  }) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions',
+        method: 'GET',
+        body: {
+          'page': page.toString(),
+          'limit': limit.toString(),
+          if (searchQuery != null) 'search': searchQuery,
+          if (category != null) 'category': category,
+          if (startDate != null) 'startDate': startDate,
+          if (endDate != null) 'endDate': endDate,
+        },
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting paginated transactions:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getTransactionDetails(
+      String transactionId) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/$transactionId',
+        method: 'GET',
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting transaction details:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> updateTransactionCategory({
+    required String transactionId,
+    required String category,
+  }) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/$transactionId/category',
+        method: 'PUT',
+        body: {'category': category},
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error updating transaction category:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getTransactionAnalysis({String? userId}) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/analysis',
+        method: 'GET',
+        body: userId != null ? {'userId': userId} : null,
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting transaction analysis:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<List<DailyTransactionSummary>> getDailyTransactionSummary(
+      {int? days}) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/daily-summary',
+        method: 'GET',
+        body: days != null ? {'days': days.toString()} : null,
+        requireAuth: true,
+      );
+      return (response['summaries'] as List)
+          .map((json) => DailyTransactionSummary.fromJson(json))
+          .toList();
+    } catch (e) {
+      _logger.e('Error getting daily transaction summary:', error: e);
+      rethrow;
+    }
+  }
+
+  // Financial Analysis
+  Future<Map<String, dynamic>> getCashFlowAnalysis({String? userId}) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/analysis/cash-flow',
+        method: 'GET',
+        body: userId != null ? {'userId': userId} : null,
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting cash flow analysis:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getSpendingAnalysis({String? userId}) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/analysis/spending',
+        method: 'GET',
+        body: userId != null ? {'userId': userId} : null,
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting spending analysis:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getRecurringExpenses(
+      {String? userId}) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/transactions/recurring',
+        method: 'GET',
+        body: userId != null ? {'userId': userId} : null,
+        requireAuth: true,
+      );
+      return List<Map<String, dynamic>>.from(response['recurring_expenses']);
+    } catch (e) {
+      _logger.e('Error getting recurring expenses:', error: e);
+      rethrow;
+    }
+  }
+
+  // Blink Advance
+  Future<Map<String, dynamic>> getBlinkAdvanceApprovalStatus() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/blink-advances/approval-status',
+        method: 'GET',
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error getting Blink Advance approval status:', error: e);
+      rethrow;
+    }
+  }
+
+  // Check for linked bank accounts
+  Future<Map<String, dynamic>> checkLinkedBankAccount() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/linked-account-status',
+        method: 'GET',
+        requireAuth: true,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error checking linked bank account:', error: e);
+      rethrow;
+    }
+  }
+
+  // New authentication endpoints will be added here
 }
 
 // Exception Classes

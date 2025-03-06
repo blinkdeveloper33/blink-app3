@@ -8,6 +8,9 @@ import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:animated_emoji/animated_emoji.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:provider/provider.dart';
+import 'package:blink_app/services/auth_service.dart';
+import 'package:blink_app/services/storage_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   final bool showAppBar;
@@ -60,18 +63,44 @@ class _SignUpScreenState extends State<SignUpScreen>
     super.dispose();
   }
 
-  void _submitSignUp() {
+  void _submitSignUp() async {
     if (_formKey.currentState!.validate()) {
-      setState(() => _isSubmitting = true);
+      setState(() {
+        _isSubmitting = true;
+        _showError = false;
+        _errorMessage = null;
+      });
+
       final email = _emailController.text.trim();
+      _logger.d('Storing email and navigating to verification screen: $email');
 
-      _logger.d('Signing up with email: $email');
+      try {
+        // Store email
+        final storageService =
+            Provider.of<StorageService>(context, listen: false);
+        await storageService.setEmail(email);
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => SelectVerificationMethodScreen(email: email),
-        ),
-      );
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) =>
+                  SelectVerificationMethodScreen(email: email),
+            ),
+          );
+        }
+      } catch (e) {
+        _logger.e('Error during email storage:', error: e);
+        setState(() {
+          _showError = true;
+          _errorMessage = 'An error occurred. Please try again.';
+        });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
+      }
     }
   }
 
@@ -164,6 +193,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           child: TextFormField(
             controller: _emailController,
             focusNode: _emailFocusNode,
+            cursorColor: Colors.white,
             style: const TextStyle(
               fontFamily: 'Onest',
               color: Colors.white,
@@ -329,7 +359,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                       tag: 'logo',
                       child: Image.asset(
                         'assets/images/blink_logo_white.png',
-                        height: 49,
+                        height: 33,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -480,30 +510,40 @@ class _SignUpScreenState extends State<SignUpScreen>
       return mainContent;
     }
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      extendBody: true,
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1E3A8A),
-                  Color(0xFF2563EB),
-                ],
-                stops: [0.0, 1.0],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarBrightness:
+            Brightness.dark, // For iOS: dark background = white content
+        statusBarIconBrightness: Brightness.light, // For Android: white icons
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1E3A8A),
+                    Color(0xFF2563EB),
+                  ],
+                  stops: [0.0, 1.0],
+                ),
               ),
             ),
-          ),
-          mainContent,
-        ],
+            mainContent,
+          ],
+        ),
       ),
     );
   }

@@ -179,6 +179,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
           validator: validator,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
+          cursorColor: Colors.white,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -796,128 +797,127 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1E3A8A),
-              Color(0xFF2563EB),
-            ],
-            stops: [0.0, 1.0],
-          ),
-        ),
-        child: Column(
-          children: [
-            // Fixed Header
-            Container(
-              color: const Color(0xFF1E3A8A).withOpacity(0.95),
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 24, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                          child:
-                              const Icon(Icons.arrow_back, color: Colors.white),
-                        ),
-                        onPressed: () =>
-                            Navigator.of(context).pushReplacementNamed('/auth'),
-                        tooltip: 'Go Back',
-                      ),
-                      Hero(
-                        tag: 'logo',
-                        child: Image.asset(
-                          'assets/images/blink_logo_white.png',
-                          height: 35,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarBrightness:
+            Brightness.dark, // For iOS: dark background = white content
+        statusBarIconBrightness: Brightness.light, // For Android: white icons
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.transparent,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1E3A8A),
+                Color(0xFF2563EB),
+              ],
+              stops: [0.0, 1.0],
             ),
-            // Scrollable Content
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Column(
+            children: [
+              // Fixed Header
+              Container(
+                color: const Color(0xFF1E3A8A).withOpacity(0.95),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 24, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const SizedBox(height: 24),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 600),
-                          child: Text(
-                            _getStepTitle(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.bold,
-                              height: 1.2,
-                            ),
+                        IconButton(
+                          icon:
+                              const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.of(context)
+                              .pushReplacementNamed('/auth'),
+                          tooltip: 'Go Back',
+                        ),
+                        Hero(
+                          tag: 'logo',
+                          child: Image.asset(
+                            'assets/images/blink_logo_white.png',
+                            height: 23,
+                            fit: BoxFit.contain,
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 200),
-                          child: Text(
-                            _getStepSubtitle(),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 15,
-                              fontFamily: 'Onest',
-                              height: 1.5,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        _buildStepContent(),
-                        const SizedBox(height: 32),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 200),
-                          child: _buildProgressIndicator(),
-                        ),
-                        const SizedBox(height: 24),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 400),
-                          child: _buildNavigationButtons(),
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+              // Scrollable Content
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          FadeInLeft(
+                            duration: const Duration(milliseconds: 600),
+                            child: Text(
+                              _getStepTitle(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          FadeInLeft(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 200),
+                            child: Text(
+                              _getStepSubtitle(),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 15,
+                                fontFamily: 'Onest',
+                                height: 1.5,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          _buildStepContent(),
+                          const SizedBox(height: 32),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 200),
+                            child: _buildProgressIndicator(),
+                          ),
+                          const SizedBox(height: 24),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 400),
+                            child: _buildNavigationButtons(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

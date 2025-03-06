@@ -29,8 +29,15 @@ class RecurringExpensesProvider extends ChangeNotifier {
         _timeFrame = timeFrame;
       }
 
-      final data = await _authService.getRecurringExpenses(_timeFrame);
-      _recurringExpensesData = RecurringExpensesData.fromJson(data);
+      final data = await _authService.getRecurringExpenses(userId: _timeFrame);
+
+      // Convert the response data to the correct format
+      final Map<String, dynamic> formattedData = {
+        'expenses': data,
+        'timeFrame': _timeFrame,
+      };
+
+      _recurringExpensesData = RecurringExpensesData.fromJson(formattedData);
       _error = null;
     } catch (e) {
       _logger.e('Error loading recurring expenses: $e');

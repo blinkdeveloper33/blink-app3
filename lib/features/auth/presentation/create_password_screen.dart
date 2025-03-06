@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
 import 'package:blink_app/features/auth/presentation/new_user_data_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
@@ -10,6 +11,10 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lottie/lottie.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/rendering.dart';
+import 'package:blink_app/features/home/presentation/home_screen.dart';
+import 'dart:ui';
 
 class AnimatedBubble extends StatefulWidget {
   final double size;
@@ -108,7 +113,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
-  bool _acknowledgeAccuracy = false;
+  bool _acknowledgeTerms = false;
 
   double _strengthScore = 0.0;
   String _strengthText = 'Enter a password';
@@ -226,6 +231,11 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
       return;
     }
 
+    if (!_acknowledgeTerms) {
+      _showErrorDialog('Please agree to the Terms of Service to continue.');
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -258,21 +268,23 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
         firstName: firstName,
         lastName: lastName,
         state: state,
-        zipcode: zipcode,
+        zipCode: zipcode,
+        agreedToTerms: _acknowledgeTerms,
       );
 
-      _logger.i('Received response: $response');
+      _logger.i('Received response: ${response.toString()}');
 
-      if (response['success'] == true) {
+      if (response['token'] != null) {
         _logger.i('Registration and login successful.');
         if (mounted) {
           _showSuccessPopup(firstName);
         }
       } else {
-        _logger.e('Registration failed: ${response['error']}');
+        _logger.e('Registration failed with response: $response');
         if (mounted) {
-          _showErrorDialog(
-              response['error'] ?? 'Registration failed. Please try again.');
+          _showErrorDialog(response['error'] ??
+              response['message'] ??
+              'Registration failed. Please try again.');
         }
       }
     } catch (e, stackTrace) {
@@ -330,121 +342,91 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Blink Logo
-                  FadeInDown(
-                    duration: const Duration(milliseconds: 600),
-                    child: Hero(
-                      tag: 'logo',
-                      child: Image.asset(
-                        'assets/images/blink_logo_white.png',
-                        height: 45,
-                        fit: BoxFit.contain,
-                      ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.white,
+                      size: 48,
                     ),
                   ),
-                  const SizedBox(height: 40),
-                  // Welcome Text
-                  FadeInDown(
-                    duration: const Duration(milliseconds: 600),
-                    delay: const Duration(milliseconds: 200),
-                    child: Column(
-                      children: [
-                        const Text(
-                          'Welcome to Blink!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Hey $firstName, you\'re now part of our financial family.',
-                          style: TextStyle(
-                            color: Colors.white.withAlpha(230),
-                            fontSize: 16,
-                            fontFamily: 'Onest',
-                            height: 1.5,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                  const SizedBox(height: 24),
+                  Text(
+                    'Welcome, $firstName!',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Your account has been created successfully.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontFamily: 'Onest',
                     ),
                   ),
                   const SizedBox(height: 32),
-                  // Message
-                  FadeInDown(
-                    duration: const Duration(milliseconds: 600),
-                    delay: const Duration(milliseconds: 400),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(25),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withAlpha(51),
-                          width: 1,
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        try {
+                          final authService =
+                              Provider.of<AuthService>(context, listen: false);
+                          final bankAccountResponse =
+                              await authService.checkLinkedBankAccount();
+                          final bool hasLinkedAccount =
+                              bankAccountResponse['hasLinkedAccount'] ?? false;
+
+                          if (mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) => hasLinkedAccount
+                                    ? const HomeScreen()
+                                    : const LinkPlaidBankScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          }
+                        } catch (e) {
+                          _logger.e('Error checking linked bank account:',
+                              error: e);
+                          // Default to LinkPlaidBankScreen if there's an error
+                          if (mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const LinkPlaidBankScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF1E3A8A),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: Text(
-                        'Get ready to experience a new way of managing your finances. Let\'s start by connecting your bank account.',
+                      child: const Text(
+                        'Get Started',
                         style: TextStyle(
-                          color: Colors.white.withAlpha(204),
-                          fontSize: 14,
+                          fontSize: 16,
                           fontFamily: 'Onest',
-                          height: 1.5,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  // Button
-                  FadeInUp(
-                    duration: const Duration(milliseconds: 600),
-                    delay: const Duration(milliseconds: 600),
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(51),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (context) => const LinkPlaidBankScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1E3A8A),
-                          backgroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Continue to Link Bank',
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -524,25 +506,8 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
         TextFormField(
           controller: controller,
           obscureText: obscureText,
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter a password';
-            }
-
-            List<String> missingRequirements = [];
-            if (!_hasMinLength)
-              missingRequirements.add('minimum length of 8 characters');
-            if (!_hasUppercase) missingRequirements.add('uppercase letter');
-            if (!_hasLowercase) missingRequirements.add('lowercase letter');
-            if (!_hasNumbers) missingRequirements.add('number');
-            if (!_hasSpecialChars) missingRequirements.add('special character');
-
-            if (missingRequirements.isNotEmpty) {
-              return 'Password missing: ${missingRequirements.join(', ')}';
-            }
-
-            return null;
-          },
+          cursorColor: Colors.white,
+          validator: validator,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -688,6 +653,7 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
         TextFormField(
           controller: _confirmPasswordController,
           obscureText: _obscureConfirmPassword,
+          cursorColor: Colors.white,
           validator: (value) {
             if (value == null || value.isEmpty) {
               return 'Please confirm your password';
@@ -812,22 +778,22 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
             height: 24,
             width: 24,
             decoration: BoxDecoration(
-              color: _acknowledgeAccuracy
+              color: _acknowledgeTerms
                   ? const Color(0xFF2196F3)
                   : Colors.white.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: _acknowledgeAccuracy
+                color: _acknowledgeTerms
                     ? const Color(0xFF2196F3)
                     : Colors.white.withOpacity(0.3),
                 width: 1,
               ),
             ),
             child: Checkbox(
-              value: _acknowledgeAccuracy,
+              value: _acknowledgeTerms,
               onChanged: (bool? value) {
                 setState(() {
-                  _acknowledgeAccuracy = value ?? false;
+                  _acknowledgeTerms = value ?? false;
                 });
               },
               fillColor: MaterialStateProperty.resolveWith<Color>(
@@ -847,13 +813,44 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              'I acknowledge that all information provided is accurate and true.',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: 14,
-                fontFamily: 'Onest',
-                height: 1.5,
+            child: GestureDetector(
+              onTap: () async {
+                final url = Uri.parse('https://www.blinkfinances.com/terms');
+                try {
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    if (mounted) {
+                      _showErrorDialog(
+                          'Could not open terms of service. Please try again later.');
+                    }
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    _showErrorDialog(
+                        'Could not open terms of service. Please try again later.');
+                  }
+                }
+              },
+              child: RichText(
+                text: TextSpan(
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                    fontFamily: 'Onest',
+                    height: 1.5,
+                  ),
+                  children: [
+                    const TextSpan(text: 'I agree to Blink\'s '),
+                    TextSpan(
+                      text: 'Terms of Service',
+                      style: TextStyle(
+                        color: Colors.blue[300],
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -947,185 +944,186 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1E3A8A),
-              Color(0xFF2563EB),
-            ],
-            stops: [0.0, 1.0],
-          ),
-        ),
-        child: Column(
-          children: [
-            // Fixed Header
-            Container(
-              color: const Color(0xFF1E3A8A).withAlpha(242),
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 24, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(25),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withAlpha(51),
-                              width: 1,
-                            ),
-                          ),
-                          child:
-                              const Icon(Icons.arrow_back, color: Colors.white),
-                        ),
-                        onPressed: () =>
-                            Navigator.of(context).pushReplacementNamed('/auth'),
-                        tooltip: 'Go Back',
-                      ),
-                      Hero(
-                        tag: 'logo',
-                        child: Image.asset(
-                          'assets/images/blink_logo_white.png',
-                          height: 35,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarBrightness:
+            Brightness.dark, // For iOS: dark background = white content
+        statusBarIconBrightness: Brightness.light, // For Android: white icons
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        backgroundColor: Colors.transparent,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1E3A8A),
+                Color(0xFF2563EB),
+              ],
+              stops: [0.0, 1.0],
             ),
-            // Scrollable Content
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Column(
+            children: [
+              // Fixed Header
+              Container(
+                color: const Color(0xFF1E3A8A).withOpacity(0.95),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 24, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const SizedBox(height: 24),
-                        FadeInDown(
-                          duration: const Duration(milliseconds: 600),
-                          child: Center(
-                            child: Lottie.asset(
-                              'assets/animations/create_password.json',
-                              width: 180,
-                              height: 180,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
+                        IconButton(
+                          icon:
+                              const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.of(context)
+                              .pushReplacementNamed('/auth'),
+                          tooltip: 'Go Back',
                         ),
-                        const SizedBox(height: 32),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 600),
-                          child: const Text(
-                            'Create Password',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.bold,
-                              height: 1.2,
-                            ),
+                        Hero(
+                          tag: 'logo',
+                          child: Image.asset(
+                            'assets/images/blink_logo_white.png',
+                            height: 23,
+                            fit: BoxFit.contain,
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 200),
-                          child: Text(
-                            'Create a strong password to secure your account',
-                            style: TextStyle(
-                              color: Colors.white.withAlpha(230),
-                              fontSize: 15,
-                              fontFamily: 'Onest',
-                              height: 1.5,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(25),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.white.withAlpha(51),
-                              width: 1,
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Choose a strong password that includes a mix of letters, numbers, and symbols. This helps protect your account from unauthorized access.',
-                                style: TextStyle(
-                                  color: Colors.white.withAlpha(230),
-                                  fontSize: 14,
-                                  fontFamily: 'Onest',
-                                  height: 1.5,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              _buildPasswordField(
-                                label: 'Password',
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                toggleVisibility: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter a password';
-                                  }
-                                  if (_strengthScore < 0.6) {
-                                    return 'Password is not strong enough';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              _buildPasswordStrengthIndicator(),
-                              const SizedBox(height: 24),
-                              _buildConfirmPasswordField(),
-                              const SizedBox(height: 24),
-                              _buildPasswordRequirements(),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 400),
-                          child: _buildCreatePasswordButton(),
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+              // Scrollable Content
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          FadeInDown(
+                            duration: const Duration(milliseconds: 600),
+                            child: Center(
+                              child: Lottie.asset(
+                                'assets/animations/create_password.json',
+                                width: 180,
+                                height: 180,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          FadeInLeft(
+                            duration: const Duration(milliseconds: 600),
+                            child: const Text(
+                              'Create Password',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          FadeInLeft(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 200),
+                            child: Text(
+                              'Create a strong password to secure your account',
+                              style: TextStyle(
+                                color: Colors.white.withAlpha(230),
+                                fontSize: 15,
+                                fontFamily: 'Onest',
+                                height: 1.5,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(25),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withAlpha(51),
+                                width: 1,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Choose a strong password that includes a mix of letters, numbers, and symbols. This helps protect your account from unauthorized access.',
+                                  style: TextStyle(
+                                    color: Colors.white.withAlpha(230),
+                                    fontSize: 14,
+                                    fontFamily: 'Onest',
+                                    height: 1.5,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                _buildPasswordField(
+                                  label: 'Password',
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  toggleVisibility: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter a password';
+                                    }
+                                    if (_strengthScore < 0.6) {
+                                      return 'Password is not strong enough';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                _buildPasswordStrengthIndicator(),
+                                const SizedBox(height: 24),
+                                _buildConfirmPasswordField(),
+                                const SizedBox(height: 24),
+                                _buildPasswordRequirements(),
+                                const SizedBox(height: 24),
+                                _buildCheckbox(),
+                                const SizedBox(height: 32),
+                                FadeInUp(
+                                  duration: const Duration(milliseconds: 600),
+                                  delay: const Duration(milliseconds: 400),
+                                  child: _buildCreatePasswordButton(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

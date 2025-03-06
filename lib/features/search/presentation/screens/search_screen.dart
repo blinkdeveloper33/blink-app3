@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:blink_app/providers/theme_provider.dart';
 import 'package:blink_app/services/auth_service.dart' as auth;
 import 'package:intl/intl.dart';
+import 'package:blink_app/services/storage_service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({Key? key}) : super(key: key);
@@ -55,7 +56,14 @@ class _SearchScreenState extends State<SearchScreen>
 
     try {
       final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final transactions = await authService.getRecentTransactions('');
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+
+      final userId = storageService.getUserId();
+      if (userId == null) throw Exception('User ID not found');
+
+      final transactions =
+          await authService.getRecentTransactions(userId: userId);
 
       final searchQuery = _searchController.text.toLowerCase();
       final filteredTransactions = transactions.where((transaction) {
