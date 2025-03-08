@@ -4,7 +4,8 @@ enum TimePeriod {
   lastWeek,
   lastMonth,
   lastQuarter,
-  lastYear;
+  lastYear,
+  all; // New option for all time
 
   String get label {
     switch (this) {
@@ -16,6 +17,8 @@ enum TimePeriod {
         return 'Last Quarter';
       case TimePeriod.lastYear:
         return 'Last Year';
+      case TimePeriod.all:
+        return 'All Time';
     }
   }
 
@@ -29,6 +32,8 @@ enum TimePeriod {
         return 'LAST_QUARTER';
       case TimePeriod.lastYear:
         return 'LAST_YEAR';
+      case TimePeriod.all:
+        return 'ALL';
     }
   }
 
@@ -42,6 +47,8 @@ enum TimePeriod {
         return Icons.calendar_today_rounded;
       case TimePeriod.lastYear:
         return Icons.date_range_rounded;
+      case TimePeriod.all:
+        return Icons.all_inclusive;
     }
   }
 
@@ -58,6 +65,8 @@ enum TimePeriod {
         return TimePeriod.lastQuarter;
       case 'LAST_YEAR':
         return TimePeriod.lastYear;
+      case 'ALL':
+        return TimePeriod.all;
       default:
         return TimePeriod.lastMonth;
     }

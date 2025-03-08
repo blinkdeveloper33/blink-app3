@@ -34,6 +34,18 @@ class Transaction {
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
+    // Handle category which can be a String or a List<dynamic>
+    String category;
+    if (json['category'] is String) {
+      category = json['category'] ?? 'Uncategorized';
+    } else if (json['category'] is List &&
+        (json['category'] as List).isNotEmpty) {
+      // Join all categories or just use the first one
+      category = (json['category'] as List).join(', ');
+    } else {
+      category = 'Uncategorized';
+    }
+
     return Transaction(
       id: json['id'] ?? Uuid().v4(),
       bankAccountId: json['bank_account_id'],
@@ -42,7 +54,7 @@ class Transaction {
       date: DateTime.parse(json['date']),
       description: json['description'],
       originalDescription: json['original_description'],
-      category: json['category'] ?? 'Uncategorized',
+      category: category,
       categoryDetailed: json['category_detailed'],
       merchantName: json['merchant_name'],
       pending: json['pending'] ?? false,
@@ -111,6 +123,18 @@ class TransactionDetail extends Transaction {
         );
 
   factory TransactionDetail.fromJson(Map<String, dynamic> json) {
+    // Handle category which can be a String or a List<dynamic>
+    String category;
+    if (json['category'] is String) {
+      category = json['category'] ?? 'Uncategorized';
+    } else if (json['category'] is List &&
+        (json['category'] as List).isNotEmpty) {
+      // Join all categories or just use the first one
+      category = (json['category'] as List).join(', ');
+    } else {
+      category = 'Uncategorized';
+    }
+
     return TransactionDetail(
       id: json['id'],
       bankAccountId: json['bank_account_id'],
@@ -119,7 +143,7 @@ class TransactionDetail extends Transaction {
       date: DateTime.parse(json['date']),
       description: json['description'],
       originalDescription: json['original_description'],
-      category: json['category'],
+      category: category,
       categoryDetailed: json['category_detailed'],
       merchantName: json['merchant_name'],
       pending: json['pending'] ?? false,

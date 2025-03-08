@@ -58,6 +58,7 @@ class Transaction {
   final double amount;
   final DateTime date;
   final bool isOutflow;
+  final String transactionId;
 
   Transaction({
     required this.id,
@@ -66,6 +67,7 @@ class Transaction {
     required this.amount,
     required this.date,
     required this.isOutflow,
+    required this.transactionId,
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -76,13 +78,24 @@ class Transaction {
         ? json['amount'].startsWith('-')
         : json['amount'] < 0;
 
+    // Handle category which can be a String or a List<dynamic>
+    String? category;
+    if (json['category'] is String) {
+      category = json['category'] as String?;
+    } else if (json['category'] is List &&
+        (json['category'] as List).isNotEmpty) {
+      // Join all categories or just use the first one
+      category = (json['category'] as List).join(', ');
+    }
+
     return Transaction(
       id: json['id'] as String,
       merchantName: json['merchant_name'] as String? ?? 'Unknown Merchant',
-      category: json['category'] as String?,
+      category: category,
       date: DateTime.parse(json['date'] as String),
       amount: amount.abs(),
       isOutflow: isOutflow,
+      transactionId: json['transaction_id'] as String,
     );
   }
 }
@@ -121,7 +134,7 @@ class AuthService {
 
   AuthService(this._storageService);
 
-  Future<Map<String, dynamic>> _makeRequest({
+  Future<dynamic> _makeRequest({
     required String endpoint,
     required String method,
     Map<String, dynamic>? body,
@@ -129,10 +142,14 @@ class AuthService {
   }) async {
     try {
       var uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+
+      // Handle query parameters for GET requests
       if (method == 'GET' && body != null && body.isNotEmpty) {
         uri = uri.replace(
-            queryParameters:
-                body.map((key, value) => MapEntry(key, value.toString())));
+          queryParameters:
+              body.map((key, value) => MapEntry(key, value.toString())),
+        );
+        body = null; // Clear body for GET requests
       }
 
       final headers = {
@@ -427,12 +444,21 @@ class AuthService {
         method: 'POST',
         body: {
           'public_token': publicToken,
+          'metadata': {}, // Optional metadata from Plaid Link
         },
         requireAuth: true,
       );
 
+      if (response['success'] != true || response['access_token'] == null) {
+        throw Exception('Failed to exchange public token');
+      }
+
       _logger.i('Public token exchanged successfully');
-      return response;
+      return {
+        'success': true,
+        'access_token': response['access_token'],
+        'item_id': response['item_id'],
+      };
     } catch (e) {
       _logger.e('Error exchanging public token:', error: e);
       rethrow;
@@ -745,33 +771,270 @@ class AuthService {
   }
 
   // Financial Analysis
-  Future<Map<String, dynamic>> getCashFlowAnalysis({String? userId}) async {
+  Future<Map<String, dynamic>> getCashFlowAnalysis({String? timeFrame}) async {
     try {
+      // Convert the timeframe to the format expected by the API
+      String apiTimeFrame;
+      switch (timeFrame) {
+        case 'LAST_WEEK':
+          apiTimeFrame = 'week';
+          break;
+        case 'LAST_MONTH':
+          apiTimeFrame = 'month';
+          break;
+        case 'LAST_QUARTER':
+          apiTimeFrame = 'quarter';
+          break;
+        case 'LAST_YEAR':
+          apiTimeFrame = 'year';
+          break;
+        case 'ALL':
+          // API doesn't accept 'all', so default to year for broadest view
+          apiTimeFrame = 'year';
+          break;
+        default:
+          apiTimeFrame = 'month';
+      }
+
+      _logger.d('Getting cash flow analysis for timeFrame: $apiTimeFrame');
+
       final response = await _makeRequest(
-        endpoint: '/api/analysis/cash-flow',
+        endpoint: '/api/asset_report/cash_flow/$apiTimeFrame',
         method: 'GET',
-        body: userId != null ? {'userId': userId} : null,
         requireAuth: true,
       );
-      return response;
+
+      _logger.d('Cash flow API raw response: $response');
+
+      if (response != null) {
+        try {
+          final formattedData = _formatNewCashFlowResponse(response);
+          return {
+            'success': true,
+            'data': formattedData,
+          };
+        } catch (e) {
+          _logger.e('Error getting cash flow analysis: $e');
+          return {
+            'success': false,
+            'message': 'Failed to load cash flow data',
+            'error': e,
+          };
+        }
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to load cash flow data',
+        };
+      }
     } catch (e) {
-      _logger.e('Error getting cash flow analysis:', error: e);
-      rethrow;
+      _logger.e('Error getting cash flow analysis: $e');
+      return {
+        'success': false,
+        'message': 'Failed to load cash flow data',
+        'error': e,
+      };
     }
   }
 
-  Future<Map<String, dynamic>> getSpendingAnalysis({String? userId}) async {
+  Map<String, dynamic> _formatNewCashFlowResponse(
+      Map<String, dynamic> response) {
+    _logger.d('Formatting new cash flow response: $response');
+
+    // Check if we have the expected fields
+    if (!response.containsKey('date_range')) {
+      throw Exception('Missing date_range in response');
+    }
+
+    if (!response.containsKey('summary')) {
+      throw Exception('Missing summary in response');
+    }
+
+    final dateRange = response['date_range'] as Map<String, dynamic>;
+    final summary = response['summary'] as Map<String, dynamic>;
+
+    // Process detailed_analysis data if available
+    Map<String, dynamic>? detailedAnalysis;
+    List<Map<String, dynamic>> segments = [];
+
+    if (response.containsKey('detailed_analysis') &&
+        response['detailed_analysis'] != null) {
+      detailedAnalysis = response['detailed_analysis'] as Map<String, dynamic>;
+      _logger.d(
+          'Found detailed analysis data in response with keys: ${detailedAnalysis.keys.join(', ')}');
+
+      // Use the segments from detailed_analysis if available
+      if (detailedAnalysis.containsKey('segments') &&
+          detailedAnalysis['segments'] is List &&
+          (detailedAnalysis['segments'] as List).isNotEmpty) {
+        // Use detailed segments if available
+        final detailedSegments = detailedAnalysis['segments'] as List;
+        segments = detailedSegments
+            .map((segment) => segment as Map<String, dynamic>)
+            .toList();
+
+        _logger.d(
+            'Using ${segments.length} detailed segments from detailed_analysis');
+
+        // Log the first segment to understand its structure
+        if (segments.isNotEmpty) {
+          _logger.d('First detailed segment: ${segments.first}');
+        }
+      }
+      // If no segments in detailed_analysis directly, check for more specific breakdowns
+      else {
+        // Check for specific breakdowns based on timeFrame
+        String breakdownKey = '';
+        switch (response['timeFrame']?.toString()?.toLowerCase()) {
+          case 'week':
+            breakdownKey = 'daily_breakdown';
+            break;
+          case 'month':
+            breakdownKey = 'weekly_breakdown';
+            break;
+          case 'quarter':
+          case 'year':
+            breakdownKey = 'monthly_breakdown';
+            break;
+        }
+
+        if (breakdownKey.isNotEmpty &&
+            detailedAnalysis.containsKey(breakdownKey) &&
+            detailedAnalysis[breakdownKey] is List) {
+          final breakdown = detailedAnalysis[breakdownKey] as List;
+          segments =
+              breakdown.map((item) => item as Map<String, dynamic>).toList();
+          _logger.d('Using ${segments.length} segments from $breakdownKey');
+        }
+      }
+
+      // Log for other types of breakdowns available
+      for (final key in [
+        'daily_breakdown',
+        'weekly_breakdown',
+        'monthly_breakdown'
+      ]) {
+        if (detailedAnalysis.containsKey(key)) {
+          final breakdown = detailedAnalysis[key];
+          if (breakdown is List) {
+            _logger.d('$key contains ${breakdown.length} items');
+            if (breakdown.isNotEmpty) {
+              _logger.d('First item in $key: ${breakdown.first}');
+            }
+          }
+        }
+      }
+
+      // Log highlights if available
+      if (detailedAnalysis.containsKey('highlights')) {
+        _logger.d('Highlights available: ${detailedAnalysis['highlights']}');
+      }
+
+      // Log totals if available
+      if (detailedAnalysis.containsKey('totals')) {
+        _logger.d('Totals available: ${detailedAnalysis['totals']}');
+      }
+    }
+
+    // If we still don't have segments from detailed_analysis, create a single segment from summary data
+    if (segments.isEmpty) {
+      _logger.d(
+          'No detailed segments found, creating single segment from summary data');
+
+      // If there's no detailed segments, create a single segment from summary data
+      // Use the start date from the date_range as the period
+      String periodLabel =
+          dateRange['start_date'] ?? DateTime.now().toString().substring(0, 10);
+
+      segments = [
+        {
+          'period': periodLabel,
+          'inflow': (summary['total_inflow'] as num?)?.toDouble() ?? 0.0,
+          'outflow': (summary['total_outflow'] as num?)?.toDouble() ?? 0.0,
+        }
+      ];
+    }
+
+    // Calculate the growth rate - use from summary if available, otherwise use from comparison
+    double growthRate = 0.0;
+    if (summary.containsKey('growth_rate')) {
+      growthRate = (summary['growth_rate'] as num?)?.toDouble() ?? 0.0;
+      // Convert from percentage to decimal if needed
+      if (growthRate > 1 || growthRate < -1) {
+        growthRate = growthRate / 100;
+      }
+    } else if (response.containsKey('comparison')) {
+      final comparison = response['comparison'] as Map<String, dynamic>?;
+      if (comparison != null &&
+          comparison.containsKey('net_cash_flow_change_percent')) {
+        growthRate =
+            (comparison['net_cash_flow_change_percent'] as num?)?.toDouble() ??
+                0.0;
+        // Convert from percentage to decimal if needed
+        if (growthRate > 1 || growthRate < -1) {
+          growthRate = growthRate / 100;
+        }
+      }
+    }
+
+    _logger.d('Formatted cash flow data with ${segments.length} segments');
+
+    return {
+      'timeframe':
+          response['timeFrame']?.toString()?.toUpperCase() ?? 'LAST_MONTH',
+      'totalInflow': (summary['total_inflow'] as num?)?.toDouble() ?? 0.0,
+      'totalOutflow': (summary['total_outflow'] as num?)?.toDouble() ?? 0.0,
+      'netCashFlow': ((summary['total_inflow'] as num?)?.toDouble() ?? 0.0) -
+          ((summary['total_outflow'] as num?)?.toDouble() ?? 0.0),
+      'growthRate': growthRate,
+      'segments': segments,
+      // Include detailed analysis if available
+      if (detailedAnalysis != null) 'detailedAnalysis': detailedAnalysis,
+    };
+  }
+
+  Future<Map<String, dynamic>> getSpendingAnalysis({String? timeFrame}) async {
     try {
+      // Convert timeFrame to the format expected by the new endpoint
+      String apiTimeFrame;
+      switch (timeFrame) {
+        case 'LAST_WEEK':
+          apiTimeFrame = 'week';
+          break;
+        case 'LAST_MONTH':
+          apiTimeFrame = 'month';
+          break;
+        case 'LAST_QUARTER':
+          apiTimeFrame = 'quarter';
+          break;
+        case 'LAST_YEAR':
+          apiTimeFrame = 'year';
+          break;
+        case 'ALL':
+          apiTimeFrame = 'all';
+          break;
+        default:
+          apiTimeFrame = 'month'; // Default to month if not specified
+      }
+
       final response = await _makeRequest(
-        endpoint: '/api/analysis/spending',
+        endpoint: '/api/asset_report/spending/$apiTimeFrame',
         method: 'GET',
-        body: userId != null ? {'userId': userId} : null,
         requireAuth: true,
       );
-      return response;
+
+      // Format the response to match what the UI expects
+      return {
+        'success': true,
+        'data': response,
+      };
     } catch (e) {
       _logger.e('Error getting spending analysis:', error: e);
-      rethrow;
+      return {
+        'success': false,
+        'message': 'Failed to load expense data',
+        'error': e.toString(),
+      };
     }
   }
 
@@ -821,7 +1084,328 @@ class AuthService {
     }
   }
 
+  // Get Plaid access token
+  Future<String> getPlaidAccessToken() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/plaid/access-token',
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response['access_token'] == null) {
+        throw Exception('No access token received from server');
+      }
+
+      return response['access_token'];
+    } catch (e) {
+      _logger.e('Error getting Plaid access token:', error: e);
+      rethrow;
+    }
+  }
+
   // New authentication endpoints will be added here
+
+  Future<Map<String, dynamic>> createAssetReport({
+    required List<String> accessTokens,
+    required int daysRequested,
+    Map<String, dynamic>? options,
+  }) async {
+    try {
+      _logger.i('Creating asset report with options: $options');
+      final response = await _makeRequest(
+        endpoint: '/api/asset_report/create',
+        method: 'POST',
+        body: {
+          'access_tokens': accessTokens,
+          'days_requested': daysRequested,
+          if (options != null) 'options': options,
+        },
+        requireAuth: true,
+      );
+
+      if (response['asset_report_token'] == null) {
+        throw Exception('No asset report token received from server');
+      }
+
+      _logger.i('Asset report creation successful');
+      return {
+        'asset_report_token': response['asset_report_token'],
+        'asset_report_id': response['asset_report_id'],
+        'request_id': response['request_id'],
+      };
+    } catch (e) {
+      _logger.e('Error creating asset report:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getAssetReport({
+    required String assetReportToken,
+    bool includeInsights = false,
+  }) async {
+    try {
+      _logger.i(
+          'Retrieving asset report with token: ${assetReportToken.substring(0, 10)}...');
+      final response = await _makeRequest(
+        endpoint: '/api/asset_report/get',
+        method: 'POST',
+        body: {
+          'asset_report_token': assetReportToken,
+          'include_insights': includeInsights,
+        },
+        requireAuth: true,
+      );
+
+      if (response['report'] == null) {
+        throw Exception('No report data received from server');
+      }
+
+      _logger.i('Asset report retrieved successfully');
+      return response['report'];
+    } catch (e) {
+      _logger.e('Error retrieving asset report:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<List<Transaction>> getLatestTransactions({int limit = 7}) async {
+    try {
+      final dynamic response = await _makeRequest(
+        endpoint: '/api/plaid/transactions/latest',
+        method: 'GET',
+        body: limit != 7 ? {'limit': limit.toString()} : null,
+        requireAuth: true,
+      );
+
+      // Check if response is a list and convert it to transactions
+      if (response is List) {
+        final transactions = <Transaction>[];
+        for (var item in response) {
+          if (item is Map<String, dynamic>) {
+            try {
+              transactions.add(Transaction.fromJson(item));
+            } catch (e) {
+              _logger.e('Error parsing transaction: $e');
+              // Skip invalid transactions
+            }
+          }
+        }
+        return transactions;
+      }
+
+      // If response is not a list, log an error and return an empty list
+      _logger
+          .e('Unexpected response format for latest transactions: $response');
+      return [];
+    } catch (e) {
+      _logger.e('Error getting latest transactions:', error: e);
+      rethrow;
+    }
+  }
+
+  // Get All Transactions from Plaid endpoint
+  Future<List<Transaction>> getAllTransactions() async {
+    try {
+      final dynamic response = await _makeRequest(
+        endpoint: '/api/plaid/transactions/all',
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      // Check if response is a list and convert it to transactions
+      if (response is List) {
+        final transactions = <Transaction>[];
+        for (var item in response) {
+          if (item is Map<String, dynamic>) {
+            try {
+              transactions.add(Transaction.fromJson(item));
+            } catch (e) {
+              _logger.e('Error parsing transaction: $e');
+              // Skip invalid transactions
+            }
+          }
+        }
+        _logger
+            .i('Fetched ${transactions.length} transactions from all accounts');
+        return transactions;
+      }
+
+      // If response is not a list, log an error and return an empty list
+      _logger.e('Unexpected response format for all transactions: $response');
+      return [];
+    } catch (e) {
+      _logger.e('Error getting all transactions:', error: e);
+      rethrow;
+    }
+  }
+
+  // Get transaction location data by transaction ID
+  Future<Map<String, dynamic>?> getTransactionLocation(
+      String transactionId) async {
+    try {
+      // For demonstration purposes, we're simulating data from a database query
+      // In a real app, this would likely make an API call or database query
+
+      // Example API call (commented out):
+      // final dynamic response = await _makeRequest(
+      //   endpoint: '/api/plaid/transactions/$transactionId/location',
+      //   method: 'GET',
+      //   requireAuth: true,
+      // );
+
+      // Instead, we'll simulate a database query by returning sample data
+      // This would typically be fetched from your backend or database
+
+      // Simulate a delay similar to a network request
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Return simulated location data based on transaction ID
+      // In production, this would be real data from your database
+      final firstDigit =
+          transactionId.isNotEmpty ? transactionId[0].codeUnitAt(0) % 5 : 0;
+
+      // Create a few sample locations for variety
+      final locations = [
+        {
+          'location': {
+            'lat': 25.7617,
+            'lon': -80.1918,
+            'city': 'Miami',
+            'region': 'FL',
+            'address': '1100 Biscayne Blvd',
+            'country': 'US',
+            'postal_code': '33132',
+            'store_number': 'MIA042'
+          }
+        },
+        {
+          'location': {
+            'lat': 25.8013,
+            'lon': -80.1997,
+            'city': 'Miami',
+            'region': 'FL',
+            'address': '2550 NW 2nd Ave',
+            'country': 'US',
+            'postal_code': '33127',
+            'store_number': 'WYN015'
+          }
+        },
+        {
+          'location': {
+            'lat': 25.7825,
+            'lon': -80.1340,
+            'city': 'Miami Beach',
+            'region': 'FL',
+            'address': '1001 Ocean Drive',
+            'country': 'US',
+            'postal_code': '33139',
+            'store_number': 'SBE103'
+          }
+        },
+        {
+          'location': {
+            'lat': 25.7501,
+            'lon': -80.2567,
+            'city': 'Coral Gables',
+            'region': 'FL',
+            'address': '280 Miracle Mile',
+            'country': 'US',
+            'postal_code': '33134',
+            'store_number': 'CGB024'
+          }
+        },
+        {
+          'location': {
+            'lat': 25.7602,
+            'lon': -80.1959,
+            'city': 'Miami',
+            'region': 'FL',
+            'address': '901 S Miami Ave',
+            'country': 'US',
+            'postal_code': '33130',
+            'store_number': 'BRK078'
+          }
+        }
+      ];
+
+      return locations[firstDigit];
+    } catch (e) {
+      _logger.e('Error getting transaction location:', error: e);
+      return null;
+    }
+  }
+
+  // Get transaction location data from dedicated endpoint
+  Future<Map<String, dynamic>?> getTransactionLocationFromEndpoint(
+      String transactionId) async {
+    try {
+      // Call our dedicated endpoint for transaction location data
+      final dynamic response = await _makeRequest(
+        endpoint: '/api/asset_report/transaction/location/$transactionId',
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response != null) {
+        _logger.i('Retrieved location data for transaction $transactionId');
+        // The response contains the location data directly
+        return response as Map<String, dynamic>;
+      }
+
+      _logger.w('No location data found for transaction $transactionId');
+      return null;
+    } catch (e) {
+      _logger.e('Error fetching transaction location from endpoint:', error: e);
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> getRecurringExpensesAnalysis(
+      {String? timeFrame}) async {
+    try {
+      // Convert timeFrame to the format expected by the new endpoint
+      String apiTimeFrame;
+      switch (timeFrame) {
+        case 'LAST_WEEK':
+          apiTimeFrame = 'week';
+          break;
+        case 'LAST_MONTH':
+          apiTimeFrame = 'month';
+          break;
+        case 'LAST_QUARTER':
+          apiTimeFrame = 'quarter';
+          break;
+        case 'LAST_YEAR':
+          apiTimeFrame = 'year';
+          break;
+        case 'ALL':
+          apiTimeFrame = 'all';
+          break;
+        default:
+          apiTimeFrame = 'month'; // Default to month if not specified
+      }
+
+      final response = await _makeRequest(
+        endpoint: '/api/asset_report/recurring/$apiTimeFrame',
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      // Format the response to match what the UI expects
+      return {
+        'success': true,
+        'data': response,
+      };
+    } catch (e) {
+      _logger.e('Error getting recurring expenses analysis:', error: e);
+      return {
+        'success': false,
+        'message': 'Failed to load recurring expenses data',
+        'error': e.toString(),
+      };
+    }
+  }
 }
 
 // Exception Classes
@@ -878,12 +1462,22 @@ class TransactionDetail {
   });
 
   factory TransactionDetail.fromJson(Map<String, dynamic> json) {
+    // Handle category which can be a String or a List<dynamic>
+    String? category;
+    if (json['category'] is String) {
+      category = json['category'] as String?;
+    } else if (json['category'] is List &&
+        (json['category'] as List).isNotEmpty) {
+      // Join all categories or just use the first one
+      category = (json['category'] as List).join(', ');
+    }
+
     return TransactionDetail(
       id: json['id'] as String,
       merchantName: json['merchantName'] as String?,
       amount: (json['amount'] as num).toDouble(),
       date: DateTime.parse(json['date'] as String),
-      category: json['category'] as String?,
+      category: category,
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }

@@ -163,36 +163,212 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
           throw Exception('User ID not found');
         }
 
-        // Exchange public token for access token
-        final response = await authService.exchangePublicToken(
+        // Step 1: Exchange public token
+        _logger.i('Exchanging public token...');
+        final exchangeResponse = await authService.exchangePublicToken(
           success.publicToken,
           userId,
         );
 
+        if (!exchangeResponse['success'] ||
+            exchangeResponse['access_token'] == null) {
+          throw Exception('Failed to exchange public token');
+        }
         _logger.i('Public token exchanged successfully');
+
+        final accessToken = exchangeResponse['access_token'];
+        _logger.i('Access token received successfully');
 
         if (!mounted) return;
 
-        // Show success dialog with bank account info
-        _showSuccessDialog(
-            response['accounts']?[0]?['name'] ?? 'Your bank account');
+        // Step 2: Show success dialog
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF061535),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      spreadRadius: 5,
+                      blurRadius: 15,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 120,
+                      height: 120,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Image.asset(
+                        'assets/images/blink_logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.white, Color(0xFF60A5FA)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ).createShader(bounds),
+                      child: const Text(
+                        'Bank Account Linked!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'You\'ve successfully linked your bank account.\nWe\'re now analyzing your financial data...',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                        fontFamily: 'Onest',
+                        height: 1.5,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF2196F3), Color(0xFF60A5FA)],
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2196F3).withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text(
+                            'Continue',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
 
-        // Start background sync
-        _performBackgroundTasks(userId);
-      } catch (e) {
-        _logger.e('Error exchanging public token', error: e);
-        if (mounted) {
-          String errorMessage = 'Failed to link bank account. ';
+        // Step 3: Create asset report
+        _logger.i('Creating asset report...');
+        final assetReportResponse = await authService.createAssetReport(
+          accessTokens: [accessToken],
+          daysRequested: 30,
+        );
 
-          if (e.toString().contains('500')) {
-            errorMessage += 'Server error occurred. Please try again.';
-          } else if (e.toString().contains('token')) {
-            errorMessage += 'Authentication error. Please try again.';
-          } else {
-            errorMessage += e.toString();
+        if (assetReportResponse['asset_report_token'] == null) {
+          throw Exception(
+              'Failed to create asset report: No asset report token received');
+        }
+
+        // Step 4: Wait for report to be ready and retrieve it
+        _logger.i('Retrieving asset report...');
+        Map<String, dynamic>? report;
+        int attempts = 0;
+        const maxAttempts = 5;
+        const delaySeconds = 2;
+
+        while (attempts < maxAttempts) {
+          try {
+            report = await authService.getAssetReport(
+              assetReportToken: assetReportResponse['asset_report_token'],
+              includeInsights: true,
+            );
+            _logger.i('Asset report retrieved successfully');
+            break;
+          } catch (e) {
+            _logger.w(
+                'Asset report not ready yet, retrying in $delaySeconds seconds...');
+            attempts++;
+            if (attempts < maxAttempts) {
+              await Future.delayed(Duration(seconds: delaySeconds));
+            }
           }
+        }
 
-          _showErrorDialog(errorMessage);
+        if (report == null) {
+          _logger
+              .w('Could not retrieve asset report after $maxAttempts attempts');
+        }
+
+        // Step 5: Navigate to home screen
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+          (route) => false,
+        );
+      } catch (e) {
+        _logger.e('Error in success handler:', error: e);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().contains('retrieve access token')
+                  ? 'Error retrieving bank access token. Please try again.'
+                  : e.toString().contains('exchange public token')
+                      ? 'Error connecting to bank. Please try again.'
+                      : e.toString().contains('asset report')
+                          ? 'Error analyzing bank data. Please try again.'
+                          : 'An error occurred while processing your bank information'),
+              backgroundColor: Colors.orange,
+            ),
+          );
         }
       } finally {
         if (mounted) {
@@ -200,166 +376,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         }
       }
     });
-  }
-
-  Future<void> _performBackgroundTasks(String userId) async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-
-    try {
-      // Sync transactions
-      await authService.syncTransactions(userId);
-      _logger.i('Transactions synced successfully');
-
-      // Get transactions (you might want to specify date range and other parameters)
-      final transactions = await authService.getTransactions(
-        userId: userId,
-        bankAccountId: 'all',
-        startDate:
-            DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
-        endDate: DateTime.now().toIso8601String(),
-      );
-      _logger.i(
-          'Transactions retrieved successfully: ${transactions.length} transactions');
-
-      // Sync balances
-      await authService.syncBalances(userId);
-      _logger.i('Balances synced successfully');
-    } catch (e) {
-      _logger.e('Error performing background tasks', error: e);
-    }
-  }
-
-  void _showSuccessDialog(String? bankAccountId) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: const Color(0xFF061535),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  spreadRadius: 5,
-                  blurRadius: 15,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Blink Logo
-                Container(
-                  width: 120,
-                  height: 120,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Image.asset(
-                    'assets/images/blink_logo.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [Colors.white, Color(0xFF60A5FA)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ).createShader(bounds),
-                  child: const Text(
-                    'Bank Account Linked!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontFamily: 'Onest',
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'You\'ve successfully linked your bank account.\nYou\'re all set to start using Blink!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 16,
-                    fontFamily: 'Onest',
-                    height: 1.5,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF2196F3), Color(0xFF60A5FA)],
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2196F3).withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (context) => const HomeScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text(
-                        'Continue',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildSecurityFeature({

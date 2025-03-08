@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:animated_emoji/emoji.dart';
 import 'package:animated_emoji/emojis.g.dart';
 import 'package:logger/logger.dart';
+import 'dart:math' as math;
 
 class ExpenseBreakdown extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -29,6 +30,8 @@ class ExpenseBreakdown extends StatelessWidget {
         return 'Last 3 Months';
       case 'LAST_YEAR':
         return 'Last 12 Months';
+      case 'ALL':
+        return 'All Time';
       default:
         return 'Previous Period';
     }
@@ -44,6 +47,8 @@ class ExpenseBreakdown extends StatelessWidget {
         return 'lastQuarter';
       case 'LAST_YEAR':
         return 'lastYear';
+      case 'ALL':
+        return 'all';
       default:
         return 'lastMonth';
     }
@@ -63,6 +68,8 @@ class ExpenseBreakdown extends StatelessWidget {
         return 'Last 3 Months';
       case 'LAST_YEAR':
         return 'Last 12 Months';
+      case 'ALL':
+        return 'All Time';
       default:
         return 'Current Period';
     }
@@ -84,15 +91,40 @@ class ExpenseBreakdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    _logger.d('Raw data structure: $data');
+
     final categories =
         (data['categories'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final totalSpending = (data['totalSpending'] as num?)?.toDouble() ?? 0.0;
+    final totalSpending = data['totalSpending'] is String
+        ? double.tryParse(data['totalSpending'].toString()) ?? 0.0
+        : (data['totalSpending'] as num?)?.toDouble() ?? 0.0;
     final timeFrame = data['timeFrame'] as String? ?? 'LAST_MONTH';
     final period = data['period'] as Map<String, dynamic>? ?? {};
     final currencyFormatter =
         NumberFormat.currency(symbol: '\$', decimalDigits: 0);
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
+
+    // Log the data for debugging
+    _logger.d('ExpenseBreakdown build with data keys: ${data.keys}');
+    _logger.d('Categories count: ${categories.length}');
+    if (categories.isNotEmpty) {
+      _logger.d('First category: ${categories.first}');
+    }
+
+    // Validate categories data and handle any unexpected structures
+    final validCategories = categories
+        .where((category) =>
+            category != null &&
+            category.containsKey('name') &&
+            category.containsKey('percentage') &&
+            category.containsKey('amount'))
+        .toList();
+
+    if (validCategories.length != categories.length) {
+      _logger.w(
+          'Found ${categories.length - validCategories.length} invalid categories, Valid: ${validCategories.length}, Total: ${categories.length}');
+    }
 
     final theme = Theme.of(context).copyWith(
       primaryColor: const Color(0xFF0078D4),
@@ -129,12 +161,18 @@ class ExpenseBreakdown extends StatelessWidget {
                   SizedBox(height: isSmallScreen ? 24 : 32),
                   _buildTotalSpendingCard(
                       totalSpending, currencyFormatter, timeFrame, context),
-                  if (categories.isNotEmpty) ...[
+                  if (validCategories.isNotEmpty) ...[
+                    SizedBox(height: isSmallScreen ? 24 : 32),
+                    _buildPieChartSection(
+                        validCategories, totalSpending, context),
+                  ] else if (categories.isNotEmpty) ...[
+                    // Try with original categories as fallback
                     SizedBox(height: isSmallScreen ? 24 : 32),
                     _buildPieChartSection(categories, totalSpending, context),
                   ] else ...[
                     const SizedBox(height: 40),
-                    _buildEmptyState(timeFrame),
+                    _buildEmptyState(
+                        "No spending data available for this period"),
                   ],
                 ],
               ),
@@ -303,8 +341,61 @@ class ExpenseBreakdown extends StatelessWidget {
 
   Widget _buildPieChartSection(List<Map<String, dynamic>> categories,
       double totalSpending, BuildContext context) {
-    categories.sort(
-        (a, b) => (b['percentage'] as num).compareTo(a['percentage'] as num));
+    // Log received data for debugging
+    _logger.d(
+        'Building pie chart section with ${categories.length} categories: $categories');
+
+    if (categories.isEmpty) {
+      _logger.w('No categories available for pie chart');
+      return _buildEmptyState('No data available');
+    }
+
+    // Check the first category to see its structure for debugging
+    if (categories.isNotEmpty) {
+      _logger.d('First category structure: ${categories.first}');
+      _logger.d(
+          'First category properties: name=${categories.first['name']}, percentage=${categories.first['percentage']}, amount=${categories.first['amount']}');
+
+      // Log all percentages to see distribution
+      _logger.d(
+          'Category percentages: ${categories.map((c) => "${c['name'] ?? 'Unknown'}: ${c['percentage']}").join(', ')}');
+
+      // Calculate total percentage for verification
+      final totalPercentage = categories.fold<double>(
+          0.0,
+          (sum, category) =>
+              sum +
+              (category['percentage'] is String
+                  ? double.tryParse(category['percentage'] as String) ?? 0.0
+                  : (category['percentage'] as num?)?.toDouble() ?? 0.0));
+      _logger.d('Total percentage sum: $totalPercentage%');
+    }
+
+    // Filter out any null or invalid categories
+    categories = categories
+        .where((category) =>
+            category != null &&
+            category.containsKey('name') &&
+            category.containsKey('percentage'))
+        .toList();
+
+    if (categories.isEmpty) {
+      _logger.w('No valid categories after filtering');
+      return _buildEmptyState('No valid data available');
+    }
+
+    categories.sort((a, b) {
+      // Safely convert percentage values to double regardless of whether they're strings or numbers
+      final percentageA = a['percentage'] is String
+          ? double.tryParse(a['percentage'] as String) ?? 0.0
+          : (a['percentage'] as num).toDouble();
+
+      final percentageB = b['percentage'] is String
+          ? double.tryParse(b['percentage'] as String) ?? 0.0
+          : (b['percentage'] as num).toDouble();
+
+      return percentageB.compareTo(percentageA);
+    });
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
 
@@ -377,10 +468,17 @@ class ExpenseBreakdown extends StatelessWidget {
                           height: isSmallScreen ? 28 : 32,
                           child: Row(
                             children: categories.map((category) {
-                              final percentage =
-                                  (category['percentage'] as num).toDouble();
-                              final color =
-                                  _getCategoryColor(category['name'] as String);
+                              final percentage = category['percentage']
+                                      is String
+                                  ? double.tryParse(
+                                          category['percentage'] as String) ??
+                                      0.0
+                                  : (category['percentage'] as num?)
+                                          ?.toDouble() ??
+                                      0.0;
+                              final name =
+                                  category['name'] as String? ?? 'Other';
+                              final color = _getCategoryColor(name);
                               return _buildBarSegment(
                                   context, category, percentage, color);
                             }).toList(),
@@ -411,9 +509,14 @@ class ExpenseBreakdown extends StatelessWidget {
                           children: categories.asMap().entries.map((entry) {
                             final index = entry.key;
                             final category = entry.value;
-                            final name = category['name'] as String;
-                            final percentage =
-                                (category['percentage'] as num).toDouble();
+                            final name = category['name'] as String? ?? 'Other';
+                            final percentage = category['percentage'] is String
+                                ? double.tryParse(
+                                        category['percentage'] as String) ??
+                                    0.0
+                                : (category['percentage'] as num?)
+                                        ?.toDouble() ??
+                                    0.0;
                             final color = _getCategoryColor(name);
 
                             return TweenAnimationBuilder<double>(
@@ -499,7 +602,7 @@ class ExpenseBreakdown extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState(String timeFrame) {
+  Widget _buildEmptyState(String message) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -521,7 +624,7 @@ class ExpenseBreakdown extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'No transactions found for this time period',
+            message,
             style: TextStyle(
               color: isDarkMode ? Colors.white60 : Colors.black45,
               fontSize: 14,
@@ -559,8 +662,12 @@ class ExpenseBreakdown extends StatelessWidget {
 
     return categories.where((category) => category != null).map((category) {
       final name = category['name'] as String? ?? 'Unknown';
-      final amount = (category['amount'] as num?)?.toDouble() ?? 0.0;
-      final percentage = (category['percentage'] as num?)?.toDouble() ?? 0.0;
+      final amount = category['amount'] is String
+          ? double.tryParse(category['amount'] as String) ?? 0.0
+          : (category['amount'] as num?)?.toDouble() ?? 0.0;
+      final percentage = category['percentage'] is String
+          ? double.tryParse(category['percentage'] as String) ?? 0.0
+          : (category['percentage'] as num?)?.toDouble() ?? 0.0;
 
       _logger.d(
           'Creating pie section - Category: $name, Amount: $amount, Percentage: $percentage%');
@@ -602,58 +709,131 @@ class ExpenseBreakdown extends StatelessWidget {
   }
 
   Color _getCategoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'food & dining':
-        return const Color(0xFF4CAF50); // Fresh Green
-      case 'shopping':
-        return const Color(0xFF2196F3); // Vibrant Blue
-      case 'transportation':
-        return const Color(0xFFFFA726); // Warm Orange
-      case 'utilities':
-        return const Color(0xFF9C27B0); // Rich Purple
-      case 'entertainment':
-        return const Color(0xFFE91E63); // Bright Pink
-      case 'health':
-        return const Color(0xFF00BCD4); // Cyan
-      case 'travel':
-        return const Color(0xFFFF5722); // Deep Orange
-      default:
-        return const Color(0xFF607D8B); // Blue Grey
+    // Normalize category name for case-insensitive comparison
+    final normalizedCategory = category.toLowerCase().trim();
+
+    // Check for common category patterns
+    if (normalizedCategory.contains('food') ||
+        normalizedCategory.contains('dining') ||
+        normalizedCategory.contains('restaurant') ||
+        normalizedCategory.contains('grocery')) {
+      return const Color(0xFF4CAF50); // Fresh Green
+    } else if (normalizedCategory.contains('shop') ||
+        normalizedCategory.contains('purchase') ||
+        normalizedCategory.contains('retail')) {
+      return const Color(0xFF2196F3); // Vibrant Blue
+    } else if (normalizedCategory.contains('transport') ||
+        normalizedCategory.contains('auto') ||
+        normalizedCategory.contains('car') ||
+        normalizedCategory.contains('gas')) {
+      return const Color(0xFFFFA726); // Warm Orange
+    } else if (normalizedCategory.contains('util') ||
+        normalizedCategory.contains('bill') ||
+        normalizedCategory.contains('service')) {
+      return const Color(0xFF9C27B0); // Rich Purple
+    } else if (normalizedCategory.contains('entertain') ||
+        normalizedCategory.contains('recreation') ||
+        normalizedCategory.contains('movie') ||
+        normalizedCategory.contains('game')) {
+      return const Color(0xFFE91E63); // Bright Pink
+    } else if (normalizedCategory.contains('health') ||
+        normalizedCategory.contains('medical') ||
+        normalizedCategory.contains('doctor')) {
+      return const Color(0xFF00BCD4); // Cyan
+    } else if (normalizedCategory.contains('travel') ||
+        normalizedCategory.contains('hotel') ||
+        normalizedCategory.contains('flight')) {
+      return const Color(0xFFFF5722); // Deep Orange
+    } else if (normalizedCategory.contains('transfer') ||
+        normalizedCategory.contains('payment')) {
+      return const Color(0xFF8BC34A); // Light Green
+    } else if (normalizedCategory.contains('education') ||
+        normalizedCategory.contains('school')) {
+      return const Color(0xFF3F51B5); // Indigo
+    } else if (normalizedCategory.contains('uncategorized')) {
+      return const Color(0xFF9E9E9E); // Gray
+    } else {
+      // Assign a color based on the first letter of the category for consistent coloring
+      final firstLetter = normalizedCategory.isNotEmpty
+          ? normalizedCategory[0].codeUnitAt(0)
+          : 0;
+      final colorSet = [
+        const Color(0xFF42A5F5), // Blue
+        const Color(0xFFFFA726), // Orange
+        const Color(0xFF66BB6A), // Green
+        const Color(0xFFEC407A), // Pink
+        const Color(0xFF5C6BC0), // Indigo
+        const Color(0xFF26C6DA), // Cyan
+        const Color(0xFFAB47BC), // Purple
+        const Color(0xFFEF5350), // Red
+      ];
+      return colorSet[firstLetter % colorSet.length];
     }
   }
 
   Widget _getCategoryEmoji(String category) {
-    switch (category.toLowerCase()) {
-      case 'food & dining':
-        return const AnimatedEmoji(AnimatedEmojis.hotBeverage);
-      case 'shopping':
-        return const AnimatedEmoji(AnimatedEmojis.sparkles);
-      case 'transportation':
-        return const AnimatedEmoji(AnimatedEmojis.bicycle);
-      case 'utilities':
-        return const AnimatedEmoji(AnimatedEmojis.lightBulb);
-      case 'entertainment':
-        return const AnimatedEmoji(AnimatedEmojis.mirrorBall);
-      case 'health':
-        return const AnimatedEmoji(AnimatedEmojis.sparkles);
-      case 'travel':
-        return const AnimatedEmoji(AnimatedEmojis.airplaneDeparture);
-      default:
-        return const AnimatedEmoji(AnimatedEmojis.moneyWithWings);
+    // Normalize category name for case-insensitive comparison
+    final normalizedCategory = category.toLowerCase().trim();
+
+    // Check for common category patterns
+    if (normalizedCategory.contains('food') ||
+        normalizedCategory.contains('dining') ||
+        normalizedCategory.contains('restaurant')) {
+      return const AnimatedEmoji(AnimatedEmojis.hotBeverage);
+    } else if (normalizedCategory.contains('shop') ||
+        normalizedCategory.contains('purchase') ||
+        normalizedCategory.contains('retail')) {
+      return const AnimatedEmoji(AnimatedEmojis.sparkles);
+    } else if (normalizedCategory.contains('transport') ||
+        normalizedCategory.contains('auto') ||
+        normalizedCategory.contains('car')) {
+      return const AnimatedEmoji(AnimatedEmojis.bicycle);
+    } else if (normalizedCategory.contains('util') ||
+        normalizedCategory.contains('bill') ||
+        normalizedCategory.contains('service')) {
+      return const AnimatedEmoji(AnimatedEmojis.lightBulb);
+    } else if (normalizedCategory.contains('entertain') ||
+        normalizedCategory.contains('recreation')) {
+      return const AnimatedEmoji(AnimatedEmojis.mirrorBall);
+    } else if (normalizedCategory.contains('health') ||
+        normalizedCategory.contains('medical')) {
+      return const AnimatedEmoji(AnimatedEmojis.sparkles);
+    } else if (normalizedCategory.contains('travel') ||
+        normalizedCategory.contains('hotel') ||
+        normalizedCategory.contains('flight')) {
+      return const AnimatedEmoji(AnimatedEmojis.airplaneDeparture);
+    } else if (normalizedCategory.contains('transfer') ||
+        normalizedCategory.contains('payment')) {
+      return const AnimatedEmoji(AnimatedEmojis.moneyWithWings);
+    } else if (normalizedCategory.contains('education') ||
+        normalizedCategory.contains('school')) {
+      return const AnimatedEmoji(AnimatedEmojis.sparkles);
+    } else if (normalizedCategory.contains('uncategorized')) {
+      return const AnimatedEmoji(AnimatedEmojis.moneyWithWings);
+    } else {
+      return const AnimatedEmoji(AnimatedEmojis.moneyWithWings);
     }
   }
 
   Widget _buildBarSegment(BuildContext context, Map<String, dynamic> category,
       double percentage, Color color) {
-    final amount = (category['amount'] as num).toDouble();
-    final name = category['name'] as String;
-    final transactionCount = category['transactionCount'] as int;
+    final amount = category['amount'] is String
+        ? double.tryParse(category['amount'] as String) ?? 0.0
+        : (category['amount'] as num?)?.toDouble() ?? 0.0;
+    final name = category['name'] as String? ?? 'Other';
+    final transactionCount = category['transactionCount'] is String
+        ? int.tryParse(category['transactionCount'] as String) ?? 0
+        : (category['transactionCount'] as int?) ?? 0;
     final formatter = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 360;
 
+    // Ensure minimum flex value for better visibility of small segments
+    // Use at least 1 and add a small minimum width for tiny percentages
+    final flexValue = math.max((percentage * 100).round(), 3);
+
     return Expanded(
-      flex: (percentage * 100).round(),
+      flex: flexValue,
       child: GestureDetector(
         onLongPressStart: (details) async {
           await HapticFeedback.heavyImpact();

@@ -24,10 +24,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:blink_app/services/biometric_service.dart';
 import 'package:blink_app/features/auth/presentation/auth_screen.dart';
 import 'package:blink_app/providers/locale_provider.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
+
+  // Set Mapbox access token
+  final mapboxAccessToken = dotenv.env['MAPBOX_ACCESS_TOKEN'] ??
+      'pk.eyJ1IjoiYWxlamFuZHJvNDQiLCJhIjoiY2xldDZmYnI4MDJkbzNwbXU0aDBpcDlidiJ9.Wbu_Ux6jXdYsQGkJ8GPVDA';
+
+  // Use setAccessToken static method for Mapbox initialization
+  MapboxOptions.setAccessToken(mapboxAccessToken);
 
   // Debug environment variables
   print('API_URL: ${dotenv.env['API_URL']}');

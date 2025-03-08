@@ -32,6 +32,8 @@ import 'package:blink_app/features/favorites/presentation/screens/favorites_scre
 import 'dart:async';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:blink_app/features/home/presentation/news_story_detail_screen.dart';
+import 'package:blink_app/services/auth_service.dart' show TransactionDetail;
+import 'package:blink_app/features/transactions/domain/services/category_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -1076,8 +1078,19 @@ Successful investing requires patience, research, and discipline. Start small, s
     _performHapticFeedback(haptics.HapticsType.medium);
 
     // Find current category if exists
+    String categoryToMatch = transaction.category?.toLowerCase() ?? '';
+    // Extract the most specific subcategory (last part after the last comma)
+    if (categoryToMatch.contains(',')) {
+      categoryToMatch = categoryToMatch.split(',').last.trim();
+    }
+
+    // Special case for airlines
+    if (categoryToMatch == 'airlines and aviation services') {
+      categoryToMatch = 'airlines';
+    }
+
     final currentCategory = TransactionCategory.defaultCategories.firstWhere(
-      (category) => category.id == transaction.category?.toLowerCase(),
+      (category) => category.id == categoryToMatch,
       orElse: () => TransactionCategory.defaultCategories.first,
     );
 
@@ -1100,6 +1113,8 @@ Successful investing requires patience, research, and discipline. Start small, s
               date: transaction.date,
               category: category.name,
               isOutflow: transaction.isOutflow,
+              transactionId:
+                  transaction.id, // Use transaction.id as transactionId
             );
 
             setState(() {
@@ -1129,6 +1144,8 @@ Successful investing requires patience, research, and discipline. Start small, s
                         date: transaction.date,
                         category: transaction.category ?? '',
                         isOutflow: transaction.isOutflow,
+                        transactionId: transaction
+                            .id, // Use transaction.id as transactionId
                       );
 
                       _recentTransactions = _recentTransactions
@@ -1172,22 +1189,13 @@ Successful investing requires patience, research, and discipline. Start small, s
       });
 
       final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final storageService =
-          Provider.of<StorageService>(context, listen: false);
 
-      final userId = storageService.getUserId();
-      if (userId == null) throw Exception('User ID not found');
-
-      final transactions =
-          await authService.getRecentTransactions(userId: userId);
+      final transactions = await authService.getLatestTransactions();
 
       if (!mounted) return;
 
       setState(() {
-        // Cast the list to the correct type
-        _recentTransactions = (transactions as List<dynamic>)
-            .map((t) => t as auth.Transaction)
-            .toList();
+        _recentTransactions = transactions;
         _isLoading = false;
       });
     } catch (e) {
@@ -1196,6 +1204,13 @@ Successful investing requires patience, research, and discipline. Start small, s
         setState(() {
           _isLoading = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Failed to load recent transactions: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -2481,31 +2496,35 @@ Successful investing requires patience, research, and discipline. Start small, s
                         ],
                       ),
                       const Spacer(),
-                      RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Blink\n',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontFamily: 'Onest',
-                                fontWeight: FontWeight.bold,
-                                height: 0.15,
-                                letterSpacing: -0.5,
+                      // Add padding to move text down
+                      Container(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'Blink\n',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontFamily: 'Onest',
+                                  fontWeight: FontWeight.bold,
+                                  height: 0.15,
+                                  letterSpacing: -0.5,
+                                ),
                               ),
-                            ),
-                            TextSpan(
-                              text: 'Insights',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 22,
-                                fontFamily: 'Onest',
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.5,
+                              TextSpan(
+                                text: 'Insights',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 22,
+                                  fontFamily: 'Onest',
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.5,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -2827,36 +2846,9 @@ Successful investing requires patience, research, and discipline. Start small, s
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              // Category Icon with Gradient Border
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      domainTransaction.getCategoryColor(_isDarkMode),
-                      domainTransaction
-                          .getCategoryColor(_isDarkMode)
-                          .withOpacity(0.7),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: domainTransaction
-                        .getCategoryColor(_isDarkMode)
-                        .withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    domainTransaction.getCategoryIcon(),
-                    color: domainTransaction.getCategoryColor(_isDarkMode),
-                    size: 20,
-                  ),
-                ),
-              ),
+              // Category Icon with Gradient Border - Using CategoryService
+              CategoryService.buildEnhancedCategoryIcon(
+                  domainTransaction.category, _isDarkMode),
               const SizedBox(width: 16),
 
               // Transaction Details
@@ -2881,16 +2873,17 @@ Successful investing requires patience, research, and discipline. Start small, s
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: domainTransaction
-                                .getCategoryColor(_isDarkMode)
+                            color: CategoryService.getCategoryColor(
+                                    domainTransaction.category, _isDarkMode)
                                 .withOpacity(0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            domainTransaction.displayCategory,
+                            CategoryService.formatDisplayCategory(
+                                domainTransaction.category),
                             style: TextStyle(
-                              color: domainTransaction
-                                  .getCategoryColor(_isDarkMode),
+                              color: CategoryService.getCategoryColor(
+                                  domainTransaction.category, _isDarkMode),
                               fontSize: 12,
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.w500,
@@ -3155,7 +3148,8 @@ Successful investing requires patience, research, and discipline. Start small, s
               physics: const BouncingScrollPhysics(),
               child: Padding(
                 padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + 60,
+                  top: (MediaQuery.of(context).padding.top + 60) *
+                      1.2, // Increased by 1.2x
                   bottom: 32,
                 ),
                 child: Column(
@@ -3435,7 +3429,196 @@ Successful investing requires patience, research, and discipline. Start small, s
         _flipRepaymentCard();
         _performHapticFeedback(haptics.HapticsType.medium);
       },
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                repaymentBlue.withOpacity(0.98),
+                repaymentBlue.withOpacity(0.95),
+              ],
+              stops: const [0.2, 0.9],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 0.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: repaymentBlue.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+                spreadRadius: -2,
+              ),
+              BoxShadow(
+                color: repaymentBlue.withOpacity(0.2),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+                spreadRadius: -4,
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Subtle gradient overlay for depth
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.05),
+                        Colors.black.withOpacity(0.05),
+                      ],
+                      stops: const [0.2, 0.5, 0.8],
+                    ),
+                  ),
+                ),
+              ),
+              // Premium shine effect
+              Positioned(
+                top: -100,
+                left: -100,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Modern icon container with refined styling
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(
+                            'assets/images/icons/icons8-time-is-money-96.png',
+                            width: 28,
+                            height: 28,
+                            filterQuality: FilterQuality.high,
+                          ),
+                        ),
+                        // Flip button
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: AnimatedRotation(
+                              duration: const Duration(milliseconds: 300),
+                              turns: _isRepaymentCardFlipped ? 0.75 : 0.25,
+                              child: Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.white.withOpacity(0.9),
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    // Professional title with trademark
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Blink\n',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.bold,
+                              height: 0.15,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'Repay',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 22,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRepaymentBackCard(Color color, Color textColor) {
+    const repaymentBlue = Color.fromRGBO(30, 54, 100, 1.0);
+    final hasActiveAdvance = _activeAdvanceData != null;
+    final repaymentAmount = hasActiveAdvance
+        ? (double.tryParse(
+                _activeAdvanceData!['total_repayment_amount']?.toString() ??
+                    '0') ??
+            0.0)
+        : 0.0;
+    final repaymentDate = hasActiveAdvance
+        ? DateTime.tryParse(
+                _activeAdvanceData!['repayment_date']?.toString() ?? '') ??
+            DateTime.now()
+        : DateTime.now();
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
       child: Container(
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -3468,424 +3651,263 @@ Successful investing requires patience, research, and discipline. Start small, s
         ),
         child: Stack(
           children: [
-            // Subtle gradient overlay for depth
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.1),
-                      Colors.white.withOpacity(0.05),
-                      Colors.black.withOpacity(0.05),
-                    ],
-                    stops: const [0.2, 0.5, 0.8],
-                  ),
-                ),
-              ),
-            ),
-            // Premium shine effect
-            Positioned(
-              top: -100,
-              left: -100,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.1),
-                      Colors.white.withOpacity(0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            // Main content
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Modern icon container with refined styling
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (hasActiveAdvance) ...[
+                            Padding(
+                              padding:
+                                  const EdgeInsets.only(left: 8, right: 36),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: RichText(
+                                  textAlign: TextAlign.left,
+                                  text: TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: '\$',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontFamily: 'Onest',
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text:
+                                            '${currencyFormatter.format(repaymentAmount).split('.')[0].substring(1)}.',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontFamily: 'Onest',
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: currencyFormatter
+                                            .format(repaymentAmount)
+                                            .split('.')[1],
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.7),
+                                          fontSize: 16,
+                                          fontFamily: 'Onest',
+                                          fontWeight: FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Center(
+                              child: Container(
+                                width: 160,
+                                height: 32,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: StreamBuilder<int>(
+                                  stream: Stream.periodic(
+                                      const Duration(seconds: 1),
+                                      (count) => count),
+                                  builder: (context, snapshot) {
+                                    final now = DateTime.now();
+                                    final difference =
+                                        repaymentDate.difference(now);
+
+                                    final days = difference.inDays;
+                                    final hours =
+                                        difference.inHours.remainder(24);
+                                    final minutes =
+                                        difference.inMinutes.remainder(60);
+                                    final seconds =
+                                        difference.inSeconds.remainder(60);
+
+                                    return Center(
+                                      child: Text(
+                                        '$days days, $hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.9),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          fontFamily: 'Onest',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Center(
+                              child: Container(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 180),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    _performHapticFeedback(
+                                        haptics.HapticsType.medium);
+                                    // TODO: Implement repayment action
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF40916C),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF40916C)
+                                              .withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Text(
+                                          'Repay Now',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontFamily: 'Onest',
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.all(
+                                              3), // Reduced padding
+                                          decoration: BoxDecoration(
+                                            color:
+                                                Colors.white.withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(
+                                            Icons.arrow_forward_rounded,
+                                            color: Colors.white,
+                                            size: 12, // Reduced size
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            // No active advance message
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.info_outline_rounded,
+                                      color: Colors.white.withOpacity(0.9),
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No Active Advance',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 18,
+                                      fontFamily: 'Onest',
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    child: Text(
+                                      'Apply for a Blink Advance to see repayment details',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.8),
+                                        fontSize: 15,
+                                        fontFamily: 'Onest',
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
-                        ),
-                        child: Image.asset(
-                          'assets/images/icons/icons8-time-is-money-96.png',
-                          width: 28,
-                          height: 28,
-                          filterQuality: FilterQuality.high,
-                        ),
+                        ],
                       ),
-                      // Flip button
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1,
-                          ),
-                        ),
-                        child: Center(
-                          child: AnimatedRotation(
-                            duration: const Duration(milliseconds: 300),
-                            turns: _isRepaymentCardFlipped ? 0.75 : 0.25,
-                            child: Icon(
-                              Icons.chevron_right_rounded,
-                              color: Colors.white.withOpacity(0.9),
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  // Professional title with trademark
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Blink\n',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
-                            height: 0.15,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        TextSpan(
-                          text: 'Repay',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 22,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRepaymentBackCard(Color color, Color textColor) {
-    const repaymentBlue = Color.fromRGBO(30, 54, 100, 1.0);
-    final hasActiveAdvance = _activeAdvanceData != null;
-    final repaymentAmount = hasActiveAdvance
-        ? (double.tryParse(
-                _activeAdvanceData!['total_repayment_amount']?.toString() ??
-                    '0') ??
-            0.0)
-        : 0.0;
-    final repaymentDate = hasActiveAdvance
-        ? DateTime.tryParse(
-                _activeAdvanceData!['repayment_date']?.toString() ?? '') ??
-            DateTime.now()
-        : DateTime.now();
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            repaymentBlue.withOpacity(0.98),
-            repaymentBlue.withOpacity(0.95),
-          ],
-          stops: const [0.2, 0.9],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 0.5,
-        ),
-      ),
-      child: Stack(
-        children: [
-          // Main content
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Flexible(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (hasActiveAdvance) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8, right: 36),
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: RichText(
-                                textAlign: TextAlign.left,
-                                text: TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: '\$',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 24,
-                                        fontFamily: 'Onest',
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text:
-                                          '${currencyFormatter.format(repaymentAmount).split('.')[0].substring(1)}.',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 24,
-                                        fontFamily: 'Onest',
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: currencyFormatter
-                                          .format(repaymentAmount)
-                                          .split('.')[1],
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.7),
-                                        fontSize: 16,
-                                        fontFamily: 'Onest',
-                                        fontWeight: FontWeight.normal,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Center(
-                            child: Container(
-                              width: 160,
-                              height: 32,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: StreamBuilder<int>(
-                                stream: Stream.periodic(
-                                    const Duration(seconds: 1),
-                                    (count) => count),
-                                builder: (context, snapshot) {
-                                  final now = DateTime.now();
-                                  final difference =
-                                      repaymentDate.difference(now);
-
-                                  final days = difference.inDays;
-                                  final hours =
-                                      difference.inHours.remainder(24);
-                                  final minutes =
-                                      difference.inMinutes.remainder(60);
-                                  final seconds =
-                                      difference.inSeconds.remainder(60);
-
-                                  return Center(
-                                    child: Text(
-                                      '$days days, $hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        fontFamily: 'Onest',
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Center(
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 180),
-                              child: GestureDetector(
-                                onTap: () {
-                                  _performHapticFeedback(
-                                      haptics.HapticsType.medium);
-                                  // TODO: Implement repayment action
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF40916C),
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(0xFF40916C)
-                                            .withOpacity(0.3),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Text(
-                                        'Repay Now',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontFamily: 'Onest',
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.all(
-                                            3), // Reduced padding
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                        child: const Icon(
-                                          Icons.arrow_forward_rounded,
-                                          color: Colors.white,
-                                          size: 12, // Reduced size
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          // No active advance message
-                          Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    Icons.info_outline_rounded,
-                                    color: Colors.white.withOpacity(0.9),
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No Active Advance',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontSize: 18,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16),
-                                  child: Text(
-                                    'Apply for a Blink Advance to see repayment details',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.8),
-                                      fontSize: 15,
-                                      fontFamily: 'Onest',
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
+            // Flip button positioned at top right
+            Positioned(
+              top: 12,
+              right: 12,
+              child: GestureDetector(
+                onTap: () {
+                  _flipRepaymentCard();
+                  _performHapticFeedback(haptics.HapticsType.medium);
+                },
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          // Flip button positioned at top right
-          Positioned(
-            top: 12,
-            right: 12,
-            child: GestureDetector(
-              onTap: () {
-                _flipRepaymentCard();
-                _performHapticFeedback(haptics.HapticsType.medium);
-              },
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Center(
-                  child: AnimatedRotation(
-                    duration: const Duration(milliseconds: 300),
-                    turns: _isRepaymentCardFlipped ? 0.75 : 0.25,
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.white.withOpacity(0.9),
-                      size: 18,
+                  child: Center(
+                    child: AnimatedRotation(
+                      duration: const Duration(milliseconds: 300),
+                      turns: _isRepaymentCardFlipped ? 0.75 : 0.25,
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white.withOpacity(0.9),
+                        size: 18,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3913,7 +3935,7 @@ Successful investing requires patience, research, and discipline. Start small, s
                 ),
                 child: Icon(
                   transaction.getCategoryIcon(),
-                  color: transaction.getCategoryColor(_isDarkMode),
+                  color: Colors.white,
                   size: 24,
                 ),
               ),
@@ -4189,87 +4211,415 @@ Successful investing requires patience, research, and discipline. Start small, s
   }
 
   void _showTransactionDetails(Transaction transaction) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: _isDarkMode ? const Color(0xFF141B2E) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: SingleChildScrollView(
-            controller: scrollController,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetailSection('Transaction Details', [
-                    _buildDetailTile(
-                      icon: Icons.store,
-                      title: 'Merchant',
-                      subtitle: transaction.merchantName ?? 'Unknown',
+    try {
+      // Get actual transaction information from the transaction itself
+      final transactionDate = transaction.date;
+      final formattedDate = DateFormat('MMM d, yyyy').format(transactionDate);
+      final formattedTime = DateFormat('h:mm a').format(transactionDate);
+
+      // Create a TransactionDetail object with useful metadata
+      final transactionDetail = TransactionDetail(
+        id: transaction.id,
+        merchantName: transaction.merchantName,
+        amount: transaction.amount,
+        date: transaction.date,
+        category:
+            null, // Set category to null as the expected type is incompatible
+        metadata: {
+          'pending': false,
+          'payment_method': 'credit_card', // Default value
+          'account_number':
+              'xxxx-xxxx-xxxx-${transaction.id}', // Create a masked account number
+          'description': transaction.merchantName,
+          'category':
+              transaction.category, // Store category in metadata instead
+          'date': formattedDate,
+          'time': formattedTime,
+          'status': transaction.isOutflow ? 'Outflow' : 'Inflow',
+          'type': transaction.isOutflow ? 'Purchase' : 'Deposit',
+        },
+      );
+
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (context) => DraggableScrollableSheet(
+          initialChildSize:
+              0.58, // Reduced from 0.7 to show less of the sheet initially
+          minChildSize: 0.45, // Also reduced this value to match
+          maxChildSize: 0.95,
+          builder: (context, scrollController) => Container(
+            decoration: BoxDecoration(
+              color: _isDarkMode ? const Color(0xFF141B2E) : Colors.white,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Centered handle bar
+                Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.only(top: 12, bottom: 8),
+                  child: Container(
+                    width: 40,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: _isDarkMode
+                          ? Colors.white.withOpacity(0.15)
+                          : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                    _buildCategoryTile(transaction),
-                    _buildDetailTile(
-                      icon: Icons.calendar_today,
-                      title: 'Date',
-                      subtitle:
-                          DateFormat('MMMM d, yyyy').format(transaction.date),
-                    ),
-                    _buildDetailTile(
-                      icon: Icons.attach_money,
-                      title: 'Amount',
-                      subtitle: currencyFormatter.format(transaction.amount),
-                      iconColor: transaction.isOutflow
-                          ? Colors.red
-                          : Colors.green[700],
-                    ),
-                  ]),
-                  const SizedBox(height: 20),
-                  if (transaction.metadata != null &&
-                      transaction.metadata!.isNotEmpty)
-                    _buildDetailSection(
-                      'Additional Information',
-                      _buildMetadataRows(transaction.metadata!),
-                    ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.edit,
-                          label: 'Edit Category',
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _changeCategory(transaction);
-                          },
-                          isPrimary: false,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.flag,
-                          label: 'Report Issue',
-                          onPressed: () {
-                            // TODO: Implement report functionality
-                          },
-                          isPrimary: true,
-                        ),
-                      ),
-                    ],
                   ),
-                ],
-              ),
+                ),
+                // Main content
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header with merchant and amount
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              transaction.merchantName ?? 'Unknown Merchant',
+                              style: TextStyle(
+                                color:
+                                    _isDarkMode ? Colors.white : Colors.black87,
+                                fontSize: 26,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              currencyFormatter.format(transaction.amount),
+                              style: TextStyle(
+                                color: transaction.isOutflow
+                                    ? Colors.red[400]
+                                    : Colors.green[400],
+                                fontSize: 36,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: (transaction.isOutflow
+                                        ? Colors.red
+                                        : Colors.green)
+                                    .withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    transaction.isOutflow
+                                        ? Icons.arrow_upward
+                                        : Icons.arrow_downward,
+                                    size: 16,
+                                    color: transaction.isOutflow
+                                        ? Colors.red[400]
+                                        : Colors.green[400],
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    transaction.isOutflow
+                                        ? 'Money Out'
+                                        : 'Money In',
+                                    style: TextStyle(
+                                      color: transaction.isOutflow
+                                          ? Colors.red[400]
+                                          : Colors.green[400],
+                                      fontSize: 14,
+                                      fontFamily: 'Onest',
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 28),
+
+                        // Enhanced Transaction card with category, date, status
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                _isDarkMode
+                                    ? Colors.white.withOpacity(0.1)
+                                    : Colors.white,
+                                _isDarkMode
+                                    ? Colors.white.withOpacity(0.05)
+                                    : Colors.white.withOpacity(0.97),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _isDarkMode
+                                  ? Colors.white.withOpacity(0.12)
+                                  : Colors.black.withOpacity(0.04),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black
+                                    .withOpacity(_isDarkMode ? 0.3 : 0.05),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
+                                spreadRadius: 0,
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            // Added Material widget to prevent text rendering issues
+                            color: Colors.transparent,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Category and Date
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(10),
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    colors: [
+                                                      transaction
+                                                          .getCategoryColor(
+                                                              _isDarkMode),
+                                                      transaction
+                                                          .getCategoryColor(
+                                                              _isDarkMode)
+                                                          .withOpacity(0.7),
+                                                    ],
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: transaction
+                                                          .getCategoryColor(
+                                                              _isDarkMode)
+                                                          .withOpacity(0.4),
+                                                      blurRadius: 8,
+                                                      offset:
+                                                          const Offset(0, 2),
+                                                      spreadRadius: 0,
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Icon(
+                                                  transaction.getCategoryIcon(),
+                                                  color: Colors.white,
+                                                  size: 20,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text(
+                                                CategoryService
+                                                    .formatDisplayCategory(
+                                                        transaction.category),
+                                                style: TextStyle(
+                                                  color: _isDarkMode
+                                                      ? Colors.white
+                                                      : Colors.black87,
+                                                  fontSize: 18,
+                                                  fontFamily: 'Onest',
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: _isDarkMode
+                                                  ? Colors.white
+                                                      .withOpacity(0.08)
+                                                  : Colors.blue
+                                                      .withOpacity(0.05),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              formattedDate,
+                                              style: TextStyle(
+                                                color: _isDarkMode
+                                                    ? Colors.white70
+                                                    : Colors.black54,
+                                                fontSize: 12,
+                                                fontFamily: 'Onest',
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 20),
+                                      const Divider(height: 1, thickness: 0.5),
+                                      const SizedBox(height: 20),
+                                      // Transaction Status - Enhanced visual style
+                                      _buildTransactionCardRow(
+                                        'Status',
+                                        transactionDetail
+                                                    .metadata?['pending'] ==
+                                                true
+                                            ? 'Pending'
+                                            : 'Complete',
+                                        transactionDetail
+                                                    .metadata?['pending'] ==
+                                                true
+                                            ? Colors.amber[800]!
+                                            : Colors.green[600]!,
+                                        _isDarkMode,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      // Payment Method - Enhanced visual style
+                                      _buildTransactionCardRow(
+                                        'Payment Method',
+                                        'Credit Card',
+                                        null,
+                                        _isDarkMode,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      // Transaction Type - Enhanced visual style
+                                      _buildTransactionCardRow(
+                                        'Type',
+                                        transaction.isOutflow
+                                            ? 'Purchase'
+                                            : 'Deposit',
+                                        null,
+                                        _isDarkMode,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Transaction Details section
+                        Text(
+                          'Transaction Details',
+                          style: TextStyle(
+                            color: _isDarkMode ? Colors.white : Colors.black87,
+                            fontSize: 18,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Detail rows
+                        _buildTransactionDetailRow(
+                            'Date', formattedDate, _isDarkMode),
+                        _buildTransactionDetailRow(
+                            'Time', formattedTime, _isDarkMode),
+                        _buildTransactionDetailRow(
+                            'Type',
+                            transaction.isOutflow ? 'Purchase' : 'Deposit',
+                            _isDarkMode),
+                        _buildTransactionDetailRow(
+                            'Status', 'Completed', _isDarkMode),
+                        if (transaction.merchantName != null)
+                          _buildTransactionDetailRow('Merchant',
+                              transaction.merchantName!, _isDarkMode),
+                        _buildTransactionDetailRow(
+                            'Account',
+                            'xxxx-xxxx-xxxx-${transaction.id.length > 4 ? transaction.id.substring(0, 4) : transaction.id}',
+                            _isDarkMode),
+                        _buildTransactionDetailRow('Transaction ID',
+                            '#${transaction.id}', _isDarkMode),
+
+                        // Add extra bottom padding to ensure all content is accessible
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+      );
+    } catch (e) {
+      _logger.e('Error showing transaction details: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load transaction details: ${e.toString()}'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _buildTransactionDetailRow(
+      String label, String value, bool isDarkMode) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isDarkMode ? Colors.white70 : Colors.black54,
+                fontSize: 14,
+                fontFamily: 'Onest',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: isDarkMode ? Colors.white : Colors.black87,
+                fontSize: 14,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4355,7 +4705,8 @@ Successful investing requires patience, research, and discipline. Start small, s
           sigmaY: math.max(8, _blurIntensity),
         ),
         child: Container(
-          height: MediaQuery.of(context).padding.top + 52,
+          height: (MediaQuery.of(context).padding.top + 52) *
+              1.2, // Increased by 1.2x to match content spacing
           decoration: BoxDecoration(
             color: _isDarkMode
                 ? const Color(0xFF141B2E).withOpacity(darkModeOpacity)
@@ -4790,5 +5141,221 @@ Successful investing requires patience, research, and discipline. Start small, s
       return 'Good Afternoon';
     }
     return 'Good Evening';
+  }
+
+  // Helper method to format category for display - extract the last part after comma
+  String _formatDisplayCategory(String? category) {
+    // Handle null or empty categories
+    if (category == null || category.isEmpty) {
+      return 'Uncategorized';
+    }
+
+    // Special cases for specific categories
+    if (category.contains('Airlines and Aviation Services')) {
+      return 'Airlines';
+    } else if (category.contains('Supermarkets and Groceries')) {
+      return 'Groceries';
+    } else if (category.contains('Department Stores')) {
+      return 'Stores';
+    } else if (category.contains('Movies and Theatres')) {
+      return 'Movies';
+    } else if (category.contains('Professional Services')) {
+      return 'Services';
+    } else if (category.contains('Telecommunication Services')) {
+      return 'Services';
+    } else if (category.contains('Streaming Services')) {
+      return 'Streaming';
+    } else if (category.contains('Gyms and Fitness Centers')) {
+      return 'Gym';
+    }
+
+    // For all other categories, get the last part of the string
+    final parts = category.split(',');
+    final lastPart = parts.last.trim();
+    return lastPart;
+  }
+
+  // Enhanced method to get category color with comprehensive handling of categories
+  Color _getCategoryColor(String? category, bool isDarkMode) {
+    if (category == null || category.isEmpty) {
+      return isDarkMode ? Colors.grey[400]! : Colors.grey[700]!;
+    }
+
+    // Check main category first
+    if (category.contains('Food and Drink')) {
+      return Colors.orange[400]!;
+    } else if (category.contains('Auto and Transport')) {
+      return Colors.blue[400]!;
+    } else if (category.contains('Travel')) {
+      return Colors.purple[400]!;
+    } else if (category.contains('Shops')) {
+      return Colors.teal[400]!;
+    } else if (category.contains('Recreation')) {
+      return Colors.green[400]!;
+    } else if (category.contains('Entertainment')) {
+      return Colors.indigo[400]!;
+    } else if (category.contains('Service')) {
+      return Colors.amber[400]!;
+    } else if (category.contains('Transfer')) {
+      return Colors.deepOrange[400]!;
+    }
+
+    // Then check subcategories
+    if (category.contains('Groceries') || category.contains('Supermarkets')) {
+      return Colors.lightGreen[400]!;
+    } else if (category.contains('Restaurants') ||
+        category.contains('Fast Food')) {
+      return Colors.orange[400]!;
+    } else if (category.contains('Coffee')) {
+      return Colors.brown[400]!;
+    } else if (category.contains('Gas')) {
+      return Colors.red[400]!;
+    } else if (category.contains('Airlines') || category.contains('Aviation')) {
+      return Colors.lightBlue[400]!;
+    } else if (category.contains('Lodging')) {
+      return Colors.purple[300]!;
+    } else if (category.contains('Taxi')) {
+      return Colors.yellow[700]!;
+    } else if (category.contains('Stores') || category.contains('Department')) {
+      return Colors.cyan[400]!;
+    } else if (category.contains('Digital') || category.contains('Purchase')) {
+      return Colors.blue[300]!;
+    } else if (category.contains('Improvement')) {
+      return Colors.brown[300]!;
+    } else if (category.contains('Pharmacy') ||
+        category.contains('Pharmacies')) {
+      return Colors.redAccent[400]!;
+    } else if (category.contains('Streaming')) {
+      return Colors.deepPurple[400]!;
+    } else if (category.contains('Movies') || category.contains('Theatres')) {
+      return Colors.pinkAccent[400]!;
+    } else if (category.contains('Gym') || category.contains('Fitness')) {
+      return Colors.green[500]!;
+    } else if (category.contains('Insurance')) {
+      return Colors.blueGrey[400]!;
+    } else if (category.contains('Pet')) {
+      return Colors.amber[600]!;
+    } else if (category.contains('Professional') ||
+        category.contains('Telecommunication')) {
+      return Colors.indigo[300]!;
+    }
+
+    // Default color
+    return isDarkMode ? Colors.teal[200]! : Colors.teal[700]!;
+  }
+
+  // Enhanced method to get category icon with comprehensive handling of categories
+  IconData _getCategoryIcon(String? category) {
+    if (category == null || category.isEmpty) {
+      return Icons.category;
+    }
+
+    // Check main category first
+    if (category.contains('Food and Drink')) {
+      return Icons.restaurant;
+    } else if (category.contains('Auto and Transport')) {
+      return Icons.directions_car;
+    } else if (category.contains('Travel')) {
+      return Icons.airplanemode_active;
+    } else if (category.contains('Shops')) {
+      return Icons.shopping_cart;
+    } else if (category.contains('Recreation')) {
+      return Icons.sports;
+    } else if (category.contains('Entertainment')) {
+      return Icons.movie;
+    } else if (category.contains('Service')) {
+      return Icons.build;
+    } else if (category.contains('Transfer')) {
+      return Icons.swap_horiz;
+    }
+
+    // Then check subcategories
+    if (category.contains('Groceries') || category.contains('Supermarkets')) {
+      return Icons.shopping_basket;
+    } else if (category.contains('Restaurants')) {
+      return Icons.restaurant_menu;
+    } else if (category.contains('Fast Food')) {
+      return Icons.fastfood;
+    } else if (category.contains('Coffee')) {
+      return Icons.coffee;
+    } else if (category.contains('Gas')) {
+      return Icons.local_gas_station;
+    } else if (category.contains('Airlines') || category.contains('Aviation')) {
+      return Icons.flight_takeoff;
+    } else if (category.contains('Lodging')) {
+      return Icons.hotel;
+    } else if (category.contains('Taxi')) {
+      return Icons.local_taxi;
+    } else if (category.contains('Stores') || category.contains('Department')) {
+      return Icons.store;
+    } else if (category.contains('Digital') || category.contains('Purchase')) {
+      return Icons.shopping_bag;
+    } else if (category.contains('Improvement')) {
+      return Icons.home_repair_service;
+    } else if (category.contains('Pharmacy') ||
+        category.contains('Pharmacies')) {
+      return Icons.local_pharmacy;
+    } else if (category.contains('Streaming')) {
+      return Icons.stream;
+    } else if (category.contains('Movies') || category.contains('Theatres')) {
+      return Icons.theaters;
+    } else if (category.contains('Gym') || category.contains('Fitness')) {
+      return Icons.fitness_center;
+    } else if (category.contains('Insurance')) {
+      return Icons.security;
+    } else if (category.contains('Pet')) {
+      return Icons.pets;
+    } else if (category.contains('Professional') ||
+        category.contains('Telecommunication')) {
+      return Icons.support_agent;
+    }
+
+    // Default icon
+    return Icons.category;
+  }
+
+  // Helper method to build transaction card detail rows with enhanced styling
+  Widget _buildTransactionCardRow(
+      String label, String value, Color? valueColor, bool isDarkMode) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isDarkMode ? Colors.white70 : Colors.black54,
+            fontSize: 14,
+            fontFamily: 'Onest',
+          ),
+        ),
+        if (valueColor != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: valueColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: 13,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          )
+        else
+          Text(
+            value,
+            style: TextStyle(
+              color: isDarkMode ? Colors.white : Colors.black87,
+              fontSize: 14,
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+      ],
+    );
   }
 }

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:blink_app/providers/theme_provider.dart';
@@ -11,6 +13,10 @@ import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
 import 'package:blink_app/features/transactions/domain/models/transaction_category.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:blink_app/features/transactions/presentation/widgets/category_selector_sheet.dart';
+import 'package:logger/logger.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'dart:ui' as ui;
+import 'package:blink_app/features/transactions/domain/services/category_service.dart';
 
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({Key? key}) : super(key: key);
@@ -28,9 +34,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   double _scrollOffset = 0;
   double _blurIntensity = 0;
   List<Transaction> _transactions = [];
-  int _currentPage = 1;
-  bool _hasMoreData = true;
-  bool _isLoadingMore = false;
   Map<String, List<Transaction>> _groupedTransactions = {};
   final DateFormat _dateFormatter = DateFormat('MMMM dd, yyyy');
   final NumberFormat _currencyFormatter = NumberFormat.currency(symbol: '\$');
@@ -47,6 +50,8 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   Timer? _searchDebounce;
   bool _isSearching = false;
   String _lastSearchQuery = '';
+
+  final Logger _logger = Logger();
 
   @override
   void initState() {
@@ -68,11 +73,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       _scrollOffset = _scrollController.offset;
       _blurIntensity = (_scrollOffset / 100).clamp(0, 15);
     });
-
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      _loadMoreTransactions();
-    }
   }
 
   Future<void> _loadTransactions() async {
@@ -84,73 +84,29 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final response = await authService.getAllTransactionsPaginated(
-        page: _currentPage,
-        limit: 50,
-      );
+      final transactions = await authService.getAllTransactions();
 
       if (!mounted) return;
 
-      if (response['success'] == true && response['data'] != null) {
-        final transactions = (response['data']['transactions'] as List)
-            .map((json) => Transaction.fromJson(json))
-            .toList();
-
-        if (!mounted) return;
-
-        setState(() {
-          _transactions = transactions;
-          _hasMoreData = transactions.length == 50;
-          _groupTransactions();
-        });
-      }
-    } catch (e) {
-      // TODO: Handle error
-    } finally {
-      if (!mounted) return;
       setState(() {
+        _transactions = transactions;
+        _groupTransactions();
         _isLoading = false;
       });
-    }
-  }
-
-  Future<void> _loadMoreTransactions() async {
-    if (_isLoadingMore || !_hasMoreData || !mounted) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final response = await authService.getAllTransactionsPaginated(
-        page: _currentPage + 1,
-        limit: 50,
-      );
-
-      if (!mounted) return;
-
-      if (response['success'] == true && response['data'] != null) {
-        final newTransactions = (response['data']['transactions'] as List)
-            .map((json) => Transaction.fromJson(json))
-            .toList();
-
-        if (!mounted) return;
-
-        setState(() {
-          _transactions.addAll(newTransactions);
-          _currentPage++;
-          _hasMoreData = newTransactions.length == 50;
-          _groupTransactions();
-        });
-      }
     } catch (e) {
-      // TODO: Handle error
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingMore = false;
-      });
+      _logger.e('Error loading all transactions: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Could not load transactions. Please try again later.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -255,7 +211,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                                   _isSearchExpanded = !_isSearchExpanded;
                                   if (!_isSearchExpanded) {
                                     _searchController.clear();
-                                    _loadTransactions();
+                                    _isSearching = false;
+                                    _lastSearchQuery = '';
+                                    // Only reload transactions if there was an active search
+                                    if (_isSearching) {
+                                      _loadTransactions();
+                                    }
                                   }
                                 });
                               },
@@ -301,20 +262,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 ),
               ],
             ),
-            if (_isSearchExpanded)
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _isSearchExpanded = false;
-                      _searchController.clear();
-                    });
-                  },
-                  child: Container(
-                    color: Colors.black.withOpacity(0.3),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -378,31 +325,35 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    style: TextStyle(
-                      color: _isDarkMode ? Colors.white : Colors.black87,
-                      fontFamily: 'Onest',
-                    ),
-                    decoration: InputDecoration(
-                      hintText:
-                          'Search by merchant, category, amount, or date...',
-                      hintStyle: TextStyle(
-                        color: _isDarkMode ? Colors.white60 : Colors.black45,
+                  // Make search field clickable even when overlay is active
+                  IgnorePointer(
+                    ignoring: false,
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      autofocus: true, // Auto focus when opened
+                      cursorColor: _isDarkMode ? Colors.blue[300] : Colors.blue,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white : Colors.black87,
                         fontFamily: 'Onest',
                       ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: _isDarkMode ? Colors.white60 : Colors.black45,
-                      ),
-                      suffixIcon: _isSearching
-                          ? _buildSearchingIndicator()
-                          : const SizedBox.shrink(),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
+                      decoration: InputDecoration(
+                        hintText:
+                            'Search by merchant, category, amount, or date...',
+                        hintStyle: TextStyle(
+                          color: _isDarkMode ? Colors.white60 : Colors.black45,
+                          fontFamily: 'Onest',
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: _isDarkMode ? Colors.white60 : Colors.black45,
+                        ),
+                        suffixIcon: _buildSearchingIndicator(),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -452,9 +403,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   _searchController.clear();
                   _isSearching = false;
                   _lastSearchQuery = '';
+                  _loadTransactions();
                 });
-                _loadTransactions();
               },
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
     );
   }
@@ -642,6 +595,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   Widget _buildTransactionItem(Transaction transaction) {
+    final formattedDate = DateFormat('MMM d, yyyy').format(transaction.date);
+    final wholeNumber = transaction.amount.floor();
+    final decimal = ((transaction.amount - wholeNumber) * 100)
+        .toInt()
+        .toString()
+        .padLeft(2, '0');
+    final formattedWholeNumber = NumberFormat('#,###').format(wholeNumber);
+
     return Slidable(
       endActionPane: ActionPane(
         motion: const BehindMotion(),
@@ -681,12 +642,21 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         child: Container(
           margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
           decoration: BoxDecoration(
-            color: _isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.white,
+                _isDarkMode
+                    ? Colors.white.withOpacity(0.05)
+                    : Colors.white.withOpacity(0.95),
+              ],
+            ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _isDarkMode
                   ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
+                  : Colors.black.withOpacity(0.05),
             ),
             boxShadow: _isDarkMode
                 ? null
@@ -706,8 +676,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    _buildCategoryIcon(transaction),
+                    // Category Icon with Gradient Border - Use CategoryService
+                    CategoryService.buildEnhancedCategoryIcon(
+                        transaction.category, _isDarkMode),
                     const SizedBox(width: 16),
+
+                    // Transaction Details
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,36 +689,61 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                           Text(
                             transaction.merchantName ?? 'Unknown Merchant',
                             style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                               color:
                                   _isDarkMode ? Colors.white : Colors.black87,
-                              fontSize: 16,
                               fontFamily: 'Onest',
-                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.3,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
-                                  vertical: 4,
+                                  vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _isDarkMode
-                                      ? Colors.white.withOpacity(0.1)
-                                      : Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: CategoryService.getCategoryColor(
+                                          transaction.category, _isDarkMode)
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  transaction.category ?? 'Uncategorized',
+                                  CategoryService.formatDisplayCategory(
+                                      transaction.category),
                                   style: TextStyle(
-                                    color: _isDarkMode
-                                        ? Colors.white70
-                                        : Colors.black54,
+                                    color: CategoryService.getCategoryColor(
+                                        transaction.category, _isDarkMode),
                                     fontSize: 12,
                                     fontFamily: 'Onest',
+                                    fontWeight: FontWeight.w500,
                                   ),
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                child: Text(
+                                  '•',
+                                  style: TextStyle(
+                                    color: _isDarkMode
+                                        ? Colors.white38
+                                        : Colors.black38,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                formattedDate,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _isDarkMode
+                                      ? Colors.white60
+                                      : Colors.black54,
+                                  fontFamily: 'Onest',
                                 ),
                               ),
                             ],
@@ -752,36 +751,60 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          _currencyFormatter.format(transaction.amount),
-                          style: TextStyle(
-                            color: transaction.isOutflow
-                                ? (_isDarkMode
-                                    ? Colors.red[300]
-                                    : Colors.red[700])
-                                : (_isDarkMode
-                                    ? Colors.green[300]
-                                    : Colors.green[700]),
-                            fontSize: 16,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.w600,
+
+                    // Amount with Gradient Effect
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          colors: transaction.isOutflow
+                              ? [Colors.red[400]!, Colors.red[300]!]
+                              : [
+                                  _isDarkMode
+                                      ? Colors.green[400]!
+                                      : Colors.green[700]!,
+                                  _isDarkMode
+                                      ? Colors.green[300]!
+                                      : Colors.green[600]!,
+                                ],
+                        ).createShader(bounds),
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '\$',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontFamily: 'Onest',
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              TextSpan(
+                                text: formattedWholeNumber,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontFamily: 'Onest',
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              TextSpan(
+                                text: '.$decimal',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontFamily: 'Onest',
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          DateFormat('MMM d').format(transaction.date),
-                          style: TextStyle(
-                            color:
-                                _isDarkMode ? Colors.white70 : Colors.black54,
-                            fontSize: 12,
-                            fontFamily: 'Onest',
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -789,51 +812,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryIcon(Transaction transaction) {
-    IconData iconData;
-    Color iconColor;
-
-    switch (transaction.category?.toLowerCase() ?? 'uncategorized') {
-      case 'groceries':
-        iconData = Icons.shopping_cart;
-        iconColor = Colors.green;
-        break;
-      case 'transportation':
-        iconData = Icons.directions_car;
-        iconColor = Colors.blue;
-        break;
-      case 'entertainment':
-        iconData = Icons.movie;
-        iconColor = Colors.purple;
-        break;
-      case 'dining':
-        iconData = Icons.restaurant;
-        iconColor = Colors.orange;
-        break;
-      case 'utilities':
-        iconData = Icons.power;
-        iconColor = Colors.red;
-        break;
-      default:
-        iconData = Icons.category_outlined;
-        iconColor = _isDarkMode ? Colors.white70 : Colors.grey;
-    }
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(
-        iconData,
-        color: iconColor,
-        size: 24,
       ),
     );
   }
@@ -906,7 +884,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         _resetFilters();
                       },
                       child: Text(
-                        'Reset',
+                        'Reset All',
                         style: TextStyle(
                           color:
                               _isDarkMode ? Colors.white70 : Colors.blue[700],
@@ -924,13 +902,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Date Range Filter
                       _buildFilterOptionsSection(
                         title: 'Date Range',
+                        icon: Icons.calendar_today,
                         child: Row(
                           children: [
                             Expanded(
                               child: _buildDateSelector(
-                                label: 'Start Date',
+                                label: 'From',
                                 value: _startDate,
                                 onTap: () async {
                                   final date = await showDatePicker(
@@ -938,6 +918,17 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                                     initialDate: _startDate ?? DateTime.now(),
                                     firstDate: DateTime(2020),
                                     lastDate: DateTime.now(),
+                                    builder: (context, child) {
+                                      return Theme(
+                                        data: Theme.of(context).copyWith(
+                                          colorScheme: ColorScheme.light(
+                                            primary: Colors.blue[700]!,
+                                            onPrimary: Colors.white,
+                                          ),
+                                        ),
+                                        child: child!,
+                                      );
+                                    },
                                   );
                                   if (date != null) {
                                     setState(() => _startDate = date);
@@ -948,7 +939,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: _buildDateSelector(
-                                label: 'End Date',
+                                label: 'To',
                                 value: _endDate,
                                 onTap: () async {
                                   final date = await showDatePicker(
@@ -956,6 +947,17 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                                     initialDate: _endDate ?? DateTime.now(),
                                     firstDate: _startDate ?? DateTime(2020),
                                     lastDate: DateTime.now(),
+                                    builder: (context, child) {
+                                      return Theme(
+                                        data: Theme.of(context).copyWith(
+                                          colorScheme: ColorScheme.light(
+                                            primary: Colors.blue[700]!,
+                                            onPrimary: Colors.white,
+                                          ),
+                                        ),
+                                        child: child!,
+                                      );
+                                    },
                                   );
                                   if (date != null) {
                                     setState(() => _endDate = date);
@@ -967,63 +969,181 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
+
+                      // Amount Range Filter
                       _buildFilterOptionsSection(
                         title: 'Amount Range',
-                        child: Column(
+                        icon: Icons.attach_money,
+                        child: Row(
                           children: [
-                            RangeSlider(
-                              values:
-                                  _amountRange ?? const RangeValues(0, 1000),
-                              min: 0,
-                              max: 1000,
-                              divisions: 20,
-                              labels: RangeLabels(
-                                '\$${(_amountRange?.start ?? 0).toStringAsFixed(0)}',
-                                '\$${(_amountRange?.end ?? 1000).toStringAsFixed(0)}',
+                            Expanded(
+                              child: TextFormField(
+                                decoration: InputDecoration(
+                                  labelText: 'Min',
+                                  prefixText: '\$',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: _isDarkMode
+                                          ? Colors.white.withOpacity(0.1)
+                                          : Colors.grey[300]!,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 16),
+                                  labelStyle: TextStyle(
+                                    color: _isDarkMode
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                    fontFamily: 'Onest',
+                                  ),
+                                ),
+                                keyboardType: TextInputType.number,
+                                style: TextStyle(
+                                  color: _isDarkMode
+                                      ? Colors.white
+                                      : Colors.black87,
+                                  fontFamily: 'Onest',
+                                ),
+                                onChanged: (value) {
+                                  if (value.isNotEmpty) {
+                                    final min = double.tryParse(value) ?? 0;
+                                    final max = _amountRange?.end ?? 1000;
+                                    setState(() {
+                                      _amountRange = RangeValues(min, max);
+                                    });
+                                  }
+                                },
+                                initialValue: _amountRange?.start.toString(),
+                                cursorColor: _isDarkMode
+                                    ? Colors.blue[300]
+                                    : Colors.blue,
                               ),
-                              onChanged: (values) {
-                                setState(() => _amountRange = values);
-                              },
                             ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  '\$${(_amountRange?.start ?? 0).toStringAsFixed(0)}',
-                                  style: TextStyle(
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                decoration: InputDecoration(
+                                  labelText: 'Max',
+                                  prefixText: '\$',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: _isDarkMode
+                                          ? Colors.white.withOpacity(0.1)
+                                          : Colors.grey[300]!,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 16),
+                                  labelStyle: TextStyle(
                                     color: _isDarkMode
                                         ? Colors.white70
                                         : Colors.black54,
                                     fontFamily: 'Onest',
                                   ),
                                 ),
-                                Text(
-                                  '\$${(_amountRange?.end ?? 1000).toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    color: _isDarkMode
-                                        ? Colors.white70
-                                        : Colors.black54,
-                                    fontFamily: 'Onest',
-                                  ),
+                                keyboardType: TextInputType.number,
+                                style: TextStyle(
+                                  color: _isDarkMode
+                                      ? Colors.white
+                                      : Colors.black87,
+                                  fontFamily: 'Onest',
                                 ),
-                              ],
+                                onChanged: (value) {
+                                  if (value.isNotEmpty) {
+                                    final min = _amountRange?.start ?? 0;
+                                    final max = double.tryParse(value) ?? 1000;
+                                    setState(() {
+                                      _amountRange = RangeValues(min, max);
+                                    });
+                                  }
+                                },
+                                initialValue: _amountRange?.end.toString(),
+                                cursorColor: _isDarkMode
+                                    ? Colors.blue[300]
+                                    : Colors.blue,
+                              ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 24),
+
+                      // Category Filter
+                      _buildFilterOptionsSection(
+                        title: 'Category',
+                        icon: Icons.category,
+                        child: InkWell(
+                          onTap: () {
+                            // Show category selection dialog
+                            _showCategorySelectionDialog(context, setState);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _isDarkMode
+                                  ? Colors.white.withOpacity(0.1)
+                                  : Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _isDarkMode
+                                    ? Colors.white.withOpacity(0.1)
+                                    : Colors.grey[300]!,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _selectedCategory ?? 'Select Category',
+                                  style: TextStyle(
+                                    color: _isDarkMode
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontFamily: 'Onest',
+                                    fontWeight: _selectedCategory != null
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: _isDarkMode
+                                      ? Colors.white60
+                                      : Colors.black54,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Sort By Options
                       _buildFilterOptionsSection(
                         title: 'Sort By',
-                        child: Wrap(
-                          spacing: 8,
+                        icon: Icons.sort,
+                        child: Column(
                           children: [
-                            _buildSortChip('Date', 'date'),
-                            _buildSortChip('Amount', 'amount'),
-                            _buildSortChip('Category', 'category'),
+                            _buildSortOption(
+                              label: 'Date',
+                              value: 'date',
+                              setState: setState,
+                            ),
+                            const Divider(height: 1),
+                            _buildSortOption(
+                              label: 'Category',
+                              value: 'category',
+                              setState: setState,
+                            ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 32),
+
+                      // Apply Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -1063,23 +1183,112 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     );
   }
 
+  void _showCategorySelectionDialog(
+      BuildContext context, StateSetter setState) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            'Select Category',
+            style: TextStyle(
+              color: _isDarkMode ? Colors.white : Colors.black87,
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          backgroundColor: _isDarkMode ? const Color(0xFF1A2942) : Colors.white,
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                _buildCategoryListTile('Groceries', setState),
+                _buildCategoryListTile('Restaurants', setState),
+                _buildCategoryListTile('Fast Food', setState),
+                _buildCategoryListTile('Coffee Shop', setState),
+                _buildCategoryListTile('Transportation', setState),
+                _buildCategoryListTile('Entertainment', setState),
+                _buildCategoryListTile('Airlines', setState),
+                _buildCategoryListTile('Utilities', setState),
+                _buildCategoryListTile('Shopping', setState),
+                _buildCategoryListTile('Dining', setState),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  fontFamily: 'Onest',
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryListTile(String category, StateSetter setState) {
+    final isSelected = _selectedCategory == category;
+    return ListTile(
+      title: Text(
+        category,
+        style: TextStyle(
+          color: _isDarkMode ? Colors.white : Colors.black87,
+          fontFamily: 'Onest',
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(
+              Icons.check_circle,
+              color: Colors.blue[700],
+            )
+          : null,
+      onTap: () {
+        setState(() {
+          _selectedCategory = category;
+        });
+        Navigator.pop(context);
+      },
+    );
+  }
+
   Widget _buildFilterOptionsSection({
     required String title,
     required Widget child,
+    IconData? icon,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: _isDarkMode ? Colors.white : Colors.black87,
-            fontSize: 16,
-            fontFamily: 'Onest',
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 18,
+                color: _isDarkMode ? Colors.white70 : Colors.blue[700],
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              title,
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.black87,
+                fontSize: 16,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         child,
       ],
     );
@@ -1114,16 +1323,26 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              value != null
-                  ? DateFormat('MMM d, y').format(value)
-                  : 'Select Date',
-              style: TextStyle(
-                color: _isDarkMode ? Colors.white : Colors.black87,
-                fontSize: 14,
-                fontFamily: 'Onest',
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  value != null
+                      ? DateFormat('MMM d, yyyy').format(value)
+                      : 'Select Date',
+                  style: TextStyle(
+                    color: _isDarkMode ? Colors.white : Colors.black87,
+                    fontSize: 14,
+                    fontFamily: 'Onest',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: _isDarkMode ? Colors.white60 : Colors.blue[700],
+                ),
+              ],
             ),
           ],
         ),
@@ -1131,22 +1350,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     );
   }
 
-  Widget _buildSortChip(String label, String value) {
+  Widget _buildSortOption({
+    required String label,
+    required String value,
+    required StateSetter setState,
+  }) {
     final isSelected = _sortBy == value;
-    return FilterChip(
-      selected: isSelected,
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label),
-          if (isSelected)
-            Icon(
-              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-              size: 16,
-            ),
-        ],
-      ),
-      onSelected: (selected) {
+    return InkWell(
+      onTap: () {
         setState(() {
           if (_sortBy == value) {
             _sortAscending = !_sortAscending;
@@ -1156,15 +1367,42 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           }
         });
       },
-      backgroundColor:
-          _isDarkMode ? Colors.white.withOpacity(0.1) : Colors.grey[100]!,
-      selectedColor: _isDarkMode ? Colors.white : Colors.blue[700],
-      checkmarkColor: _isDarkMode ? Colors.black87 : Colors.white,
-      labelStyle: TextStyle(
-        color: isSelected
-            ? (_isDarkMode ? Colors.black87 : Colors.white)
-            : (_isDarkMode ? Colors.white : Colors.black87),
-        fontFamily: 'Onest',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.black87,
+                fontFamily: 'Onest',
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  isSelected
+                      ? (_sortAscending ? 'Ascending' : 'Descending')
+                      : '',
+                  style: TextStyle(
+                    color: Colors.blue[700],
+                    fontSize: 12,
+                    fontFamily: 'Onest',
+                  ),
+                ),
+                const SizedBox(width: 4),
+                if (isSelected)
+                  Icon(
+                    _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 16,
+                    color: Colors.blue[700],
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1206,64 +1444,153 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     );
   }
 
-  void _showTransactionDetails(Transaction transaction) async {
+  void _showTransactionDetails(Transaction transaction) {
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final details = await authService.getTransactionDetails(transaction.id);
+      // Get actual transaction information from the transaction itself
+      final transactionDate = transaction.date;
+      final formattedDate = DateFormat('MMM d, yyyy').format(transactionDate);
+      final formattedTime = DateFormat('h:mm a').format(transactionDate);
 
-      // Convert response to TransactionDetail
-      final transactionDetail = TransactionDetail.fromJson(details['data']);
+      // Fetch location data from the database for this transaction
+      // Pass the transactionId field instead of id
+      _fetchTransactionLocation(transaction.transactionId).then((locationData) {
+        if (!mounted) return;
 
-      if (!mounted) return;
+        // Create a TransactionDetail object with useful metadata
+        final transactionDetail = TransactionDetail(
+          id: transaction.id,
+          merchantName: transaction.merchantName,
+          amount: transaction.amount,
+          date: transaction.date,
+          category:
+              null, // Set category to null as the expected type is incompatible
+          metadata: {
+            'pending': false,
+            'transaction_id':
+                transaction.transactionId, // Store the correct ID here
+            'payment_method': 'credit_card', // Default value
+            'account_number':
+                'xxxx-xxxx-xxxx-${transaction.id}', // Create a masked account number
+            'description': transaction.merchantName,
+            'category':
+                transaction.category, // Store category in metadata instead
+            'date': formattedDate,
+            'time': formattedTime,
+            'status': transaction.isOutflow ? 'Outflow' : 'Inflow',
+            'type': transaction.isOutflow ? 'Purchase' : 'Deposit',
+            'location': locationData,
+          },
+        );
 
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => DraggableScrollableSheet(
-          initialChildSize: 0.75,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          builder: (context, scrollController) => TransactionDetailsSheet(
-            transaction: transaction,
-            details: transactionDetail,
-            isDarkMode: _isDarkMode,
-            onCategoryChanged: (category) async {
-              try {
-                await authService.updateTransactionCategory(
-                  transactionId: transaction.id,
-                  category: category.id,
-                );
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Category updated to ${category.name}'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                // Refresh the transactions list
-                _loadTransactions();
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to update category'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
+        // Navigate to detailed transaction page
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TransactionDetailsPage(
+              transaction: transaction,
+              details: transactionDetail,
+            ),
           ),
-        ),
-      );
+        );
+      }).catchError((error) {
+        _logger.e('Error fetching transaction location: $error');
+
+        // If we can't get location data, still show the details without it
+        final transactionDetail = TransactionDetail(
+          id: transaction.id,
+          merchantName: transaction.merchantName,
+          amount: transaction.amount,
+          date: transaction.date,
+          category: null,
+          metadata: {
+            'pending': false,
+            'transaction_id':
+                transaction.transactionId, // Store the correct ID here too
+            'payment_method': 'credit_card',
+            'account_number': 'xxxx-xxxx-xxxx-${transaction.id}',
+            'description': transaction.merchantName,
+            'category': transaction.category,
+            'date': formattedDate,
+            'time': formattedTime,
+            'status': transaction.isOutflow ? 'Outflow' : 'Inflow',
+            'type': transaction.isOutflow ? 'Purchase' : 'Deposit',
+          },
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TransactionDetailsPage(
+              transaction: transaction,
+              details: transactionDetail,
+            ),
+          ),
+        );
+      });
     } catch (e) {
+      _logger.e('Error showing transaction details: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to load transaction details'),
+        SnackBar(
+          content: Text('Failed to load transaction details: ${e.toString()}'),
           behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red,
         ),
       );
     }
+  }
+
+  Future<Map<String, dynamic>?> _fetchTransactionLocation(
+      String transactionId) async {
+    // Validate transaction ID format before making the API call
+    if (transactionId.isEmpty || transactionId.length < 10) {
+      _logger.w('Invalid transaction ID format: $transactionId');
+      return _getFallbackLocation();
+    }
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      // Log the transaction ID being used
+      _logger.i('Fetching location for transaction ID: $transactionId');
+
+      // Use the dedicated endpoint for transaction location
+      final results =
+          await authService.getTransactionLocationFromEndpoint(transactionId);
+
+      _logger.d(
+          'Location data retrieved for transaction $transactionId: $results');
+
+      // If we have valid location data, return it
+      if (results != null) {
+        // The API may return the location data directly or nested in a 'location' key
+        if (results.containsKey('location')) {
+          _logger.i(
+              'Found location data in response for transaction $transactionId');
+          return results['location'] as Map<String, dynamic>;
+        }
+        return results;
+      }
+
+      _logger.w(
+          'No location data available for transaction $transactionId, using fallback');
+      return _getFallbackLocation();
+    } catch (e) {
+      _logger.e('Error fetching transaction location: $e');
+      // Return fallback location if there's an error
+      return _getFallbackLocation();
+    }
+  }
+
+  // Extract fallback location logic to separate method
+  Map<String, dynamic> _getFallbackLocation() {
+    return {
+      'lat': 25.7617,
+      'lon': -80.1918,
+      'city': 'Miami',
+      'region': 'FL',
+      'address': '1100 Biscayne Blvd',
+      'country': 'US',
+      'postal_code': '33132',
+    };
   }
 
   void _onSearchChanged(String query) {
@@ -1271,11 +1598,17 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
     setState(() {
       _isSearching = query.isNotEmpty;
+      if (!_isSearching) {
+        _lastSearchQuery = '';
+      }
     });
 
     _searchDebounce = Timer(const Duration(milliseconds: 500), () {
       if (query.isEmpty) {
-        _loadTransactions();
+        setState(() {
+          // Reset to showing all transactions
+          _loadTransactions();
+        });
         return;
       }
 
@@ -1286,43 +1619,50 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         _isLoading = true;
       });
 
-      final lowercaseQuery = query.toLowerCase();
-      final filteredTransactions = _transactions.where((transaction) {
-        // Search in merchant name
-        final merchantName = (transaction.merchantName ?? '').toLowerCase();
-        if (merchantName.contains(lowercaseQuery)) return true;
+      // Run the search in a separate microtask to avoid UI blocking
+      Future.microtask(() {
+        // Filter transactions in memory rather than making API calls
+        final lowercaseQuery = query.toLowerCase();
+        final allTransactions = List<Transaction>.from(_transactions);
+        final filteredTransactions = _transactions.where((transaction) {
+          // Search in merchant name
+          final merchantName = (transaction.merchantName ?? '').toLowerCase();
+          if (merchantName.contains(lowercaseQuery)) return true;
 
-        // Search in category
-        final category = (transaction.category ?? '').toLowerCase();
-        if (category.contains(lowercaseQuery)) return true;
+          // Search in category
+          final category = (transaction.category ?? '').toLowerCase();
+          if (category.contains(lowercaseQuery)) return true;
 
-        // Search in amount (both exact and formatted)
-        final amount = transaction.amount.toString();
-        final formattedAmount =
-            _currencyFormatter.format(transaction.amount).toLowerCase();
-        if (amount.contains(lowercaseQuery) ||
-            formattedAmount.contains(lowercaseQuery)) return true;
+          // Search in amount (both exact and formatted)
+          final amount = transaction.amount.toString();
+          final formattedAmount =
+              _currencyFormatter.format(transaction.amount).toLowerCase();
+          if (amount.contains(lowercaseQuery) ||
+              formattedAmount.contains(lowercaseQuery)) return true;
 
-        // Search in date (various formats)
-        final date = transaction.date;
-        final fullDate = DateFormat('MMMM d, y').format(date).toLowerCase();
-        final shortDate = DateFormat('MMM d').format(date).toLowerCase();
-        final monthYear = DateFormat('MMMM y').format(date).toLowerCase();
-        if (fullDate.contains(lowercaseQuery) ||
-            shortDate.contains(lowercaseQuery) ||
-            monthYear.contains(lowercaseQuery)) return true;
+          // Search in date (various formats)
+          final date = transaction.date;
+          final fullDate = DateFormat('MMMM d, y').format(date).toLowerCase();
+          final shortDate = DateFormat('MMM d').format(date).toLowerCase();
+          final monthYear = DateFormat('MMMM y').format(date).toLowerCase();
+          if (fullDate.contains(lowercaseQuery) ||
+              shortDate.contains(lowercaseQuery) ||
+              monthYear.contains(lowercaseQuery)) return true;
 
-        // Search in relative dates (today, yesterday, etc.)
-        final relativeDate = _getGroupDate(date).toLowerCase();
-        if (relativeDate.contains(lowercaseQuery)) return true;
+          // Search in relative dates (today, yesterday, etc.)
+          final relativeDate = _getGroupDate(date).toLowerCase();
+          if (relativeDate.contains(lowercaseQuery)) return true;
 
-        return false;
-      }).toList();
+          return false;
+        }).toList();
 
-      setState(() {
-        _transactions = filteredTransactions;
-        _groupTransactions();
-        _isLoading = false;
+        if (mounted) {
+          setState(() {
+            _transactions = filteredTransactions;
+            _groupTransactions();
+            _isLoading = false;
+          });
+        }
       });
     });
   }
@@ -1341,94 +1681,412 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   void _applyFilters() {
-    // TODO: Implement filter application with API call
-    _loadTransactions();
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Store all transactions before filtering
+    final allTransactions = List<Transaction>.from(_transactions);
+
+    // Apply filters to transactions in memory
+    List<Transaction> filteredTransactions = allTransactions;
+
+    // Filter by date range
+    if (_startDate != null) {
+      filteredTransactions = filteredTransactions.where((t) {
+        return t.date.isAfter(_startDate!) ||
+            t.date.isAtSameMomentAs(_startDate!);
+      }).toList();
+    }
+
+    if (_endDate != null) {
+      filteredTransactions = filteredTransactions.where((t) {
+        return t.date.isBefore(_endDate!.add(const Duration(days: 1)));
+      }).toList();
+    }
+
+    // Filter by category
+    if (_selectedCategory != null) {
+      filteredTransactions = filteredTransactions.where((t) {
+        return t.category
+                ?.toLowerCase()
+                .contains(_selectedCategory!.toLowerCase()) ??
+            false;
+      }).toList();
+    }
+
+    // Filter by amount range
+    if (_amountRange != null) {
+      filteredTransactions = filteredTransactions.where((t) {
+        return t.amount >= _amountRange!.start && t.amount <= _amountRange!.end;
+      }).toList();
+    }
+
+    // Sort the transactions
+    if (_sortBy == 'date') {
+      filteredTransactions.sort((a, b) =>
+          _sortAscending ? a.date.compareTo(b.date) : b.date.compareTo(a.date));
+    } else if (_sortBy == 'amount') {
+      filteredTransactions.sort((a, b) => _sortAscending
+          ? a.amount.compareTo(b.amount)
+          : b.amount.compareTo(a.amount));
+    } else if (_sortBy == 'category') {
+      filteredTransactions.sort((a, b) {
+        final categoryA = a.category?.toLowerCase() ?? '';
+        final categoryB = b.category?.toLowerCase() ?? '';
+        return _sortAscending
+            ? categoryA.compareTo(categoryB)
+            : categoryB.compareTo(categoryA);
+      });
+    }
+
+    setState(() {
+      _transactions = filteredTransactions;
+      _groupTransactions();
+      _isLoading = false;
+    });
   }
 }
 
-class TransactionDetailsSheet extends StatelessWidget {
+class TransactionDetailsPage extends StatefulWidget {
   final Transaction transaction;
   final TransactionDetail details;
-  final bool isDarkMode;
-  final Function(TransactionCategory) onCategoryChanged;
 
-  const TransactionDetailsSheet({
+  const TransactionDetailsPage({
     Key? key,
     required this.transaction,
     required this.details,
-    required this.isDarkMode,
-    required this.onCategoryChanged,
   }) : super(key: key);
 
   @override
+  State<TransactionDetailsPage> createState() => _TransactionDetailsPageState();
+}
+
+class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
+  MapboxMap? _mapboxMap;
+  bool _mapInitialized = false;
+  final Logger _logger = Logger(); // Add logger
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF1A2942) : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
-              color:
-                  isDarkMode ? Colors.white.withOpacity(0.1) : Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
+    final size = MediaQuery.of(context).size;
+
+    return Scaffold(
+      backgroundColor: isDarkMode ? const Color(0xFF0A1929) : Colors.grey[50],
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // App Bar
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 0,
+              backgroundColor:
+                  isDarkMode ? const Color(0xFF0A1929) : Colors.grey[50],
+              leading: IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                  size: 18,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              actions: [
+                IconButton(
+                  icon: Icon(
+                    Icons.more_horiz,
+                    color: isDarkMode ? Colors.white : Colors.black87,
+                  ),
+                  onPressed: () => _showOptionsBottomSheet(context, isDarkMode),
+                ),
+              ],
             ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  _buildDetailsSection(),
-                  const SizedBox(height: 24),
-                  _buildMetadataSection(),
-                ],
+
+            // Content
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with merchant and amount
+                    _buildHeader(context, isDarkMode),
+                    const SizedBox(height: 32),
+
+                    // Transaction card
+                    _buildTransactionCard(context, isDarkMode),
+                    const SizedBox(height: 32),
+
+                    // Transaction details section
+                    _buildDetailsSection(isDarkMode),
+                    const SizedBox(height: 24),
+
+                    // Map view (if location data is available)
+                    if (_hasLocationData()) _buildMapSection(isDarkMode),
+
+                    // Additional information
+                    if (widget.details.metadata != null &&
+                        widget.details.metadata!.isNotEmpty)
+                      _buildMetadataSection(isDarkMode),
+
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildBottomBar(context, isDarkMode),
+    );
+  }
+
+  bool _hasLocationData() {
+    final locationData = widget.details.metadata?['location'];
+    return locationData != null &&
+        locationData['lat'] != null &&
+        locationData['lon'] != null;
+  }
+
+  Widget _buildMapSection(bool isDarkMode) {
+    final locationData = widget.details.metadata?['location'];
+    if (locationData == null) return const SizedBox.shrink();
+
+    final lat = locationData['lat'] as double;
+    final lon = locationData['lon'] as double;
+    final address = locationData['address'] as String?;
+    final city = locationData['city'] as String?;
+    final region = locationData['region'] as String?;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Transaction Location',
+          style: TextStyle(
+            color: isDarkMode ? Colors.white : Colors.black87,
+            fontSize: 18,
+            fontFamily: 'Onest',
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
+        const SizedBox(height: 8),
+        if (address != null)
+          Text(
+            address,
+            style: TextStyle(
+              color: isDarkMode ? Colors.white70 : Colors.black54,
+              fontSize: 14,
+              fontFamily: 'Onest',
+            ),
+          ),
+        if (city != null && region != null)
+          Text(
+            '$city, $region',
+            style: TextStyle(
+              color: isDarkMode ? Colors.white70 : Colors.black54,
+              fontSize: 14,
+              fontFamily: 'Onest',
+            ),
+          ),
+        const SizedBox(height: 16),
+        Container(
+          height: 250,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              _buildMapView(lat, lon),
+
+              // Fallback overlay in case map doesn't load
+              if (!_mapInitialized)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDarkMode ? Colors.black12 : Colors.white70,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 32,
+                            color: CategoryService.getCategoryColor(
+                                widget.transaction.category, isDarkMode),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Location: $lat, $lon',
+                            style: TextStyle(
+                              color:
+                                  isDarkMode ? Colors.white70 : Colors.black54,
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildMapView(double lat, double lon) {
+    // Create a simpler map configuration to avoid platform view issues
+    return MapWidget(
+      key: ValueKey('transaction_map_${widget.transaction.id}'),
+      styleUri: MapboxStyles.MAPBOX_STREETS,
+      onMapCreated: _onMapCreated,
+      cameraOptions: CameraOptions(
+        center: Point(
+          coordinates: Position(lon, lat),
+        ),
+        zoom: 15.0,
       ),
     );
   }
 
-  Widget _buildHeader() {
+  void _onMapCreated(MapboxMap mapboxMap) {
+    _mapboxMap = mapboxMap;
+
+    // Add a slight delay before adding the marker to ensure the map is fully loaded
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _addMarkerToMap(mapboxMap);
+    });
+  }
+
+  Future<void> _addMarkerToMap(MapboxMap mapboxMap) async {
+    final locationData = widget.details.metadata?['location'];
+    if (locationData == null) {
+      _logger.w('No location data available for map display');
+      return;
+    }
+
+    // Validate location data has required fields
+    if (!locationData.containsKey('lat') || !locationData.containsKey('lon')) {
+      _logger.w('Location data missing latitude or longitude: $locationData');
+      return;
+    }
+
+    final lat = locationData['lat'] as double;
+    final lon = locationData['lon'] as double;
+
+    // Log the coordinates being used for the marker
+    _logger.i('Adding map marker at coordinates: $lat, $lon');
+
+    try {
+      // Get category color for styling the marker
+      final categoryColor = CategoryService.getCategoryColor(
+          widget.transaction.category,
+          Provider.of<ThemeProvider>(context, listen: false).isDarkMode);
+
+      // Create a circle annotation manager
+      final circleAnnotationManager =
+          await mapboxMap.annotations.createCircleAnnotationManager();
+
+      // Create circle annotation for the transaction location
+      final circleAnnotationOptions = CircleAnnotationOptions(
+        geometry: Point(
+          coordinates: Position(lon, lat),
+        ),
+        // Style the circle
+        circleRadius: 12.0,
+        circleColor: categoryColor.value,
+        circleStrokeWidth: 2.0,
+        circleStrokeColor: Colors.white.value,
+      );
+
+      // Add the annotation to the map
+      await circleAnnotationManager.create(circleAnnotationOptions);
+
+      // Add a small pulsing effect circle behind the main marker
+      final pulseCircleOptions = CircleAnnotationOptions(
+        geometry: Point(
+          coordinates: Position(lon, lat),
+        ),
+        // Larger, more transparent circle
+        circleRadius: 20.0,
+        circleColor: categoryColor.withOpacity(0.3).value,
+        circleStrokeWidth: 0.0,
+      );
+
+      // Add the pulse circle
+      await circleAnnotationManager.create(pulseCircleOptions);
+
+      // Move camera to the point - fix the flyTo call
+      mapboxMap.flyTo(
+          CameraOptions(
+            center: Point(coordinates: Position(lon, lat)),
+            zoom: 15.0,
+          ),
+          null // Second parameter is for animation options, null for default animation
+          );
+
+      // Mark map as initialized
+      setState(() {
+        _mapInitialized = true;
+      });
+
+      _logger.i('Map marker successfully added at $lat, $lon');
+    } catch (e) {
+      _logger.e('Error adding marker to map: $e');
+
+      // Still mark as initialized to hide the fallback UI
+      setState(() {
+        _mapInitialized = true;
+      });
+    }
+  }
+
+  Widget _buildHeader(BuildContext context, bool isDarkMode) {
     final currencyFormatter = NumberFormat.currency(symbol: '\$');
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          transaction.merchantName ?? 'Unknown Merchant',
+          widget.transaction.merchantName ?? 'Unknown Merchant',
           style: TextStyle(
             color: isDarkMode ? Colors.white : Colors.black87,
-            fontSize: 24,
+            fontSize: 26,
             fontFamily: 'Onest',
             fontWeight: FontWeight.bold,
           ),
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
-          currencyFormatter.format(transaction.amount),
+          currencyFormatter.format(widget.transaction.amount),
           style: TextStyle(
-            color: transaction.isOutflow ? Colors.red[400] : Colors.green[400],
-            fontSize: 32,
+            color: widget.transaction.isOutflow
+                ? Colors.red[400]
+                : Colors.green[400],
+            fontSize: 36,
             fontFamily: 'Onest',
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: (transaction.isOutflow ? Colors.red : Colors.green)
+            color: (widget.transaction.isOutflow ? Colors.red : Colors.green)
                 .withOpacity(0.1),
             borderRadius: BorderRadius.circular(20),
           ),
@@ -1436,18 +2094,19 @@ class TransactionDetailsSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                transaction.isOutflow
+                widget.transaction.isOutflow
                     ? Icons.arrow_upward
                     : Icons.arrow_downward,
                 size: 16,
-                color:
-                    transaction.isOutflow ? Colors.red[400] : Colors.green[400],
+                color: widget.transaction.isOutflow
+                    ? Colors.red[400]
+                    : Colors.green[400],
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
               Text(
-                transaction.isOutflow ? 'Outflow' : 'Inflow',
+                widget.transaction.isOutflow ? 'Money Out' : 'Money In',
                 style: TextStyle(
-                  color: transaction.isOutflow
+                  color: widget.transaction.isOutflow
                       ? Colors.red[400]
                       : Colors.green[400],
                   fontSize: 14,
@@ -1462,59 +2121,294 @@ class TransactionDetailsSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailsSection() {
+  Widget _buildTransactionCard(BuildContext context, bool isDarkMode) {
+    // Use either the stored category in metadata or the transaction category
+    final displayCategory =
+        widget.details.metadata?['category'] ?? widget.transaction.category;
+    final categoryColor =
+        CategoryService.getCategoryColor(displayCategory, isDarkMode);
+    final categoryIcon = CategoryService.getCategoryIcon(displayCategory);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            isDarkMode ? Colors.white.withOpacity(0.08) : Colors.white,
+            isDarkMode
+                ? Colors.white.withOpacity(0.05)
+                : Colors.white.withOpacity(0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
+        ),
+        boxShadow: isDarkMode
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Category and Date
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              categoryColor,
+                              categoryColor.withOpacity(0.7),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          categoryIcon,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        CategoryService.formatDisplayCategory(displayCategory),
+                        style: TextStyle(
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                          fontSize: 18,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    widget.details.metadata?['date'] ??
+                        DateFormat('MMM d, yyyy')
+                            .format(widget.transaction.date),
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white70 : Colors.black54,
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 20),
+
+              // Transaction Status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Status',
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white70 : Colors.black54,
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.details.metadata?['pending'] == true
+                          ? Colors.amber.withOpacity(0.1)
+                          : Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      widget.details.metadata?['pending'] == true
+                          ? 'Pending'
+                          : 'Complete',
+                      style: TextStyle(
+                        color: widget.details.metadata?['pending'] == true
+                            ? Colors.amber[800]
+                            : Colors.green[600],
+                        fontSize: 12,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Payment Method
+              if (widget.details.metadata?['payment_method'] != null) ...[
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Payment Method',
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.white70 : Colors.black54,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                    Text(
+                      CategoryService.formatPaymentMethod(
+                          widget.details.metadata?['payment_method']),
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.white : Colors.black87,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              // Transaction Type
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Type',
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white70 : Colors.black54,
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
+                  Text(
+                    widget.details.metadata?['type'] ??
+                        (widget.transaction.isOutflow ? 'Purchase' : 'Deposit'),
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white : Colors.black87,
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailsSection(bool isDarkMode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Transaction Details'),
+        Text(
+          'Transaction Details',
+          style: TextStyle(
+            color: isDarkMode ? Colors.white : Colors.black87,
+            fontSize: 18,
+            fontFamily: 'Onest',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 16),
-        _buildDetailRow('Date', DateFormat('MMMM d, y').format(details.date)),
-        _buildDetailRow('Category', details.category ?? 'Uncategorized'),
-        if (details.metadata?['description'] != null)
-          _buildDetailRow('Description', details.metadata!['description']),
-        if (details.metadata?['pending'] == true)
-          _buildDetailRow('Status', 'Pending'),
+        // Display date and time
+        _buildDetailRow(
+            'Date',
+            widget.details.metadata?['date'] ??
+                DateFormat('MMMM d, yyyy').format(widget.details.date),
+            isDarkMode),
+        _buildDetailRow(
+            'Time',
+            widget.details.metadata?['time'] ??
+                DateFormat('h:mm a').format(widget.details.date),
+            isDarkMode),
+
+        // Display transaction type and status
+        _buildDetailRow(
+            'Type',
+            widget.details.metadata?['type'] ??
+                (widget.transaction.isOutflow ? 'Purchase' : 'Deposit'),
+            isDarkMode),
+        _buildDetailRow(
+            'Status',
+            widget.details.metadata?['pending'] == true
+                ? 'Pending'
+                : 'Completed',
+            isDarkMode),
+
+        // Display merchant and description
+        if (widget.details.metadata?['description'] != null &&
+            widget.details.metadata?['description'] !=
+                widget.details.merchantName)
+          _buildDetailRow('Description',
+              widget.details.metadata!['description'], isDarkMode),
+
+        // Display account and transaction ID
+        if (widget.details.metadata?['account_number'] != null)
+          _buildDetailRow('Account', widget.details.metadata!['account_number'],
+              isDarkMode),
+
+        _buildDetailRow(
+            'Transaction ID', '#${widget.transaction.id}', isDarkMode),
       ],
     );
   }
 
-  Widget _buildMetadataSection() {
-    if (details.metadata == null || details.metadata!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _buildMetadataSection(bool isDarkMode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Additional Information'),
+        Text(
+          'Additional Information',
+          style: TextStyle(
+            color: isDarkMode ? Colors.white : Colors.black87,
+            fontSize: 18,
+            fontFamily: 'Onest',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 16),
-        ...details.metadata!.entries
+        ...widget.details.metadata!.entries
             .where((entry) =>
                 entry.value != null &&
-                !['description', 'pending'].contains(entry.key))
+                ![
+                  'description',
+                  'pending',
+                  'payment_method',
+                  'account_number',
+                  'transaction_id'
+                ].contains(entry.key))
             .map((entry) => _buildDetailRow(
                 entry.key.split('_').map((word) => word.capitalize()).join(' '),
-                entry.value.toString()))
+                entry.value.toString(),
+                isDarkMode))
             .toList(),
       ],
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        color: isDarkMode ? Colors.white : Colors.black87,
-        fontSize: 18,
-        fontFamily: 'Onest',
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value, bool isDarkMode) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1541,6 +2435,229 @@ class TransactionDetailsSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBar(BuildContext context, bool isDarkMode) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+        top: 16,
+      ),
+      decoration: BoxDecoration(
+        color: isDarkMode ? const Color(0xFF1A2942) : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _reportIssue(context, isDarkMode),
+              icon: Icon(
+                Icons.flag_outlined,
+                color: isDarkMode ? Colors.white70 : Colors.blue[700],
+              ),
+              label: Text(
+                'Report Issue',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white70 : Colors.blue[700],
+                  fontFamily: 'Onest',
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.blue[700]!.withOpacity(0.3),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _changeCategory(context, isDarkMode),
+              icon: const Icon(Icons.category_outlined),
+              label: const Text(
+                'Change Category',
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDarkMode ? Colors.white : Colors.blue[700],
+                foregroundColor: isDarkMode ? Colors.black87 : Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOptionsBottomSheet(BuildContext context, bool isDarkMode) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDarkMode ? const Color(0xFF1A2942) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildOptionItem(
+              context,
+              icon: Icons.add_chart,
+              title: 'Add to insights',
+              subtitle: 'Include in financial analytics',
+              iconColor: Colors.purple,
+              isDarkMode: isDarkMode,
+              onTap: () => Navigator.pop(context),
+            ),
+            _buildOptionItem(
+              context,
+              icon: Icons.receipt_long_outlined,
+              title: 'Add receipt',
+              subtitle: 'Attach a photo of your receipt',
+              iconColor: Colors.green,
+              isDarkMode: isDarkMode,
+              onTap: () => Navigator.pop(context),
+            ),
+            _buildOptionItem(
+              context,
+              icon: Icons.hide_source_outlined,
+              title: 'Hide transaction',
+              subtitle: 'Remove from list and insights',
+              iconColor: Colors.orange,
+              isDarkMode: isDarkMode,
+              onTap: () => Navigator.pop(context),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color iconColor,
+    required bool isDarkMode,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: iconColor,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isDarkMode ? Colors.white : Colors.black87,
+          fontFamily: 'Onest',
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: isDarkMode ? Colors.white60 : Colors.black54,
+          fontFamily: 'Onest',
+          fontSize: 12,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  void _reportIssue(BuildContext context, bool isDarkMode) {
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Issue reporting feature coming soon'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _changeCategory(BuildContext context, bool isDarkMode) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF1A2942) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: CategorySelectorSheet(
+            initialCategory: TransactionCategory(
+              id: widget.transaction.category ?? 'uncategorized',
+              name: widget.transaction.category ?? 'Uncategorized',
+              color: Colors.grey,
+              icon: Icons.category,
+            ),
+            onCategorySelected: (category) {
+              Navigator.pop(context);
+              _updateCategory(context, category);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _updateCategory(BuildContext context, TransactionCategory category) {
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Category updated to ${category.name}'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

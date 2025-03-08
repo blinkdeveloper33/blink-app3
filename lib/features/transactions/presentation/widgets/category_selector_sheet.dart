@@ -56,6 +56,13 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet>
     _animationController.forward();
   }
 
+  String _formatCategoryName(String categoryName) {
+    if (categoryName.toLowerCase() == 'airlines and aviation services') {
+      return 'Airlines';
+    }
+    return categoryName;
+  }
+
   @override
   Widget build(BuildContext context) {
     _isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -112,9 +119,11 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet>
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 24),
+              shrinkWrap: true,
+              physics: const AlwaysScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4,
-                childAspectRatio: 0.85,
+                childAspectRatio: 0.9,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
               ),
@@ -167,7 +176,11 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            category.name,
+                            // Display subcategory with special case for airlines
+                            category.name.contains(',')
+                                ? _formatCategoryName(
+                                    category.name.split(',').last.trim())
+                                : category.name,
                             style: TextStyle(
                               color:
                                   _isDarkMode ? Colors.white : Colors.black87,
@@ -178,7 +191,7 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet>
                                   : FontWeight.normal,
                             ),
                             textAlign: TextAlign.center,
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
@@ -191,7 +204,8 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet>
           ),
           // Action buttons
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.fromLTRB(
+                24, 24, 24, 24 + MediaQuery.of(context).viewPadding.bottom),
             child: Row(
               children: [
                 Expanded(
@@ -245,7 +259,6 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet>
               ],
             ),
           ),
-          const SizedBox(height: 8),
         ],
       ),
     );

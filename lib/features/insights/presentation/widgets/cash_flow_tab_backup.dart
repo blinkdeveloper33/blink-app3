@@ -313,16 +313,16 @@ class CashFlowTab extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDarkMode ? 0.3 : 0.05),
+            color: Colors.black.withOpacity(isDarkMode ? 0.35 : 0.06),
             blurRadius: 24,
             spreadRadius: 0,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 10),
           ),
         ],
         border: Border.all(
           color: isDarkMode
-              ? Colors.white.withOpacity(0.05)
-              : Colors.black.withOpacity(0.02),
+              ? Colors.white.withOpacity(0.06)
+              : Colors.black.withOpacity(0.03),
           width: 1,
         ),
       ),
@@ -1807,7 +1807,16 @@ class SleekCashFlowChartState extends State<SleekCashFlowChart> {
                     handleBuiltInTouches: false,
                   ),
                   gridData: FlGridData(
-                    show: false, // Remove all grid lines for a cleaner look
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxY > 0 ? maxY / 3 : 1.0,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: gridColor.withOpacity(0.25),
+                        strokeWidth: 0.6,
+                        dashArray: [8, 5],
+                      );
+                    },
                   ),
                   titlesData: FlTitlesData(
                     show: true,
@@ -1851,11 +1860,10 @@ class SleekCashFlowChartState extends State<SleekCashFlowChart> {
                             index.toDouble(), widget.trends[index].inflow);
                       }),
                       isCurved: true,
-                      curveSmoothness: 0.25,
-                      color: incomeColor.withOpacity(isDarkMode
-                          ? 0.95
-                          : 0.9), // Adjusted opacity based on theme
-                      barWidth: 3.0, // Slightly refined width
+                      curveSmoothness: 0.3,
+                      color: incomeColor
+                          .withOpacity(0.9), // More visible income line
+                      barWidth: 3.5, // Slightly thicker line
                       isStrokeCapRound: true,
                       dotData: FlDotData(
                         show: _touchedIndex != null && _isInteracting,
@@ -1872,8 +1880,8 @@ class SleekCashFlowChartState extends State<SleekCashFlowChart> {
                         gradient: LinearGradient(
                           colors: [
                             incomeColor
-                                .withOpacity(0.25), // More subtle gradient
-                            incomeColor.withOpacity(0.08),
+                                .withOpacity(0.3), // More visible gradient
+                            incomeColor.withOpacity(0.1),
                             incomeColor.withOpacity(0),
                           ],
                           begin: Alignment.topCenter,
@@ -1888,9 +1896,9 @@ class SleekCashFlowChartState extends State<SleekCashFlowChart> {
                             index.toDouble(), widget.trends[index].outflow);
                       }),
                       isCurved: true,
-                      curveSmoothness: 0.25,
-                      color: expenseColor.withOpacity(isDarkMode ? 0.95 : 0.9),
-                      barWidth: 3.0,
+                      curveSmoothness: 0.3,
+                      color: expenseColor,
+                      barWidth: 3,
                       isStrokeCapRound: true,
                       dotData: FlDotData(
                         show: _touchedIndex != null && _isInteracting,
@@ -1906,8 +1914,8 @@ class SleekCashFlowChartState extends State<SleekCashFlowChart> {
                         show: true,
                         gradient: LinearGradient(
                           colors: [
-                            expenseColor.withOpacity(0.15),
-                            expenseColor.withOpacity(0.04),
+                            expenseColor.withOpacity(0.2),
+                            expenseColor.withOpacity(0.05),
                             expenseColor.withOpacity(0),
                           ],
                           begin: Alignment.topCenter,
@@ -1922,10 +1930,10 @@ class SleekCashFlowChartState extends State<SleekCashFlowChart> {
                             VerticalLine(
                               x: _touchedIndex!.toDouble(),
                               color: isDarkMode
-                                  ? Colors.white.withOpacity(0.2)
-                                  : Colors.black.withOpacity(0.1),
-                              strokeWidth: 0.8,
-                              dashArray: [4, 4],
+                                  ? Colors.white.withOpacity(0.3)
+                                  : Colors.black.withOpacity(0.15),
+                              strokeWidth: 1.0,
+                              dashArray: [5, 4],
                               label: VerticalLineLabel(
                                 show: false, // Hide the default label
                                 alignment: Alignment.topCenter,
@@ -1975,15 +1983,21 @@ class SleekCashFlowChartState extends State<SleekCashFlowChart> {
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
                     color: isDarkMode ? const Color(0xFF202020) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 16,
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 12,
                         spreadRadius: 0,
-                        offset: const Offset(0, 4),
+                        offset: const Offset(0, 3),
                       ),
                     ],
+                    border: Border.all(
+                      color: isDarkMode
+                          ? Colors.white.withOpacity(0.08)
+                          : Colors.black.withOpacity(0.03),
+                      width: 1,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2164,11 +2178,8 @@ class SleekNetCashFlowPainter extends CustomPainter {
         size.width * 0.04; // Adjusted from 0.03 to 0.04
     final double availableWidth = size.width - (horizontalPadding * 2);
 
-    // Fixed bar width for consistency - reduced for more compact look
-    final double pointSpacing = trends.length > 1
-        ? availableWidth / (trends.length - 1)
-        : availableWidth;
-    final double barWidth = math.min(pointSpacing * 0.3, 12.0);
+    // Fixed bar width for consistency - reduced by 2x for more compact look
+    final double barWidth = math.min(availableWidth * 0.2, 12.0);
 
     for (int i = 0; i < trends.length; i++) {
       final trend = trends[i];
