@@ -10,22 +10,19 @@ class AppLocalizationsEs extends AppLocalizations {
   String get onboardingTitle1 => 'Acceso Instantáneo a Efectivo';
 
   @override
-  String get onboardingSubtitle1 =>
-      'Obtén adelantos de efectivo BlinkAdvance de \$150 a \$300, sin verificación de crédito.';
+  String get onboardingSubtitle1 => 'Obtén adelantos de efectivo BlinkAdvance de \$150 a \$300, sin verificación de crédito.';
 
   @override
   String get onboardingTitle2 => 'Gestión Inteligente del Dinero';
 
   @override
-  String get onboardingSubtitle2 =>
-      'Rastrea gastos, establece presupuestos y toma decisiones financieras informadas.';
+  String get onboardingSubtitle2 => 'Rastrea gastos, establece presupuestos y toma decisiones financieras informadas.';
 
   @override
   String get onboardingTitle3 => 'Transparente y Justo';
 
   @override
-  String get onboardingSubtitle3 =>
-      'Sin cargos ocultos, reembolso automático en la fecha que elijas.';
+  String get onboardingSubtitle3 => 'Sin cargos ocultos, reembolso automático en la fecha que elijas.';
 
   @override
   String get back => 'Atrás';
@@ -49,8 +46,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get welcomeToBlink => 'Bienvenido a Blink';
 
   @override
-  String get signUpToContinue =>
-      '¿Eres nuevo en Blink? Regístrate para obtener efectivo';
+  String get signUpToContinue => '¿Eres nuevo en Blink? Regístrate para obtener efectivo';
 
   @override
   String get enterEmail => 'Ingresa tu correo electrónico';
@@ -79,12 +75,11 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get signUp => 'Registrarse';
 
-  // Account screen translations
   @override
   String get account => 'Cuenta';
 
   @override
-  String get settings => 'Configuración';
+  String get appSettings => 'Configuración';
 
   @override
   String get general => 'General';
@@ -93,22 +88,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get language => 'Idioma';
 
   @override
+  String get selectLanguage => 'Seleccionar Idioma';
+
+  @override
   String get english => 'Inglés';
 
   @override
   String get spanish => 'Español';
-
-  @override
-  String get darkMode => 'Modo Oscuro';
-
-  @override
-  String get toggleDarkMode => 'Cambiar apariencia del modo oscuro';
-
-  @override
-  String get selectLanguage => 'Seleccionar Idioma';
-
-  @override
-  String get appSettings => 'Configuración de la App';
 
   @override
   String get personalInformation => 'Datos Personales';
@@ -120,14 +106,19 @@ class AppLocalizationsEs extends AppLocalizations {
   String get security => 'Seguridad';
 
   @override
-  String get manageSecuritySettings =>
-      'Administra tu configuración de seguridad';
+  String get manageSecuritySettings => 'Administra tu configuración de seguridad';
 
   @override
   String get notifications => 'Notificaciones';
 
   @override
   String get configureNotifications => 'Configura tus notificaciones';
+
+  @override
+  String get darkMode => 'Modo Oscuro';
+
+  @override
+  String get toggleDarkMode => 'Cambiar apariencia del modo oscuro';
 
   @override
   String get helpAndSupport => 'Ayuda y Soporte';
@@ -154,12 +145,108 @@ class AppLocalizationsEs extends AppLocalizations {
   String get accountConnectionRequired => 'Se requiere conexión de cuenta';
 
   @override
-  String get accountConnectionMessage =>
-      'Para usar Blink, necesitas conectar tu cuenta bancaria a través de Plaid. Esto nos permite acceder de forma segura a tus datos financieros.';
+  String get accountConnectionMessage => 'Para usar Blink, necesitas conectar tu cuenta bancaria a través de Plaid. Esto nos permite acceder de forma segura a tus datos financieros.';
 
   @override
   String get availableBalance => 'Saldo Disponible';
 
   @override
-  String get connectedOn => 'Conectado el';
+  String connectedOn(String date) {
+    return 'Conectado el $date';
+  }
+
+  @override
+  String get settings => 'Configuración';
+
+  @override
+  String get accountSettings => 'Configuración de Cuenta';
+
+  @override
+  String get preferences => 'Preferencias';
+
+  @override
+  String get greeting_morning => 'Buenos Días';
+
+  @override
+  String get greeting_afternoon => 'Buenas Tardes';
+
+  @override
+  String get greeting_evening => 'Buenas Noches';
+
+  @override
+  String get available_balance => 'Available Balance';
+
+  @override
+  String get account_number => 'Número de Cuenta';
+
+  @override
+  String get view_details => 'Ver Detalles';
+
+  @override
+  String get stories => 'Stories';
+
+  @override
+  String get stories_subtitle => 'Mantente informado con las últimas actualizaciones';
+
+  @override
+  String get view_all => 'Ver Todas';
+
+  @override
+  String get loading_account_details => 'Cargando Detalles de la Cuenta';
+
+  @override
+  String get days => 'días';
+
+  @override
+  String get repay_now => 'Pagar Ahora';
+
+  @override
+  String get send_money => 'Enviar Dinero';
+
+  @override
+  String get request_money => 'Solicitar Dinero';
+
+  @override
+  String get recent_transactions => 'Últimas Transacciones';
+
+  @override
+  String get no_transactions => 'No hay transacciones recientes';
+
+  @override
+  String get see_all_transactions => 'Ver Todas las Transacciones';
+
+  @override
+  String get quick_actions => 'Acciones Rápidas';
+
+  @override
+  String get favorites => 'Favoritos';
+
+  @override
+  String get last_known_balance => 'Último Saldo Conocido';
+
+  @override
+  String updated_on(String date) {
+    return 'Actualizado el $date';
+  }
+
+  @override
+  String get quick_funds => 'Fondos Rápidos';
+
+  @override
+  String get status => 'Estado';
+
+  @override
+  String get analyze => 'Analizar';
+
+  @override
+  String get latest_financial_activities => 'Tus actividades financieras recientes';
+
+  @override
+  String get cash_advance => 'Adelanto de Efectivo';
+
+  @override
+  String get blink_repay => 'Blink Repago';
+
+  @override
+  String get blink_insights => 'Blink Análisis';
 }

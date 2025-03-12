@@ -7,10 +7,10 @@ import 'package:logger/logger.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:animated_emoji/animated_emoji.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/storage_service.dart';
+import 'package:blink_app/utils/temp_localizations.dart';
 
 class SignUpScreen extends StatefulWidget {
   final bool showAppBar;

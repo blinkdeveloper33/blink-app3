@@ -60,6 +60,8 @@ PODS:
     - Flutter
   - TOCropViewController (2.7.4)
   - Turf (4.0.0)
+  - uni_links (0.0.1):
+    - Flutter
   - url_launcher_ios (0.0.1):
     - Flutter
 
@@ -84,6 +86,7 @@ DEPENDENCIES:
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
   - teller_connect_flutter (from `.symlinks/plugins/teller_connect_flutter/ios`)
+  - uni_links (from `.symlinks/plugins/uni_links/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
 SPEC REPOS:
@@ -137,6 +140,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/sqflite_darwin/darwin"
   teller_connect_flutter:
     :path: ".symlinks/plugins/teller_connect_flutter/ios"
+  uni_links:
+    :path: ".symlinks/plugins/uni_links/ios"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
@@ -168,6 +173,7 @@ SPEC CHECKSUMS:
   teller_connect_flutter: 9d1ff6c71e577a0af5e8ef4202a14361e79cd986
   TOCropViewController: 80b8985ad794298fb69d3341de183f33d1853654
   Turf: c9eb11a65d96af58cac523460fd40fec5061b081
+  uni_links: d97da20c7701486ba192624d99bffaaffcfc298a
   url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 
 PODFILE CHECKSUM: 1959d098c91d8a792531a723c4a9d7e9f6a01e38

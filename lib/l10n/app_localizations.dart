@@ -46,12 +46,12 @@ import 'app_localizations_es.dart';
 ///
 /// iOS applications define key application metadata, including supported
 /// locales, in an Info.plist file that is built into the application bundle.
-/// To configure the locales supported by your app, you'll need to edit this
+/// To configure the locales supported by your app, you’ll need to edit this
 /// file.
 ///
-/// First, open your project's ios/Runner.xcworkspace Xcode workspace file.
+/// First, open your project’s ios/Runner.xcworkspace Xcode workspace file.
 /// Then, in the Project Navigator, open the Info.plist file under the Runner
-/// project's Runner folder.
+/// project’s Runner folder.
 ///
 /// Next, select the Information Property List item, select Add Item from the
 /// Editor menu, then select Localizations from the pop-up menu.
@@ -62,8 +62,7 @@ import 'app_localizations_es.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -71,8 +70,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -84,8 +82,7 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
     delegate,
     GlobalMaterialLocalizations.delegate,
     GlobalCupertinoLocalizations.delegate,
@@ -236,38 +233,350 @@ abstract class AppLocalizations {
   /// **'Sign Up'**
   String get signUp;
 
-  // Account screen translations
+  /// Account screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
   String get account;
-  String get settings;
-  String get general;
-  String get language;
-  String get english;
-  String get spanish;
-  String get darkMode;
-  String get toggleDarkMode;
-  String get selectLanguage;
+
+  /// App Settings screen title
+  ///
+  /// In en, this message translates to:
+  /// **'App Settings'**
   String get appSettings;
+
+  /// General settings section title
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get general;
+
+  /// Language selection option
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get language;
+
+  /// Language selection dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Select Language'**
+  String get selectLanguage;
+
+  /// English language option
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get english;
+
+  /// Spanish language option
+  ///
+  /// In en, this message translates to:
+  /// **'Spanish'**
+  String get spanish;
+
+  /// Personal Information section title
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Information'**
   String get personalInformation;
+
+  /// Personal Information section subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Manage your personal details'**
   String get managePersonalDetails;
+
+  /// Security section title
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
   String get security;
+
+  /// Security section subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Manage your security settings'**
   String get manageSecuritySettings;
+
+  /// Notifications section title
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
   String get notifications;
+
+  /// Notifications section subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Configure your notifications'**
   String get configureNotifications;
+
+  /// Dark mode option
+  ///
+  /// In en, this message translates to:
+  /// **'Dark Mode'**
+  String get darkMode;
+
+  /// Dark mode toggle description
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle dark mode appearance'**
+  String get toggleDarkMode;
+
+  /// Help and support option
+  ///
+  /// In en, this message translates to:
+  /// **'Help & Support'**
   String get helpAndSupport;
+
+  /// Help and support description
+  ///
+  /// In en, this message translates to:
+  /// **'Get help with your account'**
   String get getHelpWithAccount;
+
+  /// Log out button text
+  ///
+  /// In en, this message translates to:
+  /// **'Log Out'**
   String get logOut;
+
+  /// Log out description
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out of your account'**
   String get signOutOfAccount;
+
+  /// Bank account section title
+  ///
+  /// In en, this message translates to:
+  /// **'Bank Account'**
   String get bankAccount;
+
+  /// Connect bank account button text
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Bank Account'**
   String get connectBankAccount;
+
+  /// Connect bank account subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your account to get started'**
   String get connectToGetStarted;
+
+  /// Account connection required title
+  ///
+  /// In en, this message translates to:
+  /// **'Account connection required'**
   String get accountConnectionRequired;
+
+  /// Account connection required message
+  ///
+  /// In en, this message translates to:
+  /// **'To use Blink, you need to connect your bank account through Plaid. This allows us to securely access your financial data.'**
   String get accountConnectionMessage;
+
+  /// Available balance label
+  ///
+  /// In en, this message translates to:
+  /// **'Available Balance'**
   String get availableBalance;
-  String get connectedOn;
+
+  /// Bank account connection date
+  ///
+  /// In en, this message translates to:
+  /// **'Connected on {date}'**
+  String connectedOn(String date);
+
+  /// Settings section title
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settings;
+
+  /// Account settings section title
+  ///
+  /// In en, this message translates to:
+  /// **'Account Settings'**
+  String get accountSettings;
+
+  /// Preferences section title
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences'**
+  String get preferences;
+
+  /// Morning greeting on home screen
+  ///
+  /// In en, this message translates to:
+  /// **'Good Morning'**
+  String get greeting_morning;
+
+  /// Afternoon greeting on home screen
+  ///
+  /// In en, this message translates to:
+  /// **'Good Afternoon'**
+  String get greeting_afternoon;
+
+  /// Evening greeting on home screen
+  ///
+  /// In en, this message translates to:
+  /// **'Good Evening'**
+  String get greeting_evening;
+
+  /// Available balance label
+  ///
+  /// In en, this message translates to:
+  /// **'Available Balance'**
+  String get available_balance;
+
+  /// Account number label
+  ///
+  /// In en, this message translates to:
+  /// **'Account Number'**
+  String get account_number;
+
+  /// View details button text
+  ///
+  /// In en, this message translates to:
+  /// **'View Details'**
+  String get view_details;
+
+  /// Stories section title
+  ///
+  /// In en, this message translates to:
+  /// **'Stories'**
+  String get stories;
+
+  /// Stories section subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Stay informed with latest updates'**
+  String get stories_subtitle;
+
+  /// View all button text
+  ///
+  /// In en, this message translates to:
+  /// **'View All'**
+  String get view_all;
+
+  /// Loading account details message
+  ///
+  /// In en, this message translates to:
+  /// **'Loading Account Details'**
+  String get loading_account_details;
+
+  /// Days text for countdown
+  ///
+  /// In en, this message translates to:
+  /// **'days'**
+  String get days;
+
+  /// Repay now button text
+  ///
+  /// In en, this message translates to:
+  /// **'Repay Now'**
+  String get repay_now;
+
+  /// Send money button text
+  ///
+  /// In en, this message translates to:
+  /// **'Send Money'**
+  String get send_money;
+
+  /// Request money button text
+  ///
+  /// In en, this message translates to:
+  /// **'Request Money'**
+  String get request_money;
+
+  /// Recent transactions section title
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Transactions'**
+  String get recent_transactions;
+
+  /// No transactions message
+  ///
+  /// In en, this message translates to:
+  /// **'No recent transactions'**
+  String get no_transactions;
+
+  /// See all transactions button text
+  ///
+  /// In en, this message translates to:
+  /// **'See All Transactions'**
+  String get see_all_transactions;
+
+  /// Quick actions section title
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Actions'**
+  String get quick_actions;
+
+  /// Favorites section title
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get favorites;
+
+  /// Label for last known balance
+  ///
+  /// In en, this message translates to:
+  /// **'Last Known Balance'**
+  String get last_known_balance;
+
+  /// Updated date label
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {date}'**
+  String updated_on(String date);
+
+  /// Quick funds label
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Funds'**
+  String get quick_funds;
+
+  /// Status label
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get status;
+
+  /// Analyze action label
+  ///
+  /// In en, this message translates to:
+  /// **'Analyze'**
+  String get analyze;
+
+  /// Subtitle for recent transactions section
+  ///
+  /// In en, this message translates to:
+  /// **'Your latest financial activities'**
+  String get latest_financial_activities;
+
+  /// Title for cash advance section
+  ///
+  /// In en, this message translates to:
+  /// **'Cash Advance'**
+  String get cash_advance;
+
+  /// Title for Blink Repay section
+  ///
+  /// In en, this message translates to:
+  /// **'Blink Repay'**
+  String get blink_repay;
+
+  /// Title for Blink Insights section
+  ///
+  /// In en, this message translates to:
+  /// **'Blink Insights'**
+  String get blink_insights;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -276,25 +585,25 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['en', 'es'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['en', 'es'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'en':
-      return AppLocalizationsEn();
-    case 'es':
-      return AppLocalizationsEs();
+    case 'en': return AppLocalizationsEn();
+    case 'es': return AppLocalizationsEs();
   }
 
   throw FlutterError(
-      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-      'an issue with the localizations generation tool. Please file an issue '
-      'on GitHub with a reproducible sample app and the gen-l10n configuration '
-      'that was used.');
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+    'an issue with the localizations generation tool. Please file an issue '
+    'on GitHub with a reproducible sample app and the gen-l10n configuration '
+    'that was used.'
+  );
 }

@@ -22,7 +22,11 @@ import 'package:blink_app/features/account/presentation/help_support_screen.dart
 import 'package:intl/intl.dart';
 import 'package:flutter/rendering.dart' as ui;
 import 'package:blink_app/features/account/presentation/app_settings_screen.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:blink_app/utils/temp_localizations.dart'; // Added temporary localization
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'dart:convert';
+import 'package:blink_app/config/api_config.dart';
 
 class BankAccount {
   final String bankAccountId;
@@ -81,13 +85,15 @@ class _AccountScreenState extends State<AccountScreen> {
   Map<String, dynamic>? _accountData;
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0;
+  final ImagePicker _imagePicker = ImagePicker();
+  final ImageCropper _imageCropper = ImageCropper();
 
   @override
   void initState() {
     super.initState();
     _loadProfilePicture();
-    _loadUserData();
-    _loadBankAccounts();
+    _loadUserProfileFromAPI();
+    _loadBankAccountsFromAPI();
     _loadAccountData();
     _scrollController.addListener(_onScroll);
   }
@@ -102,6 +108,131 @@ class _AccountScreenState extends State<AccountScreen> {
     setState(() {
       _scrollOffset = _scrollController.offset;
     });
+  }
+
+  Future<void> _loadUserProfileFromAPI() async {
+    try {
+      debugPrint('Fetching user profile from API...');
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final token = await authService.getToken();
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/user-profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true && data['data'] != null) {
+          final userData = data['data'];
+
+          if (mounted) {
+            setState(() {
+              _userName =
+                  '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
+                      .trim();
+              _email = userData['email'] ?? '';
+              debugPrint('Loaded user profile: $_userName, $_email');
+            });
+          }
+        } else {
+          debugPrint('User profile API returned success=false or no data');
+          _loadUserData(); // Fall back to local storage
+        }
+      } else {
+        debugPrint('Failed to get user profile: HTTP ${response.statusCode}');
+        _loadUserData(); // Fall back to local storage
+      }
+    } catch (e) {
+      debugPrint('Error loading user profile from API: $e');
+      _loadUserData(); // Fall back to local storage
+    }
+  }
+
+  Future<void> _loadBankAccountsFromAPI() async {
+    if (mounted) {
+      setState(() {
+        _isLoadingBankAccounts = true;
+      });
+    }
+
+    try {
+      debugPrint('Fetching bank accounts from API...');
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final token = await authService.getToken();
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/bank-accounts/plaid-items'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final accountsData = responseData['data'] as List;
+
+          if (mounted) {
+            setState(() {
+              _bankAccounts = accountsData.map((account) {
+                return BankAccount(
+                  bankAccountId: account['id'] ?? '',
+                  accountName: account['account_name'] ??
+                      account['institution_name'] ??
+                      'Bank Account',
+                  accountType: account['account_subtype'] ?? 'Unknown',
+                  accountSubtype: account['account_subtype'] ?? '',
+                  accountMask: account['account_mask'] ?? '****',
+                  availableBalance:
+                      double.tryParse(account['balance_available'] ?? '0') ??
+                          0.0,
+                  currentBalance:
+                      double.tryParse(account['balance_current'] ?? '0') ?? 0.0,
+                  currency: account['iso_currency_code'] ?? 'USD',
+                  createdAt: DateTime.tryParse(account['created_at'] ?? '') ??
+                      DateTime.now(),
+                  cursor: account['id'] ?? '',
+                );
+              }).toList();
+              _isLoadingBankAccounts = false;
+              debugPrint(
+                  'Loaded ${_bankAccounts?.length ?? 0} bank accounts from API');
+            });
+          }
+        } else {
+          debugPrint('Bank accounts API returned success=false or no data');
+          if (mounted) {
+            setState(() {
+              _isLoadingBankAccounts = false;
+            });
+          }
+          _loadBankAccounts(); // Fall back to old method
+        }
+      } else {
+        debugPrint('Failed to get bank accounts: HTTP ${response.statusCode}');
+        if (mounted) {
+          setState(() {
+            _isLoadingBankAccounts = false;
+          });
+        }
+        _loadBankAccounts(); // Fall back to old method
+      }
+    } catch (e) {
+      debugPrint('Error loading bank accounts from API: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingBankAccounts = false;
+        });
+      }
+      _loadBankAccounts(); // Fall back to old method
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -125,97 +256,105 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  Future<File?> _cropImage(String imagePath) async {
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: imagePath,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop Profile Picture',
-          toolbarColor: Theme.of(context).primaryColor,
-          toolbarWidgetColor: Colors.white,
-          initAspectRatio: CropAspectRatioPreset.square,
-          lockAspectRatio: true,
-        ),
-        IOSUiSettings(
-          title: 'Crop Profile Picture',
-          aspectRatioLockEnabled: true,
-          minimumAspectRatio: 1.0,
-        ),
-      ],
-    );
-
-    if (croppedFile != null) {
-      return File(croppedFile.path);
-    }
-    return null;
-  }
-
   Future<void> _pickAndUploadImage() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 90,
+      final pickedFile =
+          await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return;
+
+      final croppedFile = await _imageCropper.cropImage(
+        sourcePath: pickedFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressQuality: 70,
+        compressFormat: ImageCompressFormat.jpg,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Your Profile Picture',
+            toolbarColor: Theme.of(context).primaryColor,
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: true,
+          ),
+          IOSUiSettings(
+            title: 'Crop Your Profile Picture',
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+          ),
+        ],
       );
 
-      if (image != null) {
-        final File? croppedImage = await _cropImage(image.path);
-        if (croppedImage == null) {
-          return;
+      if (croppedFile == null) return;
+
+      // Show loading indicator
+      setState(() {
+        _isLoading = true;
+      });
+
+      // Get auth token
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final String? authToken = await authService.getToken();
+      if (authToken == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Authentication error. Please login again.')),
+        );
+        return;
+      }
+
+      // Create multipart request
+      final url = Uri.parse('${ApiConfig.baseUrl}/api/users/profile-picture');
+      final request = http.MultipartRequest('POST', url);
+
+      // Add auth header
+      request.headers['Authorization'] = 'Bearer $authToken';
+
+      // Add file
+      final file = await http.MultipartFile.fromPath(
+          'profile_picture', croppedFile.path,
+          contentType: MediaType('image', 'jpeg'));
+      request.files.add(file);
+
+      // Send request
+      final response = await request.send();
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Read response
+        final responseData = await response.stream.bytesToString();
+        final data = jsonDecode(responseData);
+
+        // Get the profile picture URL from the response
+        final String profilePictureUrl = data['profile_picture_url'];
+
+        // Update profile provider
+        if (mounted) {
+          final profileProvider =
+              Provider.of<ProfileProvider>(context, listen: false);
+          profileProvider.updateProfilePicture(profilePictureUrl);
         }
 
-        final storageService =
-            Provider.of<StorageService>(context, listen: false);
-        final supabaseStorage =
-            Provider.of<SupabaseStorageService>(context, listen: false);
-        final profileProvider =
-            Provider.of<ProfileProvider>(context, listen: false);
-
-        final userId = storageService.getUserId();
-        if (userId == null) {
-          throw Exception('Not logged in. Please log in again.');
-        }
-
-        final url =
-            await supabaseStorage.uploadProfilePicture(userId, croppedImage);
-
-        if (url != null) {
-          if (!mounted) return;
-
-          await profileProvider.updateProfilePicture(url);
-
-          Navigator.of(context).pop();
-
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Profile picture updated successfully'),
-              backgroundColor: Colors.green,
-            ),
+                content: Text('Profile picture updated successfully!')),
           );
-
-          haptics.Haptics.vibrate(haptics.HapticsType.light);
-        } else {
-          throw Exception(
-              'Failed to upload profile picture. Please try again.');
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    'Failed to update profile picture. Status: ${response.statusCode}')),
+          );
         }
       }
     } catch (e) {
-      debugPrint('Error uploading profile picture: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to upload profile picture: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
+              content: Text('Error updating profile picture: ${e.toString()}')),
         );
       }
     } finally {

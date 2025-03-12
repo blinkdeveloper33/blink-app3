@@ -32,6 +32,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            
+            <!-- Intent Filter for Plaid OAuth App-to-App authentication -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data 
+                    android:scheme="https" 
+                    android:host="blink-app.com"
+                    android:pathPattern="/plaid-callback" />
+            </intent-filter>
         </activity>
 
         <!-- Plaid Link Activity -->

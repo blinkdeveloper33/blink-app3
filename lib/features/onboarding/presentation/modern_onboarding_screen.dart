@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:blink_app/features/auth/presentation/auth_screen.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:blink_app/services/storage_service.dart';
 import 'package:animated_emoji/animated_emoji.dart';
 import 'dart:math' as math;
+import 'package:blink_app/utils/temp_localizations.dart'; // Added temporary localization
 
 class ModernOnboardingScreen extends StatefulWidget {
   const ModernOnboardingScreen({super.key});
@@ -46,15 +46,15 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       showEmoji: true,
       bullets: [
         BulletPoint(
-          header: 'Get up to \$200 instantly',
+          header: 'Get \$200 Instantly',
           description: 'Directly Sent to your bank account',
         ),
         BulletPoint(
-          header: 'Simple, flat fee',
+          header: 'Simple, Flat Fee',
           description: 'No interest, no rollovers, no surprises',
         ),
         BulletPoint(
-          header: 'Quick approval',
+          header: 'Quick Approval',
           description: 'Connect your bank and get a decision in seconds',
         ),
         BulletPoint(
@@ -73,7 +73,7 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       bullets: [
         BulletPoint(
           header: 'Pick your repayment date',
-          description: '7 or 15 days',
+          description: '7 or 14 days',
         ),
         BulletPoint(
           header: 'Save 10% on fees',

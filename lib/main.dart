@@ -19,12 +19,14 @@ import 'package:blink_app/features/insights/presentation/financial_insights_scre
 import 'package:blink_app/features/onboarding/presentation/onboarding_wrapper.dart';
 import 'package:blink_app/features/insights/presentation/recurring_expenses_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+// import 'package:flutter_gen/gen_l10n/app_localizations.dart';  // Temporarily removed
+import 'package:blink_app/utils/temp_localizations.dart'; // Temporary placeholder
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:blink_app/services/biometric_service.dart';
 import 'package:blink_app/features/auth/presentation/auth_screen.dart';
 import 'package:blink_app/providers/locale_provider.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:blink_app/utils/app_icon_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -184,6 +186,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: AppIconManager.navigatorKey,
       title: 'Blink',
       debugShowCheckedModeBanner: false,
       theme: Provider.of<ThemeProvider>(context).currentTheme.copyWith(
@@ -197,7 +200,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ),
       locale: Provider.of<LocaleProvider>(context).locale,
       localizationsDelegates: [
-        AppLocalizations.delegate,
+        AppLocalizations.delegate, // Using our temporary placeholder
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

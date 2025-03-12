@@ -12,10 +12,10 @@ import 'dart:math' as math;
 import 'package:shimmer/shimmer.dart';
 import 'dart:convert';
 import 'package:animated_emoji/animated_emoji.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:blink_app/features/auth/presentation/forgot_password_screen.dart';
 import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
 import 'package:blink_app/features/home/presentation/home_screen.dart';
+import 'package:blink_app/utils/temp_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool showAppBar;

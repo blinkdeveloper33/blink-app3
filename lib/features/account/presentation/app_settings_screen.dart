@@ -3,8 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:blink_app/providers/theme_provider.dart';
 import 'package:blink_app/providers/locale_provider.dart';
 import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'dart:ui';
+import 'package:blink_app/utils/temp_localizations.dart'; // Added temporary localization
+import 'package:blink_app/widgets/app_icon_switcher.dart'; // Import for app icon switcher
 
 class AppSettingsScreen extends StatefulWidget {
   const AppSettingsScreen({super.key});
@@ -277,6 +278,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                     .toggleTheme();
               },
             ),
+          ),
+          // App Icon Switcher
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: const AppIconSwitcher(),
           ),
         ],
       ),

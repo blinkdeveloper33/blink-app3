@@ -276,6 +276,19 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
 
       if (response['token'] != null) {
         _logger.i('Registration and login successful.');
+
+        // Save the authentication token and user ID to storage
+        await storageService.setToken(response['token']);
+        if (response['userId'] != null) {
+          await storageService.setUserId(response['userId']);
+        } else if (response['user_id'] != null) {
+          await storageService.setUserId(response['user_id']);
+        } else if (response['id'] != null) {
+          await storageService.setUserId(response['id']);
+        }
+
+        _logger.i('Authentication token and user ID saved to storage');
+
         if (mounted) {
           _showSuccessPopup(firstName);
         }

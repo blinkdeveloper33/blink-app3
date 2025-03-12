@@ -366,9 +366,25 @@ class AuthService {
         try {
           currentUser = User.fromJson(response['user'] as Map<String, dynamic>);
           _logger.i('User data stored for: ${currentUser?.email}');
+
+          // 6. IMPORTANT: Store the user ID in local storage
+          if (currentUser != null) {
+            await _storageService.setUserId(currentUser!.id);
+            _logger.i('User ID stored: ${currentUser!.id}');
+          } else if (response['user']['id'] != null) {
+            // Fallback in case User object creation failed
+            await _storageService.setUserId(response['user']['id']);
+            _logger.i(
+                'User ID stored from raw response: ${response['user']['id']}');
+          }
         } catch (e) {
           _logger.e('Error parsing user data:', error: e);
-          // Don't throw here - we have the token, which is the most important part
+          // Still try to save the user ID directly from the response
+          if (response['user']['id'] != null) {
+            await _storageService.setUserId(response['user']['id']);
+            _logger.i(
+                'User ID stored from raw response after error: ${response['user']['id']}');
+          }
         }
       }
 
@@ -411,13 +427,28 @@ class AuthService {
 
   // Plaid Integration Endpoints
 
-  Future<String> createLinkToken(String userId) async {
+  Future<String> createLinkToken(String userId,
+      {String? redirectUri, String? androidPackageName}) async {
     try {
       _logger.i('Creating Plaid link token for user: $userId');
+
+      // Build request body with OAuth parameters if provided
+      final Map<String, dynamic> requestBody = {
+        'userId': userId,
+      };
+
+      // Add redirect URI for iOS and Web
+      if (redirectUri != null && redirectUri.isNotEmpty) {
+        requestBody['redirect_uri'] = redirectUri;
+      }
+
+      // Temporarily removed Android support
+      // Android package name parameter is ignored
+
       final response = await _makeRequest(
         endpoint: '/api/plaid/create-link-token',
         method: 'POST',
-        body: {'userId': userId},
+        body: requestBody,
         requireAuth: true,
       );
 
@@ -545,6 +576,28 @@ class AuthService {
     }
   }
 
+  // Get user profile data
+  Future<Map<String, dynamic>?> getUserProfile() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/users/profile',
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      if (response != null && response['user'] != null) {
+        _logger.i('User profile retrieved successfully');
+        return response['user'] as Map<String, dynamic>;
+      }
+
+      _logger.w('User profile response missing user data');
+      return null;
+    } catch (e) {
+      _logger.e('Error getting user profile:', error: e);
+      return null;
+    }
+  }
+
   Future<String?> getToken() async {
     return await _storageService.getToken();
   }
@@ -653,6 +706,21 @@ class AuthService {
       return response;
     } catch (e) {
       _logger.e('Error getting current balances:', error: e);
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getBankAccountBalance() async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/bank-accounts/balance',
+        method: 'GET',
+        requireAuth: true,
+      );
+      _logger.i('Bank account balance fetched: ${response.toString()}');
+      return response;
+    } catch (e) {
+      _logger.e('Error getting bank account balance:', error: e);
       rethrow;
     }
   }
@@ -1057,8 +1125,14 @@ class AuthService {
   // Blink Advance
   Future<Map<String, dynamic>> getBlinkAdvanceApprovalStatus() async {
     try {
+      // Get the user ID from storage
+      final userId = await _storageService.getUserId();
+      if (userId == null || userId.isEmpty) {
+        throw Exception('User ID not found');
+      }
+
       final response = await _makeRequest(
-        endpoint: '/api/blink-advances/approval-status',
+        endpoint: '/api/cash-advance/approval-status/$userId',
         method: 'GET',
         requireAuth: true,
       );
