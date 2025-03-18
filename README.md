@@ -33,7 +33,7 @@ Transparency: Blink clearly displays the flat fee before the user confirms the a
 Responsibility: In alignment with Rise’s focus on financial wellness, Blink includes budgeting tools, spending insights, and push notifications to remind users about upcoming repayment dates. Repayment is automatically debited on the user-selected date (within 31 days), helping to prevent missed payments and subsequent late charges or overdrafts.
 
 
-On the back end, Blink integrates with FV Bank to house the liquidity pool that powers these short-term advances. Repayments and fees flow back into the FV Bank account, replenishing liquidity. This arrangement creates an efficient cycle of capital: funds go out to cover user emergencies and come back when the user repays, alongside the flat fee.
+On the back end, Blink integrates with Bank of America to house the liquidity pool that powers these short-term advances. Repayments and fees flow back into the FV Bank account, replenishing liquidity. This arrangement creates an efficient cycle of capital: funds go out to cover user emergencies and come back when the user repays, alongside the flat fee.
 Overall, Blink stands out by fusing immediate relief for cash emergencies with a structured approach that discourages users from drifting into endless debt. It’s a nimble, tech-based alternative that meets real-world consumer needs while upholding ethical lending standards.
 
 

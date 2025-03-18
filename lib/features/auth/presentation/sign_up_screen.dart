@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:blink_app/features/auth/presentation/select_verification_method_screen.dart';
 import 'package:blink_app/features/auth/presentation/login_screen.dart';
+import 'package:blink_app/features/auth/presentation/new_user_data_screen.dart';
+import 'package:blink_app/services/google_auth_service.dart';
 import 'package:logger/logger.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
@@ -64,6 +66,9 @@ class _SignUpScreenState extends State<SignUpScreen>
   }
 
   void _submitSignUp() async {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
+
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isSubmitting = true;
@@ -104,11 +109,74 @@ class _SignUpScreenState extends State<SignUpScreen>
     }
   }
 
-  void _handleGoogleSignUp() {
-    _logger.d('Google Sign Up Pressed');
+  void _handleGoogleSignUp() async {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isSubmitting = true;
+      _showError = false;
+      _errorMessage = null;
+    });
+
+    try {
+      _logger.d('Starting Google Sign Up process');
+
+      // Get the GoogleAuthService
+      final googleAuthService = GoogleAuthService(
+        storageService: Provider.of<StorageService>(context, listen: false),
+        authService: Provider.of<AuthService>(context, listen: false),
+      );
+
+      // Start the Google Sign-In flow
+      final response = await googleAuthService.signInWithGoogle(context);
+
+      if (!mounted) return;
+
+      // Handle response based on isNewUser flag
+      if (response['isNewUser'] == true) {
+        // New user - navigate to profile completion
+        _logger.i('New Google user, redirecting to profile completion');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => NewUserDataScreen(
+              email: response['email'] ?? '',
+              firstName: response['firstName'] ?? '',
+              lastName: response['lastName'] ?? '',
+              isGoogleSignIn: true,
+            ),
+          ),
+        );
+      } else {
+        // Existing user - navigate to link plaid bank screen
+        _logger
+            .i('Existing Google user, redirecting to link plaid bank screen');
+        Navigator.of(context).pushReplacementNamed('/link_plaid');
+      }
+    } catch (e) {
+      _logger.e('Google Sign Up error:', error: e);
+
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _showError = true;
+          _errorMessage = e.toString().contains('canceled')
+              ? 'Sign in was canceled'
+              : 'Failed to sign in with Google. Please try again.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   void _handleAppleSignUp() {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
     _logger.d('Apple Sign Up Pressed');
   }
 
@@ -119,6 +187,9 @@ class _SignUpScreenState extends State<SignUpScreen>
     required bool isHovered,
     required Function(bool) onHover,
   }) {
+    // If Google button is in loading state during authentication, show the loading indicator
+    final bool isLoading = text == 'Google' && _isSubmitting;
+
     return MouseRegion(
       onEnter: (_) => onHover(true),
       onExit: (_) => onHover(false),
@@ -142,25 +213,41 @@ class _SignUpScreenState extends State<SignUpScreen>
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  onTap: onPressed,
+                  onTap: isLoading ? null : onPressed,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Image.asset(
-                          iconPath,
-                          height: 24,
-                          width: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          text,
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                        if (isLoading)
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                          )
+                        else
+                          Image.asset(
+                            iconPath,
+                            height: 20,
+                            width: 20,
+                          ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            isLoading ? "Signing in..." : text,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],
@@ -243,39 +330,43 @@ class _SignUpScreenState extends State<SignUpScreen>
             },
           ),
         ),
-        if (_showError && _errorMessage != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8, left: 16),
-            child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 200),
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, value, child) {
-                return Opacity(
-                  opacity: value,
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 14,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _errorMessage!,
-                        style: TextStyle(
-                          fontFamily: 'Onest',
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+        if (_showError && _errorMessage != null) _buildErrorMessage(),
+      ],
+    );
+  }
+
+  Widget _buildErrorMessage() {
+    if (_errorMessage == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 14,
+            color: Colors.white.withOpacity(0.7),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.3,
+                height: 1.4,
+                decoration: TextDecoration.none,
+                decorationColor: Colors.black.withOpacity(0.87),
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -329,177 +420,183 @@ class _SignUpScreenState extends State<SignUpScreen>
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    Widget mainContent = AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      transform: Matrix4.translationValues(
-        0,
-        bottomPadding > 0 ? -screenHeight * 0.15 : 0,
-        0,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          padding: EdgeInsets.only(
-            left: 24.0,
-            right: 24.0,
-            bottom: bottomPadding > 0 ? bottomPadding + 24 : 24,
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.showAppBar) ...[
-                  const SizedBox(height: 32),
-                  // Logo
-                  Center(
-                    child: Hero(
-                      tag: 'logo',
-                      child: Image.asset(
-                        'assets/images/blink_logo_white.png',
-                        height: 33,
-                        fit: BoxFit.contain,
+    Widget mainContent = GestureDetector(
+      onTap: () {
+        // Dismiss keyboard when tapping outside of text fields
+        FocusScope.of(context).unfocus();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(
+          0,
+          bottomPadding > 0 ? -screenHeight * 0.15 : 0,
+          0,
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.only(
+              left: 24.0,
+              right: 24.0,
+              bottom: bottomPadding > 0 ? bottomPadding + 24 : 24,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (widget.showAppBar) ...[
+                    const SizedBox(height: 32),
+                    // Logo
+                    Center(
+                      child: Hero(
+                        tag: 'logo',
+                        child: Image.asset(
+                          'assets/images/blink_logo_white.png',
+                          height: 33,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 48),
-                // Welcome text section with increased spacing
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      FadeInLeft(
-                        duration: const Duration(milliseconds: 600),
-                        child: Row(
-                          children: [
-                            Text(
-                              AppLocalizations.of(context)!.welcomeToBlink,
-                              style: const TextStyle(
-                                fontFamily: 'Onest',
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.w700,
-                                height: 1.2,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const AnimatedEmoji(
-                              AnimatedEmojis.wave,
-                              size: 32,
-                              repeat: true,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      FadeInLeft(
-                        duration: const Duration(milliseconds: 600),
-                        delay: const Duration(milliseconds: 200),
-                        child: Text(
-                          AppLocalizations.of(context)!.signUpToContinue,
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 15,
-                            height: 1.5,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40), // Increased spacing
-                // Email form with refined padding
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(
-                    children: [
-                      _buildEmailField(),
-                      const SizedBox(height: 24), // Increased button spacing
-                      _buildContinueButton(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40), // Increased divider spacing
-                // Divider
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: FadeInUp(
-                    duration: const Duration(milliseconds: 600),
-                    child: Row(
+                  ],
+                  const SizedBox(height: 48),
+                  // Welcome text section with increased spacing
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            color: Colors.white.withOpacity(0.2),
+                        // Title
+                        FadeInLeft(
+                          duration: const Duration(milliseconds: 600),
+                          child: Row(
+                            children: [
+                              Text(
+                                AppLocalizations.of(context)!.welcomeToBlink,
+                                style: const TextStyle(
+                                  fontFamily: 'Onest',
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.2,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const AnimatedEmoji(
+                                AnimatedEmojis.wave,
+                                size: 32,
+                                repeat: true,
+                              ),
+                            ],
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        const SizedBox(height: 8),
+                        FadeInLeft(
+                          duration: const Duration(milliseconds: 600),
+                          delay: const Duration(milliseconds: 200),
                           child: Text(
-                            AppLocalizations.of(context)!.orContinueWith,
+                            AppLocalizations.of(context)!.signUpToContinue,
                             style: TextStyle(
                               fontFamily: 'Onest',
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.white.withOpacity(0.9),
                               fontSize: 15,
-                              fontWeight: FontWeight.w500,
+                              height: 1.5,
                               letterSpacing: -0.2,
                             ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            color: Colors.white.withOpacity(0.2),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 32),
-                // Social Buttons
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 12),
-                  child: FadeInUp(
-                    duration: const Duration(milliseconds: 600),
-                    child: StatefulBuilder(
-                      builder: (context, setState) => Row(
+                  const SizedBox(height: 40), // Increased spacing
+                  // Email form with refined padding
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Column(
+                      children: [
+                        _buildEmailField(),
+                        const SizedBox(height: 24), // Increased button spacing
+                        _buildContinueButton(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40), // Increased divider spacing
+                  // Divider
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: FadeInUp(
+                      duration: const Duration(milliseconds: 600),
+                      child: Row(
                         children: [
                           Expanded(
-                            child: _buildSocialButton(
-                              text: 'Google',
-                              iconPath: 'assets/images/google_icon.png',
-                              onPressed: _handleGoogleSignUp,
-                              isHovered: _isGoogleHovered,
-                              onHover: (value) =>
-                                  setState(() => _isGoogleHovered = value),
+                            child: Container(
+                              height: 1,
+                              color: Colors.white.withOpacity(0.2),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              AppLocalizations.of(context)!.orContinueWith,
+                              style: TextStyle(
+                                fontFamily: 'Onest',
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
                           Expanded(
-                            child: _buildSocialButton(
-                              text: 'Apple',
-                              iconPath: 'assets/images/apple_icon.png',
-                              onPressed: _handleAppleSignUp,
-                              isHovered: _isAppleHovered,
-                              onHover: (value) =>
-                                  setState(() => _isAppleHovered = value),
+                            child: Container(
+                              height: 1,
+                              color: Colors.white.withOpacity(0.2),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 32),
+                  // Social Buttons
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    child: FadeInUp(
+                      duration: const Duration(milliseconds: 600),
+                      child: StatefulBuilder(
+                        builder: (context, setState) => Row(
+                          children: [
+                            Expanded(
+                              child: _buildSocialButton(
+                                text: 'Google',
+                                iconPath: 'assets/images/google_icon.png',
+                                onPressed: _handleGoogleSignUp,
+                                isHovered: _isGoogleHovered,
+                                onHover: (value) =>
+                                    setState(() => _isGoogleHovered = value),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildSocialButton(
+                                text: 'Apple',
+                                iconPath: 'assets/images/apple_icon.png',
+                                onPressed: _handleAppleSignUp,
+                                isHovered: _isAppleHovered,
+                                onHover: (value) =>
+                                    setState(() => _isAppleHovered = value),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

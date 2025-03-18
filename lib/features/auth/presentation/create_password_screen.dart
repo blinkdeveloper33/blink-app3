@@ -95,11 +95,13 @@ class _AnimatedBubbleState extends State<AnimatedBubble>
 
 class CreatePasswordScreen extends StatefulWidget {
   final String email;
+  final bool isGoogleSignIn;
 
   const CreatePasswordScreen({
-    super.key,
+    Key? key,
     required this.email,
-  });
+    this.isGoogleSignIn = false,
+  }) : super(key: key);
 
   @override
   State<CreatePasswordScreen> createState() => _CreatePasswordScreenState();
@@ -261,16 +263,38 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
         return;
       }
 
-      _logger.i('Sending registration data to backend.');
-      final response = await authService.registerCompleteWithLogin(
-        email: widget.email,
-        password: _passwordController.text.trim(),
-        firstName: firstName,
-        lastName: lastName,
-        state: state,
-        zipCode: zipcode,
-        agreedToTerms: _acknowledgeTerms,
-      );
+      Map<String, dynamic> response;
+
+      // Check if this is a Google Sign-In completion or regular registration
+      if (widget.isGoogleSignIn) {
+        final userId = storageService.getUserId();
+        if (userId == null) {
+          _logger.e('User ID not found for Google Sign-In user.');
+          _showErrorDialog(
+              'Unable to complete profile. Please try again or contact support.');
+          return;
+        }
+
+        _logger.i('Completing Google user profile.');
+        response = await authService.completeGoogleUserProfile(
+          userId: userId,
+          password: _passwordController.text.trim(),
+          state: state,
+          zipCode: zipcode,
+          agreedToTerms: _acknowledgeTerms,
+        );
+      } else {
+        _logger.i('Sending registration data to backend.');
+        response = await authService.registerCompleteWithLogin(
+          email: widget.email,
+          password: _passwordController.text.trim(),
+          firstName: firstName,
+          lastName: lastName,
+          state: state,
+          zipCode: zipcode,
+          agreedToTerms: _acknowledgeTerms,
+        );
+      }
 
       _logger.i('Received response: ${response.toString()}');
 
@@ -279,12 +303,21 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
 
         // Save the authentication token and user ID to storage
         await storageService.setToken(response['token']);
-        if (response['userId'] != null) {
+
+        // Check for user ID in different possible locations in the response
+        if (response['user'] != null && response['user']['id'] != null) {
+          // New response structure has user ID inside a user object
+          await storageService.setUserId(response['user']['id']);
+          _logger
+              .i('User ID saved from user object: ${response['user']['id']}');
+        } else if (response['userId'] != null) {
           await storageService.setUserId(response['userId']);
         } else if (response['user_id'] != null) {
           await storageService.setUserId(response['user_id']);
         } else if (response['id'] != null) {
           await storageService.setUserId(response['id']);
+        } else {
+          _logger.e('No user ID found in response: ${response.toString()}');
         }
 
         _logger.i('Authentication token and user ID saved to storage');
@@ -316,6 +349,11 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
   }
 
   void _showSuccessPopup(String firstName) {
+    // Extract user ID for debugging
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    final userId = storageService.getUserId();
+    _logger.i('User ID before showing success popup: $userId');
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -396,6 +434,49 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                         try {
                           final authService =
                               Provider.of<AuthService>(context, listen: false);
+                          final storageService = Provider.of<StorageService>(
+                              context,
+                              listen: false);
+
+                          // Double-check that user ID is set
+                          String? userId = storageService.getUserId();
+                          if (userId == null) {
+                            _logger.w(
+                                'User ID is still null before navigation, trying to recover...');
+
+                            // Try to extract from the token
+                            final token = await storageService.getToken();
+                            if (token != null) {
+                              userId =
+                                  authService.extractUserIdFromToken(token);
+                              if (userId != null) {
+                                await storageService.setUserId(userId);
+                                _logger.i(
+                                    'Recovered user ID from token before navigation: $userId');
+                              }
+                            }
+                          } else {
+                            _logger.i(
+                                'User ID verified before navigation: $userId');
+                          }
+
+                          // For Google sign-ins, always navigate to LinkPlaidBankScreen
+                          if (widget.isGoogleSignIn) {
+                            _logger.i(
+                                'Google sign-in user, redirecting to link plaid bank screen');
+                            if (mounted) {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const LinkPlaidBankScreen(),
+                                ),
+                                (route) => false,
+                              );
+                            }
+                            return;
+                          }
+
+                          // For regular sign-ups, check if they already have a linked account
                           final bankAccountResponse =
                               await authService.checkLinkedBankAccount();
                           final bool hasLinkedAccount =
@@ -876,29 +957,43 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withOpacity(0.15),
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                Icons.info_outline,
-                color: Colors.white.withOpacity(0.9),
-                size: 20,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2196F3).withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.shield_outlined,
+                  color: Color(0xFF64B5F6),
+                  size: 22,
+                ),
               ),
-              const SizedBox(width: 8),
-              Text(
+              const SizedBox(width: 12),
+              const Text(
                 'Password Requirements',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 14,
+                  color: Colors.white,
+                  fontSize: 16,
                   fontFamily: 'Onest',
                   fontWeight: FontWeight.w600,
                 ),
@@ -906,51 +1001,86 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
             ],
           ),
           const SizedBox(height: 16),
-          _buildRequirementItem('• At least 8 characters long'),
-          _buildRequirementItem('• Contains uppercase and lowercase letters'),
-          _buildRequirementItem('• Contains numbers (0-9)'),
-          _buildRequirementItem('• Contains special characters (!@#\$%^&*...)'),
+          Divider(color: Colors.white.withOpacity(0.15)),
+          const SizedBox(height: 12),
+          _buildEnhancedRequirementItem(
+            '8+ characters',
+            _hasMinLength,
+            Icons.text_fields,
+          ),
+          _buildEnhancedRequirementItem(
+            'Uppercase & lowercase',
+            _hasUppercase && _hasLowercase,
+            Icons.text_format,
+          ),
+          _buildEnhancedRequirementItem(
+            'Numbers (0-9)',
+            _hasNumbers,
+            Icons.pin,
+          ),
+          _buildEnhancedRequirementItem(
+            'Special characters (!@#\$%^&*...)',
+            _hasSpecialChars,
+            Icons.star,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildRequirementItem(String text) {
-    bool isMetForText(String text) {
-      if (text.contains('8 characters')) return _hasMinLength;
-      if (text.contains('uppercase and lowercase'))
-        return _hasUppercase && _hasLowercase;
-      if (text.contains('numbers')) return _hasNumbers;
-      if (text.contains('special characters')) return _hasSpecialChars;
-      return false;
-    }
-
-    bool isMet = isMetForText(text);
-
+  Widget _buildEnhancedRequirementItem(String text, bool isMet, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            isMet ? Icons.check_circle : Icons.check_circle_outline,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isMet
+              ? const Color(0xFF2196F3).withOpacity(0.25)
+              : Colors.white.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
             color:
-                isMet ? const Color(0xFF2196F3) : Colors.white.withOpacity(0.7),
-            size: 16,
+                isMet ? const Color(0xFF64B5F6) : Colors.white.withOpacity(0.2),
+            width: isMet ? 1.5 : 1,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: isMet ? Colors.white : Colors.white.withOpacity(0.7),
-                fontSize: 14,
-                fontFamily: 'Onest',
-                height: 1.4,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isMet
+                    ? const Color(0xFF2196F3).withOpacity(0.3)
+                    : Colors.white.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: isMet ? Colors.white : Colors.white.withOpacity(0.6),
+                size: 16,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: isMet ? Colors.white : Colors.white.withOpacity(0.8),
+                  fontSize: 15,
+                  fontFamily: 'Onest',
+                  fontWeight: isMet ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+            Icon(
+              isMet ? Icons.check_circle : Icons.check_circle_outline,
+              color: isMet
+                  ? const Color(0xFF81D4FA)
+                  : Colors.white.withOpacity(0.4),
+              size: 22,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1003,6 +1133,25 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
                               .pushReplacementNamed('/auth'),
                           tooltip: 'Go Back',
                         ),
+                        Expanded(
+                          child: const Text(
+                            'Create Password',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black26,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                         Hero(
                           tag: 'logo',
                           child: Image.asset(
@@ -1018,121 +1167,155 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen>
               ),
               // Scrollable Content
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 24),
-                          FadeInDown(
-                            duration: const Duration(milliseconds: 600),
-                            child: Center(
-                              child: Lottie.asset(
-                                'assets/animations/create_password.json',
-                                width: 180,
-                                height: 180,
-                                fit: BoxFit.contain,
+                child: Stack(
+                  children: [
+                    // Scrollable Form Content
+                    SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0,
+                            100.0), // Added bottom padding for button
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 24),
+                              FadeInDown(
+                                duration: const Duration(milliseconds: 600),
+                                child: Center(
+                                  child: Lottie.asset(
+                                    'assets/animations/create_password.json',
+                                    width: 180,
+                                    height: 180,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          FadeInLeft(
-                            duration: const Duration(milliseconds: 600),
-                            child: const Text(
-                              'Create Password',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontFamily: 'Onest',
-                                fontWeight: FontWeight.bold,
-                                height: 1.2,
+                              const SizedBox(height: 32),
+                              FadeInLeft(
+                                duration: const Duration(milliseconds: 600),
+                                child: const Text(
+                                  'Create Password',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 28,
+                                    fontFamily: 'Onest',
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.2,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          FadeInLeft(
-                            duration: const Duration(milliseconds: 600),
-                            delay: const Duration(milliseconds: 200),
-                            child: Text(
-                              'Create a strong password to secure your account',
-                              style: TextStyle(
-                                color: Colors.white.withAlpha(230),
-                                fontSize: 15,
-                                fontFamily: 'Onest',
-                                height: 1.5,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(25),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withAlpha(51),
-                                width: 1,
-                              ),
-                            ),
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Choose a strong password that includes a mix of letters, numbers, and symbols. This helps protect your account from unauthorized access.',
+                              const SizedBox(height: 12),
+                              FadeInLeft(
+                                duration: const Duration(milliseconds: 600),
+                                delay: const Duration(milliseconds: 200),
+                                child: Text(
+                                  'Create a strong password to secure your account',
                                   style: TextStyle(
                                     color: Colors.white.withAlpha(230),
-                                    fontSize: 14,
+                                    fontSize: 15,
                                     fontFamily: 'Onest',
                                     height: 1.5,
                                     letterSpacing: -0.2,
                                   ),
                                 ),
-                                const SizedBox(height: 24),
-                                _buildPasswordField(
-                                  label: 'Password',
-                                  controller: _passwordController,
-                                  obscureText: _obscurePassword,
-                                  toggleVisibility: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter a password';
-                                    }
-                                    if (_strengthScore < 0.6) {
-                                      return 'Password is not strong enough';
-                                    }
-                                    return null;
-                                  },
+                              ),
+                              const SizedBox(height: 32),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withAlpha(51),
+                                    width: 1,
+                                  ),
                                 ),
-                                const SizedBox(height: 16),
-                                _buildPasswordStrengthIndicator(),
-                                const SizedBox(height: 24),
-                                _buildConfirmPasswordField(),
-                                const SizedBox(height: 24),
-                                _buildPasswordRequirements(),
-                                const SizedBox(height: 24),
-                                _buildCheckbox(),
-                                const SizedBox(height: 32),
-                                FadeInUp(
-                                  duration: const Duration(milliseconds: 600),
-                                  delay: const Duration(milliseconds: 400),
-                                  child: _buildCreatePasswordButton(),
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Choose a strong password that includes a mix of letters, numbers, and symbols. This helps protect your account from unauthorized access.',
+                                      style: TextStyle(
+                                        color: Colors.white.withAlpha(230),
+                                        fontSize: 14,
+                                        fontFamily: 'Onest',
+                                        height: 1.5,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    _buildPasswordField(
+                                      label: 'Password',
+                                      controller: _passwordController,
+                                      obscureText: _obscurePassword,
+                                      toggleVisibility: () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter a password';
+                                        }
+                                        if (_strengthScore < 0.6) {
+                                          return 'Password is not strong enough';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildPasswordStrengthIndicator(),
+                                    const SizedBox(height: 24),
+                                    _buildConfirmPasswordField(),
+                                    const SizedBox(height: 24),
+                                    _buildPasswordRequirements(),
+                                    const SizedBox(height: 24),
+                                    _buildCheckbox(),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    // Fixed Button at bottom
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF1E3A8A).withOpacity(0.9),
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, -4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                        child: SafeArea(
+                          top: false,
+                          child: FadeInUp(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 400),
+                            child: _buildCreatePasswordButton(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

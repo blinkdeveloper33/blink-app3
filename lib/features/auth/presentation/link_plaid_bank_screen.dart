@@ -1,6 +1,8 @@
 // lib/features/auth/presentation/link_plaid_bank_screen.dart
 
 import 'dart:async';
+import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
@@ -18,6 +20,7 @@ import 'package:flutter/rendering.dart';
 import 'package:blink_app/features/auth/presentation/auth_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
+import 'dart:convert';
 
 // IMPORTANT: To fully implement OAuth for Plaid on mobile platforms, you must:
 //
@@ -37,6 +40,113 @@ import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
 //    - On iOS, you MUST configure universal links correctly
 //    - On Android, you MUST configure App Links properly
 
+// Custom Pulse Animation Widget
+class PulseAnimation extends StatefulWidget {
+  final Widget child;
+  final Duration duration;
+
+  const PulseAnimation({
+    Key? key,
+    required this.child,
+    this.duration = const Duration(seconds: 2),
+  }) : super(key: key);
+
+  @override
+  State<PulseAnimation> createState() => _PulseAnimationState();
+}
+
+class _PulseAnimationState extends State<PulseAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: widget.duration,
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.97, end: 1.03).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _animation.value,
+          child: widget.child,
+        );
+      },
+    );
+  }
+}
+
+// Custom Shimmer Icon Widget
+class ShimmerIcon extends StatefulWidget {
+  final IconData icon;
+  final double size;
+  final Color color;
+
+  const ShimmerIcon({
+    Key? key,
+    required this.icon,
+    required this.size,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  State<ShimmerIcon> createState() => _ShimmerIconState();
+}
+
+class _ShimmerIconState extends State<ShimmerIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Icon(
+          widget.icon,
+          size: widget.size,
+          color: widget.color.withOpacity(_animation.value),
+        );
+      },
+    );
+  }
+}
+
 class LinkPlaidBankScreen extends StatefulWidget {
   const LinkPlaidBankScreen({super.key});
 
@@ -55,13 +165,35 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
   StreamSubscription<LinkSuccess>? _streamSuccess;
   StreamSubscription? _deepLinkSubscription;
 
+  // Add new properties for bank carousel
+  int _currentBankSet = 0;
+  Timer? _bankCarouselTimer;
+  final List<List<String>> _bankSets = [
+    [
+      'bank of america',
+      'chase',
+      'wells fargo',
+      'citibank',
+      'capital one',
+      'pnc bank'
+    ],
+    [
+      'td bank',
+      'american express',
+      'amerant bank',
+      'usaa',
+      'goldman sachs',
+      'navy federal'
+    ],
+  ];
+
   @override
   void initState() {
     super.initState();
-    _loadUserName();
     _setupPlaidListeners();
-
     _initDeepLinkListener();
+    // Initialize bank carousel rotation
+    _initBankCarousel();
   }
 
   Future<void> _initDeepLinkListener() async {
@@ -104,7 +236,40 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     _streamExit?.cancel();
     _streamSuccess?.cancel();
     _deepLinkSubscription?.cancel();
+    // Dispose of bank carousel timer
+    _bankCarouselTimer?.cancel();
     super.dispose();
+  }
+
+  void _initBankCarousel() {
+    // Rotate bank sets every 3.5 seconds with smoother transitions
+    _bankCarouselTimer =
+        Timer.periodic(const Duration(milliseconds: 3500), (timer) {
+      if (mounted) {
+        setState(() {
+          _currentBankSet = (_currentBankSet + 1) % _bankSets.length;
+        });
+      }
+    });
+  }
+
+  // Show next set of banks
+  void _nextBankSet() {
+    if (mounted) {
+      setState(() {
+        _currentBankSet = (_currentBankSet + 1) % _bankSets.length;
+      });
+    }
+  }
+
+  // Show previous set of banks
+  void _previousBankSet() {
+    if (mounted) {
+      setState(() {
+        _currentBankSet =
+            (_currentBankSet - 1 + _bankSets.length) % _bankSets.length;
+      });
+    }
   }
 
   Future<void> _initializePlaidLink({String? receivedRedirectUri}) async {
@@ -125,14 +290,48 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         _logger.i(
             'Token exists but userId is missing. Attempting to fetch user profile...');
         try {
+          // First try to get user profile from the server
           final userProfile = await authService.getUserProfile();
           if (userProfile != null && userProfile['id'] != null) {
             userIdToUse = userProfile['id'];
             await storageService.setUserId(userIdToUse!);
             _logger.i('Recovered userId from profile: $userIdToUse');
+          } else if (userProfile != null &&
+              userProfile['user'] != null &&
+              userProfile['user']['id'] != null) {
+            // Try user object format
+            userIdToUse = userProfile['user']['id'];
+            await storageService.setUserId(userIdToUse!);
+            _logger.i('Recovered userId from user object: $userIdToUse');
+          } else {
+            // If that fails, try to extract it from the JWT token
+            _logger.i(
+                'Could not recover userId from profile API, trying to extract from JWT token...');
+            try {
+              final extractedUserId = authService.extractUserIdFromToken(token);
+              if (extractedUserId != null) {
+                userIdToUse = extractedUserId;
+                await storageService.setUserId(userIdToUse);
+                _logger.i('Recovered userId from JWT token: $userIdToUse');
+              }
+            } catch (tokenError) {
+              _logger.e('Error extracting userId from token: $tokenError');
+            }
           }
         } catch (e) {
-          _logger.e('Failed to recover userId: $e');
+          _logger.e('Failed to recover userId from profile API: $e');
+          // Try JWT extraction as fallback (same code as above)
+          try {
+            final extractedUserId = authService.extractUserIdFromToken(token);
+            if (extractedUserId != null) {
+              userIdToUse = extractedUserId;
+              await storageService.setUserId(userIdToUse);
+              _logger.i(
+                  'Recovered userId from JWT token as fallback: $userIdToUse');
+            }
+          } catch (tokenError) {
+            _logger.e('Error extracting userId from token: $tokenError');
+          }
         }
       }
 
@@ -196,69 +395,263 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
     required String title,
     required String description,
   }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(icon, color: Colors.white, size: 32),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
         ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontFamily: 'Onest',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
-                  fontSize: 14,
-                  fontFamily: 'Onest',
-                ),
-              ),
-            ],
-          ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
         ),
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF2196F3).withOpacity(0.2),
+                  const Color(0xFF64B5F6).withOpacity(0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontFamily: 'Onest',
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black26,
+                        blurRadius: 2,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 14,
+                    fontFamily: 'Onest',
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildBankLogo(String assetPath) {
-    double padding = assetPath.contains('wells_fargo') ? 8.0 : 12.0;
+  Widget _buildBankLogo(String? merchantName, {bool isMoreCard = false}) {
+    if (isMoreCard) {
+      return Container(
+        width: 95,
+        height: 95,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF2196F3).withOpacity(0.3),
+              const Color(0xFF64B5F6).withOpacity(0.2),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            "400+",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (merchantName == null || merchantName.isEmpty) {
+      return Container(
+        width: 95,
+        height: 95,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Icon(Icons.account_balance,
+            color: Colors.white.withOpacity(0.5), size: 30),
+      );
+    }
+
+    return FutureBuilder<String>(
+      future: _getMerchantLogoUrl(merchantName),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData &&
+            snapshot.data!.isNotEmpty) {
+          return Container(
+            width: 95,
+            height: 95,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                snapshot.data!,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  _logger.w('Failed to load bank logo: $error');
+                  return _fallbackBankLogo(merchantName);
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.blue.withOpacity(0.5),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+
+        return _fallbackBankLogo(merchantName);
+      },
+    );
+  }
+
+  Future<String> _getMerchantLogoUrl(String merchantName) async {
+    try {
+      const String brandfetchClientId = "1id12_wkWpgV3pKnxQI";
+      final Map<String, String> knownBanks = {
+        'bank of america': 'bankofamerica.com',
+        'chase': 'chase.com',
+        'wells fargo': 'wellsfargo.com',
+        'citibank': 'citi.com',
+        'capital one': 'capitalone.com',
+        'td bank': 'td.com',
+        'american express': 'americanexpress.com',
+        'discover': 'discover.com',
+        'pnc bank': 'pnc.com',
+        'pnc': 'pnc.com',
+        'usaa': 'usaa.com',
+        'hsbc': 'hsbc.com',
+        'truist': 'truist.com',
+        'ally bank': 'ally.com',
+        'us bank': 'amerantbank.com',
+        'amerant bank': 'amerantbank.com',
+        'navy federal': 'navyfederal.org',
+        'goldman sachs': 'goldmansachs.com',
+        'citizens bank': 'citizensbank.com'
+      };
+
+      String domain = knownBanks[merchantName.toLowerCase()] ??
+          merchantName.toLowerCase().replaceAll(' ', '') + '.com';
+
+      // URL encoding is handled by the Uri class
+      String url =
+          'https://cdn.brandfetch.io/$domain/icon/theme/light/fallback/lettermark/w/95/h/95?c=$brandfetchClientId';
+      return url;
+    } catch (e) {
+      _logger.e('Error getting merchant logo URL: $e');
+      return '';
+    }
+  }
+
+  Widget _fallbackBankLogo(String merchantName) {
     return Container(
-      width: 80,
-      height: 80,
-      padding: EdgeInsets.all(padding),
+      width: 95,
+      height: 95,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: SvgPicture.asset(
-        assetPath,
-        fit: BoxFit.contain,
-        placeholderBuilder: (BuildContext context) => Container(
-          padding: const EdgeInsets.all(12),
-          child: const CircularProgressIndicator(),
+      child: Center(
+        child: Text(
+          merchantName.isNotEmpty
+              ? merchantName.substring(0, 1).toUpperCase()
+              : "B",
+          style: TextStyle(
+            color: Colors.blue.shade800,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Onest',
+          ),
         ),
       ),
     );
@@ -274,95 +667,6 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         ),
       );
     }
-  }
-
-  Widget _buildContinueButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: FadeInUp(
-        duration: const Duration(milliseconds: 800),
-        delay: const Duration(milliseconds: 600),
-        child: Container(
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF2196F3), Color(0xFF60A5FA)],
-            ),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2196F3).withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ElevatedButton(
-            onPressed: _isConnecting ? null : _initializePlaidLink,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-              elevation: 0,
-            ),
-            child: _isConnecting
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.9)),
-                          strokeWidth: 2,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Connecting...',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 16,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Connect Bank Account',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontFamily: 'Onest',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.lock_outline,
-                        color: Colors.white.withOpacity(0.9),
-                        size: 20,
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _loadUserName() async {
-    setState(() {});
   }
 
   void _setupPlaidListeners() {
@@ -587,49 +891,53 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
           },
         );
 
-        // Step 3: Create asset report
-        _logger.i('Creating asset report...');
-        final assetReportResponse = await authService.createAssetReport(
-          accessTokens: [accessToken],
-          daysRequested: 731,
-        );
+        // Step 3: Create asset report - Just initiate and don't wait for completion
+        _logger.i('Initiating asset report creation...');
+        try {
+          final assetReportResponse = await authService.createAssetReport(
+            accessTokens: [accessToken],
+            daysRequested: 731, // Maximum history
+          );
 
-        if (assetReportResponse['asset_report_token'] == null) {
-          throw Exception(
-              'Failed to create asset report: No asset report token received');
-        }
+          if (assetReportResponse['asset_report_token'] != null) {
+            // Store the asset report token in user preferences
+            final userPreferences =
+                await storageService.getUserPreferences() ?? {};
+            userPreferences['pending_asset_report_token'] =
+                assetReportResponse['asset_report_token'];
+            userPreferences['asset_report_created_at'] =
+                DateTime.now().toIso8601String();
+            await storageService.setUserPreferences(userPreferences);
 
-        // Step 4: Wait for report to be ready and retrieve it
-        _logger.i('Retrieving asset report...');
-        Map<String, dynamic>? report;
-        int attempts = 0;
-        const maxAttempts = 5;
-        const delaySeconds = 2;
-
-        while (attempts < maxAttempts) {
-          try {
-            report = await authService.getAssetReport(
-              assetReportToken: assetReportResponse['asset_report_token'],
-              includeInsights: true,
-            );
-            _logger.i('Asset report retrieved successfully');
-            break;
-          } catch (e) {
-            _logger.w(
-                'Asset report not ready yet, retrying in $delaySeconds seconds...');
-            attempts++;
-            if (attempts < maxAttempts) {
-              await Future.delayed(Duration(seconds: delaySeconds));
-            }
+            _logger.i(
+                'Asset report creation initiated successfully. Webhook will notify when ready.');
+          } else {
+            _logger.w('No asset report token received, but continuing anyway');
           }
+        } catch (assetReportError) {
+          _logger.e('Error creating asset report: $assetReportError');
+
+          // Check for timeout or 502 errors specifically
+          if (assetReportError.toString().contains('502') ||
+              assetReportError.toString().contains('timeout') ||
+              assetReportError.toString().contains('failed to respond')) {
+            // Store information for retry in user preferences
+            final userPreferences =
+                await storageService.getUserPreferences() ?? {};
+            userPreferences['should_retry_asset_report'] = 'true';
+            userPreferences['asset_report_retry_access_token'] = accessToken;
+            userPreferences['asset_report_retry_attempts'] = '0';
+            userPreferences['asset_report_last_retry'] =
+                DateTime.now().toIso8601String();
+            await storageService.setUserPreferences(userPreferences);
+
+            _logger.i('Stored retry information for asset report');
+          }
+
+          // Don't rethrow - allow navigation to continue even if asset report fails
         }
 
-        if (report == null) {
-          _logger
-              .w('Could not retrieve asset report after $maxAttempts attempts');
-        }
-
-        // Step 5: Navigate to home screen
+        // Step 5: Navigate to home screen, without waiting for report completion
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
@@ -663,265 +971,445 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0D47A1),
-              Color(0xFF1565C0),
-              Color(0xFF1976D2),
-            ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.light,
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF0D47A1),
+                Color(0xFF1565C0),
+                Color(0xFF1976D2),
+              ],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          haptics.Haptics.vibrate(haptics.HapticsType.light);
-                          Navigator.pop(context);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.1),
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
+          child: Column(
+            children: [
+              Container(
+                color: const Color(0xFF0D47A1).withOpacity(0.95),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 24, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
                             color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      if (_isConnecting)
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.9),
-                            ),
-                            strokeWidth: 2,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 40),
-                      Center(
-                        child: FadeInDown(
-                          duration: const Duration(milliseconds: 800),
-                          child: Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(32),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Lottie.asset(
-                              'assets/animations/link_bank.json',
-                              height: 180,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                _logger.e(
-                                    'Error loading Lottie animation: $error');
-                                return Container(
-                                  height: 180,
-                                  color: Colors.white.withOpacity(0.1),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.error_outline,
-                                      color: Colors.white,
-                                      size: 48,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      FadeInLeft(
-                        duration: const Duration(milliseconds: 800),
-                        child: ShaderMask(
-                          shaderCallback: (bounds) => const LinearGradient(
-                            colors: [Colors.white, Color(0xFF60A5FA)],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ).createShader(bounds),
-                          child: const Text(
-                            'Link Your Bank Account',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.bold,
-                              height: 1.2,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      FadeInLeft(
-                        duration: const Duration(milliseconds: 800),
-                        delay: const Duration(milliseconds: 200),
-                        child: Text(
-                          'Securely Connect to Your Bank to Enable Cash',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 18,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      FadeInUp(
-                        duration: const Duration(milliseconds: 800),
-                        delay: const Duration(milliseconds: 200),
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              _buildSecurityFeature(
-                                icon: Icons.lock_outline,
-                                title: 'Bank-level Security',
-                                description:
-                                    '256-bit encryption to protect your data',
-                              ),
-                              const SizedBox(height: 20),
-                              _buildSecurityFeature(
-                                icon: Icons.visibility_off_outlined,
-                                title: 'Privacy First',
-                                description:
-                                    'We never store your login credentials',
-                              ),
-                              const SizedBox(height: 20),
-                              _buildSecurityFeature(
-                                icon: Icons.verified_user_outlined,
-                                title: 'Verified by Plaid',
-                                description:
-                                    'Trusted by millions of users worldwide',
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
                               ),
                             ],
                           ),
+                          onPressed: () {
+                            haptics.Haptics.vibrate(haptics.HapticsType.light);
+                            _showLogoutConfirmation();
+                          },
+                          tooltip: 'Go Back',
                         ),
-                      ),
-                      const SizedBox(height: 32),
-                      Center(
-                        child: FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 400),
-                          child: Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  'Supported Banks',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontSize: 18,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                Wrap(
-                                  spacing: 20,
-                                  runSpacing: 20,
-                                  alignment: WrapAlignment.center,
-                                  children: [
-                                    _buildBankLogo(
-                                        'assets/images/bank_of_america.svg'),
-                                    _buildBankLogo('assets/images/chase.svg'),
-                                    _buildBankLogo(
-                                        'assets/images/wells_fargo.svg'),
-                                    _buildBankLogo('assets/images/citi.svg'),
-                                  ],
+                        Expanded(
+                          child: Text(
+                            'Connect Bank',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black26,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      Center(
-                        child: FadeInUp(
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 600),
-                          child: RichText(
                             textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 14,
-                                fontFamily: 'Onest',
-                                height: 1.5,
-                              ),
-                              children: [
-                                const TextSpan(
-                                    text: 'By continuing, you agree to the '),
-                                TextSpan(
-                                  text: 'Plaid privacy policy',
-                                  style: const TextStyle(
-                                    color: Color(0xFF60A5FA),
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = _launchPrivacyPolicy,
-                                ),
-                              ],
-                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      _buildContinueButton(),
-                      const SizedBox(height: 32),
-                    ],
+                        Hero(
+                          tag: 'logo',
+                          child: Image.asset(
+                            'assets/images/blink_logo_white.png',
+                            height: 23,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              Expanded(
+                child: Stack(
+                  children: [
+                    // Scrollable Content
+                    SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 40),
+                            FadeInLeft(
+                              duration: const Duration(milliseconds: 800),
+                              child: ShaderMask(
+                                shaderCallback: (bounds) =>
+                                    const LinearGradient(
+                                  colors: [Colors.white, Color(0xFF60A5FA)],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ).createShader(bounds),
+                                child: const Text(
+                                  'Link Your Bank Account',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 32,
+                                    fontFamily: 'Onest',
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            FadeInLeft(
+                              duration: const Duration(milliseconds: 800),
+                              delay: const Duration(milliseconds: 200),
+                              child: Text(
+                                'Securely Connect to Your Bank to Enable Cash',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 18,
+                                  fontFamily: 'Onest',
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            Center(
+                              child: FadeInUp(
+                                duration: const Duration(milliseconds: 800),
+                                delay: const Duration(milliseconds: 200),
+                                child: Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.account_balance_outlined,
+                                            color: const Color(0xFF64B5F6),
+                                            size: 24,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            'Supported Banks',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontFamily: 'Onest',
+                                              fontWeight: FontWeight.w600,
+                                              shadows: [
+                                                Shadow(
+                                                  color: Colors.black26,
+                                                  blurRadius: 4,
+                                                  offset: Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 24),
+                                      _buildBankLogosCarousel(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            FadeInUp(
+                              duration: const Duration(milliseconds: 800),
+                              delay: const Duration(milliseconds: 300),
+                              child: Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.white.withOpacity(0.12),
+                                      Colors.white.withOpacity(0.08),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      margin: const EdgeInsets.only(bottom: 20),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF2196F3)
+                                                  .withOpacity(0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.shield,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            'Security & Privacy',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontFamily: 'Onest',
+                                              fontWeight: FontWeight.bold,
+                                              shadows: [
+                                                Shadow(
+                                                  color: Colors.black26,
+                                                  blurRadius: 2,
+                                                  offset: Offset(0, 1),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    _buildSecurityFeature(
+                                      icon: Icons.lock_outline,
+                                      title: 'Bank-level Security',
+                                      description:
+                                          '256-bit encryption to protect your data',
+                                    ),
+                                    _buildSecurityFeature(
+                                      icon: Icons.visibility_off_outlined,
+                                      title: 'Privacy First',
+                                      description:
+                                          'We never store your login credentials',
+                                    ),
+                                    _buildSecurityFeature(
+                                      icon: Icons.verified_user_outlined,
+                                      title: 'Verified by Plaid',
+                                      description:
+                                          'Trusted by millions of users worldwide',
+                                    ),
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 16),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 14),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            const Color(0xFF2196F3)
+                                                .withOpacity(0.15),
+                                            const Color(0xFF64B5F6)
+                                                .withOpacity(0.08),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: RichText(
+                                        textAlign: TextAlign.center,
+                                        text: TextSpan(
+                                          style: TextStyle(
+                                            color:
+                                                Colors.white.withOpacity(0.9),
+                                            fontSize: 14,
+                                            fontFamily: 'Onest',
+                                            height: 1.5,
+                                          ),
+                                          children: [
+                                            const TextSpan(
+                                                text:
+                                                    'By continuing, you agree to the '),
+                                            TextSpan(
+                                              text: 'Plaid privacy policy',
+                                              style: const TextStyle(
+                                                color: Color(0xFF60A5FA),
+                                                decoration:
+                                                    TextDecoration.underline,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              recognizer: TapGestureRecognizer()
+                                                ..onTap = _launchPrivacyPolicy,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 100),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Fixed button at the bottom
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF0D47A1).withOpacity(0.9),
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, -4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                        child: SafeArea(
+                          top: false,
+                          child: FadeInUp(
+                            duration: const Duration(milliseconds: 800),
+                            delay: const Duration(milliseconds: 600),
+                            child: Container(
+                              width: double.infinity,
+                              height: 56, // Fixed height for consistency
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF2196F3)
+                                        .withOpacity(0.2),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 5),
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(16),
+                                  onTap: _isConnecting
+                                      ? null
+                                      : _initializePlaidLink,
+                                  child: Ink(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Center(
+                                      child: _isConnecting
+                                          ? SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                        Color>(
+                                                  const Color(0xFF2196F3)
+                                                      .withOpacity(0.9),
+                                                ),
+                                              ),
+                                            )
+                                          : Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons
+                                                      .account_balance_outlined,
+                                                  color:
+                                                      const Color(0xFF2196F3),
+                                                  size: 20,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Text(
+                                                  'Connect Bank Account',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF1976D2),
+                                                    fontSize: 16,
+                                                    fontFamily: 'Onest',
+                                                    fontWeight: FontWeight.w600,
+                                                    letterSpacing: 0.3,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1153,5 +1641,373 @@ class _LinkPlaidBankScreenState extends State<LinkPlaidBankScreen> {
         );
       },
     );
+  }
+
+  // Update the bank logo section to show the carousel
+  Widget _buildBankLogosCarousel() {
+    return Column(
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 800),
+          switchInCurve: Curves.easeOutQuint,
+          switchOutCurve: Curves.easeInQuint,
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.05, 0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: Padding(
+            key: ValueKey<int>(_currentBankSet),
+            padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 8.0),
+            child: Column(
+              children: [
+                // First row of 3 banks
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildBankLogo(_getBankNameSafely(_currentBankSet, 0)),
+                    _buildBankLogo(_getBankNameSafely(_currentBankSet, 1)),
+                    _buildBankLogo(_getBankNameSafely(_currentBankSet, 2)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Second row of 3 banks (only if there are enough banks)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildBankLogo(_getBankNameSafely(_currentBankSet, 3)),
+                    _buildBankLogo(_getBankNameSafely(_currentBankSet, 4)),
+                    _buildBankLogo(_getBankNameSafely(_currentBankSet, 5)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        // Enhanced 400+ banks supported component without animation
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF2196F3).withOpacity(0.25),
+                const Color(0xFF448AFF).withOpacity(0.35),
+              ],
+              stops: const [0.3, 1.0],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.25),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2196F3).withOpacity(0.2),
+                blurRadius: 15,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ShimmerIcon(
+                      icon: Icons.account_balance,
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (bounds) => const LinearGradient(
+                              colors: [Colors.white, Color(0xFF90CAF9)],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ).createShader(bounds),
+                            child: const Text(
+                              "400+ Banks Supported",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Connect to any major financial institution",
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 13,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Safe method to get bank names without index errors
+  String? _getBankNameSafely(int setIndex, int bankIndex) {
+    if (setIndex < 0 || setIndex >= _bankSets.length) {
+      return null;
+    }
+
+    final List<String> currentSet = _bankSets[setIndex];
+    if (bankIndex < 0 || bankIndex >= currentSet.length) {
+      return null;
+    }
+
+    return currentSet[bankIndex];
+  }
+
+  void _showLogoutConfirmation() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF0D47A1).withOpacity(0.95),
+                    const Color(0xFF1565C0).withOpacity(0.95),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 15,
+                    spreadRadius: 5,
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.white, Color(0xFF90CAF9)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ).createShader(bounds),
+                      child: Icon(
+                        Icons.logout_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [Colors.white, Color(0xFF90CAF9)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ).createShader(bounds),
+                    child: const Text(
+                      'Log Out',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Are you sure you want to log out? You\'ll need to sign in again to connect your bank account.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 16,
+                      fontFamily: 'Onest',
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                color: Colors.white.withOpacity(0.3),
+                              ),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _logout();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0D47A1),
+                            backgroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 2,
+                            shadowColor: Colors.black.withOpacity(0.3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Log Out',
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _logout() async {
+    setState(() => _isConnecting = true);
+
+    try {
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+      final authService = Provider.of<AuthService>(context, listen: false);
+
+      _logger.i('Logging out user');
+
+      // Cancel any ongoing Plaid operations
+      PlaidLink.close();
+
+      // Clear deep link subscriptions
+      _deepLinkSubscription?.cancel();
+
+      // Cancel timers
+      _bankCarouselTimer?.cancel();
+
+      // Clear user data from storage
+      await storageService.clearAll();
+
+      // Call logout endpoint if available
+      try {
+        await authService.logout();
+        _logger.i('Logout API call successful');
+      } catch (e) {
+        _logger.w('Error calling logout API: $e');
+        // Continue with local logout even if API call fails
+      }
+
+      if (mounted) {
+        // Navigate to auth screen and clear navigation stack
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/auth', (route) => false);
+      }
+    } catch (e) {
+      _logger.e('Error during logout: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error logging out: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        // Even if there's an error, try to navigate to auth screen
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/auth', (route) => false);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isConnecting = false);
+      }
+    }
   }
 }

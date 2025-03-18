@@ -1,6 +1,7 @@
 import 'dart:math' show Random, max, min;
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -34,6 +35,12 @@ import 'package:blink_app/features/home/presentation/news_story_detail_screen.da
 import 'package:blink_app/services/auth_service.dart' show TransactionDetail;
 import 'package:blink_app/features/transactions/domain/services/category_service.dart';
 import 'package:blink_app/utils/temp_localizations.dart'; // Added temporary localization
+import 'package:http/http.dart' as http;
+import 'package:blink_app/config/api_config.dart';
+import 'package:blink_app/core/utils/responsive_utils.dart'
+    show ResponsiveUtils, DeviceType;
+import 'package:animated_emoji/animated_emoji.dart';
+import 'package:animated_emoji/emojis.g.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -50,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   List<auth.Transaction> _recentTransactions = [];
   double _currentBalance = 0.0;
+  DateTime? _balanceLastUpdated;
   late AnimationController _animationController;
   late Animation<double> _animation;
   String _userName = '';
@@ -66,6 +74,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _hasActiveAdvance = false;
   Map<String, dynamic>? _activeAdvance;
   bool _hapticFeedbackEnabled = true;
+
+  // Asset report status related variables
+  bool _hasPendingAssetReport = false;
+  String? _pendingAssetReportToken;
+  DateTime? _assetReportCreatedAt;
+  String _assetReportStatus = '';
+  bool _isAssetReportLoading = false;
+  Timer? _assetReportCheckTimer;
 
   late AnimationController _emojiAnimationController;
   late Animation<double> _emojiAnimation;
@@ -631,10 +647,10 @@ Successful investing requires patience, research, and discipline. Start small, s
                     builder: (context, child) {
                       return Transform.scale(
                         scale: _emojiAnimation.value,
-                        child: FluentUiEmojiIcon(
-                          fl: Fluents.flHighVoltage,
-                          w: 48,
-                          h: 48,
+                        child: AnimatedEmoji(
+                          AnimatedEmojis.electricity,
+                          size: 48,
+                          repeat: true,
                         ),
                       );
                     },
@@ -645,29 +661,57 @@ Successful investing requires patience, research, and discipline. Start small, s
           ],
         ),
         const Spacer(),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: SvgPicture.asset(
-            _isDarkMode
-                ? 'assets/images/blink-logo2.svg'
-                : 'assets/images/blink-logo3.svg',
-            height: 28,
-            colorFilter: ColorFilter.mode(
-              _isDarkMode ? Colors.white : Colors.blue[800]!,
-              BlendMode.srcIn,
+        // Replace existing logo and text with a 2-row layout
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Blink logo from network URL
+            Image.network(
+              'https://fcmptjhsrbsbuwuctlsr.supabase.co/storage/v1/object/public/assets//blinklogo.png',
+              height: 30,
+              // Add error and loading placeholder handlers
+              errorBuilder: (context, error, stackTrace) {
+                return SvgPicture.asset(
+                  _isDarkMode
+                      ? 'assets/images/blink-logo2.svg'
+                      : 'assets/images/blink-logo3.svg',
+                  height: 30,
+                  colorFilter: ColorFilter.mode(
+                    _isDarkMode ? Colors.white : Colors.blue[800]!,
+                    BlendMode.srcIn,
+                  ),
+                );
+              },
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return SizedBox(
+                  height: 30,
+                  width: 80,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                      strokeWidth: 2,
+                      color: _isDarkMode ? Colors.white : Colors.blue[800],
+                    ),
+                  ),
+                );
+              },
             ),
-            key: ValueKey(_isDarkMode),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Cash Advance',
-          style: TextStyle(
-            color: _isDarkMode ? Colors.white : Colors.blue[800],
-            fontSize: 24,
-            fontFamily: 'Onest',
-            fontWeight: FontWeight.bold,
-          ),
+            const SizedBox(height: 8),
+            // Just "Advance" text
+            Text(
+              'Advance',
+              style: TextStyle(
+                color: _isDarkMode ? Colors.white : Colors.blue[800],
+                fontSize: 24,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Column(
@@ -686,28 +730,53 @@ Successful investing requires patience, research, and discipline. Start small, s
               mainAxisSize: MainAxisSize.min,
               children: [
                 Flexible(
-                  child: Text(
-                    // If has active advance and the status is 'requested', show 'Requested'
-                    // Otherwise, use Active for active advances, or _blinkAdvanceStatus for other states
-                    _hasActiveAdvance
-                        ? (_blinkAdvanceStatus.toLowerCase() == 'requested'
-                            ? 'Requested'
-                            : 'Active')
-                        : _blinkAdvanceStatus,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontFamily: 'Onest',
-                      fontWeight: FontWeight.w600,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _isDarkMode
+                          ? Colors.blue.withOpacity(0.25)
+                          : Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isDarkMode
+                            ? Colors.blue.withOpacity(0.3)
+                            : Colors.blue.withOpacity(0.3),
+                        width: 0.5,
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            // If has active advance and the status is 'requested', show 'Requested'
+                            // Otherwise, use Active for active advances, or _blinkAdvanceStatus for other states
+                            _hasActiveAdvance
+                                ? (_blinkAdvanceStatus.toLowerCase() ==
+                                        'requested'
+                                    ? 'Requested'
+                                    : 'Active')
+                                : _blinkAdvanceStatus,
+                            style: TextStyle(
+                              color:
+                                  _isDarkMode ? Colors.white : Colors.blue[800],
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: _getStatusEmoji(),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: _getStatusEmoji(),
                 ),
               ],
             ),
@@ -779,20 +848,53 @@ Successful investing requires patience, research, and discipline. Start small, s
                         children: [
                           Hero(
                             tag: 'blink-logo',
-                            child: SvgPicture.asset(
-                              _isDarkMode
-                                  ? 'assets/images/blink-logo2.svg'
-                                  : 'assets/images/blink-logo3.svg',
+                            child: Image.network(
+                              'https://fcmptjhsrbsbuwuctlsr.supabase.co/storage/v1/object/public/assets//blinklogo.png',
                               height: 24,
-                              colorFilter: ColorFilter.mode(
-                                _isDarkMode ? Colors.white : Colors.blue[800]!,
-                                BlendMode.srcIn,
-                              ),
+                              // Add error and loading placeholder handlers
+                              errorBuilder: (context, error, stackTrace) {
+                                return SvgPicture.asset(
+                                  _isDarkMode
+                                      ? 'assets/images/blink-logo2.svg'
+                                      : 'assets/images/blink-logo3.svg',
+                                  height: 24,
+                                  colorFilter: ColorFilter.mode(
+                                    _isDarkMode
+                                        ? Colors.white
+                                        : Colors.blue[800]!,
+                                    BlendMode.srcIn,
+                                  ),
+                                );
+                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return SizedBox(
+                                  height: 24,
+                                  width: 80,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      value:
+                                          loadingProgress.expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                              : null,
+                                      strokeWidth: 2,
+                                      color: _isDarkMode
+                                          ? Colors.white
+                                          : Colors.blue[800],
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Cash Advance',
+                            'Advance',
                             style: TextStyle(
                               color:
                                   _isDarkMode ? Colors.white : Colors.blue[800],
@@ -1076,9 +1178,6 @@ Successful investing requires patience, research, and discipline. Start small, s
 
   void _handleBlinkAdvanceTap() {
     _performHapticFeedback(haptics.HapticsType.medium);
-    setState(() {
-      _isBlinkAdvanceExpanded = !_isBlinkAdvanceExpanded;
-    });
 
     if (_hasActiveAdvance || _isBlinkAdvanceApproved) {
       Navigator.of(context)
@@ -1125,17 +1224,6 @@ Successful investing requires patience, research, and discipline. Start small, s
               "💰 Current status: $_blinkAdvanceStatus, Has active advance: $_hasActiveAdvance");
         }
       });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _blinkAdvanceStatus == 'On Review'
-                ? 'Your Blink Advance application is still under review.'
-                : 'You are not currently eligible for Blink Advance.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
     }
   }
 
@@ -1338,6 +1426,9 @@ Successful investing requires patience, research, and discipline. Start small, s
 
     // Setup pulse animation for repayment button if needed
     _setupRepaymentPulseAnimation();
+
+    // Check for pending asset reports
+    _checkForPendingAssetReports();
   }
 
   void _setupRepaymentPulseAnimation() {
@@ -1382,6 +1473,8 @@ Successful investing requires patience, research, and discipline. Start small, s
 
     // Dispose of scroll controller
     _scrollController.dispose();
+
+    _assetReportCheckTimer?.cancel();
 
     super.dispose();
   }
@@ -1574,10 +1667,10 @@ Successful investing requires patience, research, and discipline. Start small, s
 
             if (!mounted) return;
 
-            // Force a minimum balance for testing if balance is 0
+            // Remove the hardcoded fallback value and use the actual balance
             if (balance <= 0) {
-              _logger.w('Balance is $balance, setting to 100.0 for testing');
-              balance = 100.0;
+              _logger.w('Balance is $balance, using actual value for display');
+              // No longer forcing a minimum balance for testing
             }
 
             _logger.i('Setting balance: $balance and animating');
@@ -1623,32 +1716,53 @@ Successful investing requires patience, research, and discipline. Start small, s
       _logger.w(
           'Failed to parse response from new endpoint, format was unexpected');
 
-      // Directly use a test balance instead of falling back to the legacy endpoint that's 404ing
+      // Instead of using a hardcoded test balance, try to load from stored preferences
       if (!mounted) return;
 
-      final testBalance = 200.0;
-      _logger.w(
-          'Using test balance of $testBalance instead of calling failing legacy endpoint');
+      // Try to get stored balance data from preferences
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+      final userPreferences = await storageService.getUserPreferences() ?? {};
 
-      setState(() {
-        _currentBalance = testBalance;
-        _logger.i('Setting current balance to test value: $_currentBalance');
-      });
+      if (userPreferences.containsKey('financial_summary')) {
+        try {
+          final storedSummary =
+              jsonDecode(userPreferences['financial_summary']);
+          if (storedSummary != null &&
+              storedSummary.containsKey('total_balance')) {
+            final storedBalance = storedSummary['total_balance'];
+            if (storedBalance is num && storedBalance > 0) {
+              _logger
+                  .i('Using stored balance from preferences: $storedBalance');
 
-      // Make sure animation controller is properly initialized
-      if (_animationController.isAnimating) {
-        _animationController.stop();
+              setState(() {
+                _currentBalance = storedBalance.toDouble();
+                // Make sure to update the last updated date too
+                if (userPreferences.containsKey('asset_report_processed_at')) {
+                  _balanceLastUpdated = DateTime.parse(
+                      userPreferences['asset_report_processed_at']);
+                }
+              });
+
+              // Make sure animation controller is properly initialized
+              if (_animationController.isAnimating) {
+                _animationController.stop();
+              }
+
+              _animationController.reset();
+              _animationController.forward();
+
+              // Return early since we successfully loaded from preferences
+              return;
+            }
+          }
+        } catch (e) {
+          _logger.e('Error parsing stored financial summary: $e');
+        }
       }
 
-      _logger.i(
-          'Starting balance animation from 0 to $_currentBalance (test value)');
-      _animationController.reset();
-      _animationController.forward();
-
-      // Force a rebuild of the UI
-      if (mounted) {
-        setState(() {});
-      }
+      // If all else fails, try loading using the account screen's method
+      _loadBankAccountFromAPI();
     } catch (e) {
       _logger.e('Error loading current balances: $e');
 
@@ -1978,8 +2092,10 @@ Successful investing requires patience, research, and discipline. Start small, s
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        localizations.updated_on(
-                            DateFormat('MMM d').format(DateTime.now())),
+                        _balanceLastUpdated != null
+                            ? localizations.updated_on(DateFormat('MMM d')
+                                .format(_balanceLastUpdated!))
+                            : 'Not yet updated', // Use a default string since the localization is missing
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.6),
                           fontSize: 12,
@@ -1992,9 +2108,8 @@ Successful investing requires patience, research, and discipline. Start small, s
                   AnimatedBuilder(
                     animation: _animation,
                     builder: (context, child) {
-                      // Make sure we have a non-zero balance for better visual effect
-                      final actualBalance =
-                          _currentBalance > 0 ? _currentBalance : 200.0;
+                      // Use the actual balance without fallback to a hardcoded value
+                      final actualBalance = _currentBalance;
 
                       // Use a curve to make animation more interesting
                       final curve = Curves.easeOutCubic;
@@ -2050,14 +2165,13 @@ Successful investing requires patience, research, and discipline. Start small, s
                                   ),
                                 ),
                                 TextSpan(
-                                  text: currencyFormatter
-                                      .format(curvedBalance)
-                                      .split('.')[1],
+                                  text:
+                                      '${currencyFormatter.format(curvedBalance).split('.')[1]}',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
+                                    color: Colors.white.withOpacity(0.7),
                                     fontSize: 20,
                                     fontFamily: 'Onest',
-                                    fontWeight: FontWeight.normal,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
@@ -2333,7 +2447,7 @@ Successful investing requires patience, research, and discipline. Start small, s
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      'Cash Advance',
+                                      'Blink Advance',
                                       style: TextStyle(
                                         color: const Color(0xFF40916C),
                                         fontSize: 10,
@@ -2388,17 +2502,7 @@ Successful investing requires patience, research, and discipline. Start small, s
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
-                                  onTap: () {
-                                    _performHapticFeedback(
-                                        haptics.HapticsType.medium);
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            BlinkAdvanceScreen(
-                                                bankAccountId: _bankAccountId),
-                                      ),
-                                    );
-                                  },
+                                  onTap: () => _handleBlinkAdvanceTap(),
                                   borderRadius: BorderRadius.circular(12),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
@@ -2479,7 +2583,136 @@ Successful investing requires patience, research, and discipline. Start small, s
                     ),
                   ),
 
-                  // Second Section - Payment Information
+                  // New Second Section - Asset Report Status (if pending)
+                  if (_hasPendingAssetReport)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header with section title and back button
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Data Analysis',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 16,
+                                  fontFamily: 'Onest',
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              _buildFlipButton(),
+                            ],
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Asset report status information
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.07),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.12),
+                                width: 0.5,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: _isAssetReportLoading
+                                        ? SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                Colors.white.withOpacity(0.9),
+                                              ),
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.analytics_outlined,
+                                            color:
+                                                Colors.white.withOpacity(0.9),
+                                            size: 16,
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _assetReportStatus,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.9),
+                                          fontSize: 14,
+                                          fontFamily: 'Onest',
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (_assetReportCreatedAt != null)
+                                        Text(
+                                          'Started ${_formatTimeAgo(_assetReportCreatedAt!)}',
+                                          style: TextStyle(
+                                            color:
+                                                Colors.white.withOpacity(0.7),
+                                            fontSize: 12,
+                                            fontFamily: 'Onest',
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                // Add retry button if more than 10 minutes have elapsed
+                                if (_assetReportCreatedAt != null &&
+                                    DateTime.now()
+                                            .difference(_assetReportCreatedAt!)
+                                            .inMinutes >
+                                        10)
+                                  GestureDetector(
+                                    onTap: () async {
+                                      _checkAssetReportStatus();
+                                      _performHapticFeedback(
+                                          haptics.HapticsType.medium);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.refresh,
+                                        color: Colors.white.withOpacity(0.9),
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                        ],
+                      ),
+                    ),
+
+                  // Third Section (was Second) - Payment Information
                   Padding(
                     padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
                     child: Column(
@@ -2987,14 +3220,17 @@ Successful investing requires patience, research, and discipline. Start small, s
   }
 
   void _flipRepaymentCard() {
-    if (_isRepaymentCardFlipped) {
-      _repaymentFlipController.reverse();
-    } else {
-      _repaymentFlipController.forward();
-    }
     setState(() {
       _isRepaymentCardFlipped = !_isRepaymentCardFlipped;
     });
+
+    if (_isRepaymentCardFlipped) {
+      _repaymentFlipController.forward();
+    } else {
+      _repaymentFlipController.reverse();
+    }
+
+    // Add haptic feedback for the flip
     _performHapticFeedback(haptics.HapticsType.medium);
   }
 
@@ -3023,7 +3259,7 @@ Successful investing requires patience, research, and discipline. Start small, s
                   Expanded(
                     flex: 1,
                     child: _buildQuickActionCard(
-                      title: 'Repayment',
+                      title: 'Blink Repay',
                       color: _isDarkMode
                           ? const Color(0xFF1E3B2F)
                           : Colors.green[100]!,
@@ -3071,16 +3307,23 @@ Successful investing requires patience, research, and discipline. Start small, s
     required Color textColor,
     required VoidCallback onTap,
   }) {
-    if (title == 'Repayment') {
+    // Change the condition to check for 'Blink Repay' or 'Repayment'
+    if (title == 'Repayment' || title == 'Blink Repay') {
+      // Always show the repayment card, regardless of active advance status
       return GestureDetector(
         onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
         child: AnimatedBuilder(
           animation: _repaymentFlipAnimation,
           builder: (context, child) {
             final showFrontSide = _repaymentFlipAnimation.value < (math.pi / 2);
+            final deviceType = ResponsiveUtils.getDeviceType(context);
+            // Adjust perspective based on device size
+            final perspectiveValue =
+                deviceType == DeviceType.small ? 0.002 : 0.001;
+
             return Transform(
               transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.001)
+                ..setEntry(3, 2, perspectiveValue)
                 ..rotateX(_repaymentFlipAnimation.value),
               alignment: Alignment.center,
               child: showFrontSide
@@ -3206,11 +3449,10 @@ Successful investing requires patience, research, and discipline. Start small, s
                                 ),
                               ],
                             ),
-                            child: Image.asset(
-                              'assets/images/icons/icons8-pie-chart-96.png',
-                              width: 32,
-                              height: 32,
-                              filterQuality: FilterQuality.high,
+                            child: AnimatedEmoji(
+                              AnimatedEmojis.crystalBall,
+                              size: 32,
+                              repeat: true,
                             ),
                           ),
                           Container(
@@ -3899,6 +4141,8 @@ Successful investing requires patience, research, and discipline. Start small, s
                       child: _buildFinancialSummary(),
                     ),
                     const SizedBox(height: 24),
+
+                    // Quick action buttons
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: _buildQuickActions(),
@@ -3922,262 +4166,64 @@ Successful investing requires patience, research, and discipline. Start small, s
   }
 
   Widget _buildBlinkAdvanceCard() {
-    const cashAdvanceBlue = Color(0xFF1E3A4F);
-    final localizations = AppLocalizations.of(context)!;
-    return GestureDetector(
-      onTap: () {
-        _performHapticFeedback(haptics.HapticsType.medium);
-        if (_hasActiveAdvance || _isBlinkAdvanceApproved) {
-          Navigator.of(context)
-              .push(
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) {
-                return BlinkAdvanceSplashScreen(bankAccountId: _bankAccountId);
-              },
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
-              },
-              transitionDuration: const Duration(milliseconds: 500),
-            ),
-          )
-              .then((result) {
-            if (result != null && result is Map<String, dynamic>) {
-              setState(() {
-                _activeAdvanceData = result;
-                _hasActiveAdvance = true;
-              });
-            }
-          });
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _blinkAdvanceStatus == 'On Review'
-                    ? 'Your Blink Advance application is still under review.'
-                    : 'You are not currently eligible for Blink Advance.',
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              cashAdvanceBlue.withOpacity(0.98),
-              const Color(0xFF0A2540).withOpacity(0.95),
-            ],
-            stops: const [0.2, 0.9],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-            width: 0.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: cashAdvanceBlue.withOpacity(0.4),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-              spreadRadius: -2,
-            ),
-            BoxShadow(
-              color: cashAdvanceBlue.withOpacity(0.2),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-              spreadRadius: -4,
-            ),
-          ],
+    // Determine card colors
+    final cardStartColor = _isDarkMode
+        ? const Color(0xFF141B2E)
+        : const Color(0xFFDBEBFF); // Slightly darker blue in light mode
+    final cardEndColor = _isDarkMode
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFC2DAFF); // Slightly darker gradient end in light mode
+
+    // Card content
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [cardStartColor, cardEndColor],
+          stops: const [0.0, 1.0],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            children: [
-              // Subtle gradient overlay for depth
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withOpacity(0.1),
-                        Colors.white.withOpacity(0.05),
-                        Colors.black.withOpacity(0.05),
-                      ],
-                      stops: const [0.2, 0.5, 0.8],
-                    ),
-                  ),
-                ),
-              ),
-              // Premium shine effect
-              Positioned(
-                top: -100,
-                left: -100,
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.1),
-                        Colors.white.withOpacity(0.0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Modern icon container with refined styling
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.white.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Image.asset(
-                        'assets/images/icons/icons8-check-dollar-96.png',
-                        width: 32,
-                        height: 32,
-                        filterQuality: FilterQuality.high,
-                      ),
-                    ),
-                    const Spacer(),
-                    // Title and subtitle
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          localizations.cash_advance,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontFamily: 'Onest',
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          localizations.quick_funds,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 14,
-                            fontFamily: 'Onest',
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    // Status and action section
-                    Container(
-                      width: double.infinity,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            constraints: BoxConstraints(
-                                maxWidth:
-                                    MediaQuery.of(context).size.width * 0.7),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Status',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
-                                    fontSize: 13,
-                                    fontFamily: 'Onest',
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        // If has active advance and the status is 'requested', show 'Requested'
-                                        // Otherwise, use Active for active advances, or _blinkAdvanceStatus for other states
-                                        _hasActiveAdvance
-                                            ? (_blinkAdvanceStatus
-                                                        .toLowerCase() ==
-                                                    'requested'
-                                                ? 'Requested'
-                                                : 'Active')
-                                            : _blinkAdvanceStatus,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontFamily: 'Onest',
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: _getStatusEmoji(),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Colors.white.withOpacity(0.9),
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          width: 0.5,
+          color: _isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : Colors.blue.withOpacity(0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _isDarkMode
+                ? Colors.black.withOpacity(0.3)
+                : Colors.blue.withOpacity(0.15),
+            blurRadius: 12,
+            spreadRadius: 1,
+            offset: const Offset(0, 4),
+          ),
+          // Secondary inner highlight for more depth
+          BoxShadow(
+            color: _isDarkMode
+                ? Colors.white.withOpacity(0.05)
+                : Colors.white.withOpacity(0.7),
+            blurRadius: 3,
+            spreadRadius: 0,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _handleBlinkAdvanceTap(),
+          splashColor: _isDarkMode
+              ? Colors.white.withOpacity(0.05)
+              : Colors.blue.withOpacity(0.05),
+          highlightColor: _isDarkMode
+              ? Colors.white.withOpacity(0.05)
+              : Colors.blue.withOpacity(0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+            child: _buildCollapsedBlinkAdvanceContent(),
           ),
         ),
       ),
@@ -4186,14 +4232,18 @@ Successful investing requires patience, research, and discipline. Start small, s
 
   Widget _buildRepaymentFrontCard(Color color, Color textColor) {
     const repaymentBlue = Color.fromRGBO(30, 54, 100, 1.0);
+    final deviceMultiplier = ResponsiveUtils.getElementSizeMultiplier(context);
+    final hasActiveAdvance = _activeAdvanceData != null;
+
     return GestureDetector(
       onTap: () {
-        _flipRepaymentCard();
         _performHapticFeedback(haptics.HapticsType.medium);
+        // Always flip the card regardless of active advance status
+        _flipRepaymentCard();
       },
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20 * deviceMultiplier),
         child: Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
@@ -4206,7 +4256,7 @@ Successful investing requires patience, research, and discipline. Start small, s
               ],
               stops: const [0.2, 0.9],
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20 * deviceMultiplier),
             border: Border.all(
               color: Colors.white.withOpacity(0.2),
               width: 0.5,
@@ -4214,15 +4264,15 @@ Successful investing requires patience, research, and discipline. Start small, s
             boxShadow: [
               BoxShadow(
                 color: repaymentBlue.withOpacity(0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-                spreadRadius: -2,
+                blurRadius: 12 * deviceMultiplier,
+                offset: Offset(0, 6 * deviceMultiplier),
+                spreadRadius: -2 * deviceMultiplier,
               ),
               BoxShadow(
                 color: repaymentBlue.withOpacity(0.2),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-                spreadRadius: -4,
+                blurRadius: 24 * deviceMultiplier,
+                offset: Offset(0, 12 * deviceMultiplier),
+                spreadRadius: -4 * deviceMultiplier,
               ),
             ],
           ),
@@ -4288,11 +4338,10 @@ Successful investing requires patience, research, and discipline. Start small, s
                               ),
                             ],
                           ),
-                          child: Image.asset(
-                            'assets/images/icons/icons8-time-is-money-96.png',
-                            width: 28,
-                            height: 28,
-                            filterQuality: FilterQuality.high,
+                          child: AnimatedEmoji(
+                            AnimatedEmojis.alarmClock,
+                            size: 28,
+                            repeat: true,
                           ),
                         ),
                         // Flip button
@@ -4330,7 +4379,8 @@ Successful investing requires patience, research, and discipline. Start small, s
                             text: 'Blink\n',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 22,
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                  context, 24),
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.bold,
                               height: 0.15,
@@ -4341,7 +4391,8 @@ Successful investing requires patience, research, and discipline. Start small, s
                             text: 'Repay',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
-                              fontSize: 22,
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                  context, 24),
                               fontFamily: 'Onest',
                               fontWeight: FontWeight.bold,
                               letterSpacing: -0.5,
@@ -4350,7 +4401,6 @@ Successful investing requires patience, research, and discipline. Start small, s
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -4376,6 +4426,9 @@ Successful investing requires patience, research, and discipline. Start small, s
             DateTime.now()
         : DateTime.now();
 
+    final deviceMultiplier = ResponsiveUtils.getElementSizeMultiplier(context);
+    final fontSizeMultiplier = ResponsiveUtils.getFontSizeMultiplier(context);
+
     // Get dynamic color based on repayment timeframe - more vivid colors
     final dynamicColor = hasActiveAdvance
         ? _getRepaymentTimeBasedColor(repaymentDate)
@@ -4383,9 +4436,9 @@ Successful investing requires patience, research, and discipline. Start small, s
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(20 * deviceMultiplier),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20 * deviceMultiplier),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
@@ -4404,7 +4457,7 @@ Successful investing requires patience, research, and discipline. Start small, s
                 ],
                 stops: const [0.3, 1.0],
               ),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(20 * deviceMultiplier),
               border: Border.all(
                 color: Colors.white.withOpacity(0.2),
                 width: 0.5,
@@ -4428,51 +4481,24 @@ Successful investing requires patience, research, and discipline. Start small, s
                     mainAxisAlignment:
                         MainAxisAlignment.center, // Center vertically
                     crossAxisAlignment:
-                        CrossAxisAlignment.center, // Center horizontally
+                        CrossAxisAlignment.start, // Align to the left
                     children: [
-                      // Top row with due date and flip button to avoid overlay
+                      // 1. HEADER ROW (WITH REPAY TEXT + FLIP BUTTON)
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          if (hasActiveAdvance) ...[
-                            // Due date pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                // Darker background with higher opacity for better contrast
-                                color: Colors.black.withOpacity(0.25),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.25),
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                'Due ${DateFormat('M/d').format(repaymentDate)}',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontFamily: 'Onest',
-                                  fontWeight: FontWeight
-                                      .w700, // Bolder for better visibility
-                                  letterSpacing: 0.2,
-                                  shadows: [
-                                    // Stronger shadow for better contrast
-                                    Shadow(
-                                      color: Colors.black.withOpacity(0.5),
-                                      blurRadius: 2,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                          // Title text
+                          Text(
+                            'Blink Repay',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                  context, 15),
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
                             ),
-                          ],
-
-                          // Place flip button in the top row
-                          const Spacer(),
+                          ),
 
                           // Integrated flip button
                           GestureDetector(
@@ -4528,11 +4554,13 @@ Successful investing requires patience, research, and discipline. Start small, s
                             text: TextSpan(
                               children: [
                                 // Dollar sign
-                                const TextSpan(
+                                TextSpan(
                                   text: '\$',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 28,
+                                    fontSize:
+                                        ResponsiveUtils.getResponsiveFontSize(
+                                            context, 28),
                                     fontFamily: 'Onest',
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -0.5,
@@ -4552,9 +4580,11 @@ Successful investing requires patience, research, and discipline. Start small, s
                                       .format(repaymentAmount)
                                       .split('.')[0]
                                       .substring(1),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 28,
+                                    fontSize:
+                                        ResponsiveUtils.getResponsiveFontSize(
+                                            context, 28),
                                     fontFamily: 'Onest',
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -0.5,
@@ -4569,11 +4599,13 @@ Successful investing requires patience, research, and discipline. Start small, s
                                   ),
                                 ),
                                 // Decimal point
-                                const TextSpan(
+                                TextSpan(
                                   text: '.',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 28,
+                                    fontSize:
+                                        ResponsiveUtils.getResponsiveFontSize(
+                                            context, 28),
                                     fontFamily: 'Onest',
                                     fontWeight: FontWeight.w800,
                                     height: 1.0,
@@ -4593,7 +4625,9 @@ Successful investing requires patience, research, and discipline. Start small, s
                                       .split('.')[1],
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
-                                    fontSize: 16, // Smaller font for cents
+                                    fontSize:
+                                        ResponsiveUtils.getResponsiveFontSize(
+                                            context, 16),
                                     fontFamily: 'Onest',
                                     fontWeight: FontWeight.w700,
                                     height: 1.0,
@@ -4695,63 +4729,20 @@ Successful investing requires patience, research, and discipline. Start small, s
                           },
                         ),
                       ] else ...[
-                        // No active advance message - GLASS MORPHISM DESIGN
-                        SizedBox(
-                          height: 80,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                ShaderMask(
-                                  shaderCallback: (Rect bounds) {
-                                    return LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [Colors.white, Colors.white70],
-                                    ).createShader(bounds);
-                                  },
-                                  child: Icon(
-                                    Icons.info_outline_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'No Active Advance',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.1,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.black26,
-                                        blurRadius: 1,
-                                        offset: const Offset(0, 0.5),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  'Apply for a Blink Advance',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontSize: 11,
-                                    fontFamily: 'Onest',
-                                    fontWeight: FontWeight.w500,
-                                    letterSpacing: 0.1,
-                                  ),
-                                ),
-                              ],
+                        // Show a simple message for no active advance
+                        Center(
+                          child: Text(
+                            'No Active Advance',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                  context, 16),
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                      ],
+                      ]
                     ],
                   ),
                 ),
@@ -5236,7 +5227,7 @@ Successful investing requires patience, research, and discipline. Start small, s
       emoji = '✅';
     } else {
       switch (_blinkAdvanceStatus.toLowerCase()) {
-        case 'on review':
+        case 'Reviewing':
           emoji = '🕒';
           break;
         case 'approved':
@@ -5950,13 +5941,8 @@ Successful investing requires patience, research, and discipline. Start small, s
       // Wait a moment for visual effect
       await Future.delayed(Duration(milliseconds: 300));
 
-      // Direct API call to test
-      final authService = Provider.of<auth.AuthService>(context, listen: false);
-      final response = await authService.getBankAccountBalance();
-      _logger.i('DEBUG: Direct API call response: $response');
-
-      // Call the balance loading method
-      await _loadCurrentBalances();
+      // Load balance using our improved method that fetches from real accounts
+      await _loadBankAccountFromAPI();
 
       _logger.i(
           'DEBUG: Manual balance refresh completed. Current balance: $_currentBalance');
@@ -6180,9 +6166,500 @@ Successful investing requires patience, research, and discipline. Start small, s
       ),
     );
   }
-}
 
-// At the end of the file, before the final closing brace
+  // Check user preferences for pending asset report tokens
+  Future<void> _checkForPendingAssetReports() async {
+    try {
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+      final userPreferences = await storageService.getUserPreferences() ?? {};
+
+      // First check if there's a need to retry asset report creation
+      await _checkAndRetryAssetReport();
+
+      // Check preferences for stored token
+      if (userPreferences.containsKey('pending_asset_report_token')) {
+        _pendingAssetReportToken =
+            userPreferences['pending_asset_report_token'];
+        _assetReportCreatedAt =
+            userPreferences['asset_report_created_at'] != null
+                ? DateTime.parse(userPreferences['asset_report_created_at'])
+                : DateTime.now();
+
+        if (_pendingAssetReportToken != null) {
+          setState(() {
+            _hasPendingAssetReport = true;
+            _assetReportStatus = 'Analyzing your bank data...';
+          });
+
+          // Check status immediately
+          await _checkAssetReportStatus();
+
+          // Set up periodic checking (every 30 seconds)
+          _assetReportCheckTimer = Timer.periodic(
+            const Duration(seconds: 30),
+            (_) => _checkAssetReportStatus(),
+          );
+        }
+      } else {
+        // No pending token in preferences, check with backend
+        await _fetchPendingAssetReports();
+      }
+    } catch (e) {
+      _logger.e('Error checking for pending asset reports: $e');
+    }
+  }
+
+  // Check if a retry is needed for asset report creation and perform it
+  Future<void> _checkAndRetryAssetReport() async {
+    try {
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+      final userPrefs = await storageService.getUserPreferences() ?? {};
+
+      if (userPrefs['should_retry_asset_report'] == 'true' &&
+          userPrefs['asset_report_retry_access_token'] != null) {
+        // Check how many retry attempts have been made
+        int retryAttempts = 0;
+        if (userPrefs['asset_report_retry_attempts'] != null) {
+          retryAttempts =
+              int.tryParse(userPrefs['asset_report_retry_attempts']) ?? 0;
+        }
+
+        // Only retry if we haven't exceeded max attempts (3)
+        if (retryAttempts < 3) {
+          _logger.i(
+              'Attempting to retry asset report creation, attempt #${retryAttempts + 1}');
+
+          setState(() {
+            _hasPendingAssetReport = true;
+            _assetReportStatus = 'Retrying analysis of your bank data...';
+            _isAssetReportLoading = true;
+          });
+
+          try {
+            final authService =
+                Provider.of<auth.AuthService>(context, listen: false);
+
+            // Call the retry endpoint with reduced timeframe
+            final retryResponse = await authService.retryAssetReport(
+              accessTokens: [userPrefs['asset_report_retry_access_token']],
+              daysRequested: 365, // Use smaller timeframe as recommended
+            );
+
+            if (retryResponse['asset_report_token'] != null) {
+              // Update the token to the new one
+              userPrefs['pending_asset_report_token'] =
+                  retryResponse['asset_report_token'];
+              userPrefs['asset_report_created_at'] =
+                  DateTime.now().toIso8601String();
+
+              // Remove retry flags since we succeeded
+              userPrefs.remove('should_retry_asset_report');
+              userPrefs.remove('asset_report_retry_access_token');
+              userPrefs.remove('asset_report_retry_attempts');
+              userPrefs.remove('asset_report_last_retry');
+
+              await storageService.setUserPreferences(userPrefs);
+
+              setState(() {
+                _pendingAssetReportToken = retryResponse['asset_report_token'];
+                _assetReportCreatedAt = DateTime.now();
+                _assetReportStatus = 'Analyzing your bank data...';
+              });
+
+              _logger.i('Successfully retried asset report creation');
+
+              // Set up periodic checking
+              _assetReportCheckTimer?.cancel();
+              _assetReportCheckTimer = Timer.periodic(
+                const Duration(seconds: 30),
+                (_) => _checkAssetReportStatus(),
+              );
+            }
+          } catch (e) {
+            _logger.e('Error retrying asset report: $e');
+
+            // Increment retry count
+            userPrefs['asset_report_retry_attempts'] =
+                (retryAttempts + 1).toString();
+            userPrefs['asset_report_last_retry'] =
+                DateTime.now().toIso8601String();
+            await storageService.setUserPreferences(userPrefs);
+
+            // If this was the last attempt, clear the retry flags
+            if (retryAttempts >= 2) {
+              _logger.w(
+                  'Maximum retry attempts reached, giving up on asset report creation');
+              userPrefs.remove('should_retry_asset_report');
+              userPrefs.remove('asset_report_retry_access_token');
+              userPrefs.remove('asset_report_retry_attempts');
+              userPrefs.remove('asset_report_last_retry');
+              await storageService.setUserPreferences(userPrefs);
+            }
+          } finally {
+            setState(() {
+              _isAssetReportLoading = false;
+            });
+          }
+        } else {
+          // Clear retry flags if max attempts exceeded
+          _logger.w(
+              'Maximum retry attempts already reached, clearing retry flags');
+          userPrefs.remove('should_retry_asset_report');
+          userPrefs.remove('asset_report_retry_access_token');
+          userPrefs.remove('asset_report_retry_attempts');
+          userPrefs.remove('asset_report_last_retry');
+          await storageService.setUserPreferences(userPrefs);
+        }
+      }
+    } catch (e) {
+      _logger.e('Error in _checkAndRetryAssetReport: $e');
+    }
+  }
+
+  // Fetch pending asset reports from the backend
+  Future<void> _fetchPendingAssetReports() async {
+    try {
+      setState(() {
+        _isAssetReportLoading = true;
+      });
+
+      // Use the new method we added to AuthService
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final response = await authService.getPendingAssetReports();
+
+      if (response['count'] > 0) {
+        final reports = response['pending_reports'] as List<dynamic>;
+        if (reports.isNotEmpty) {
+          // Use the most recent pending report
+          final latestReport = reports.first;
+
+          setState(() {
+            _pendingAssetReportToken = latestReport['token'];
+            _hasPendingAssetReport = true;
+            _assetReportStatus = 'Analyzing your bank data...';
+            _assetReportCreatedAt = DateTime.parse(latestReport['created_at']);
+          });
+
+          // Store in preferences for future reference
+          final storageService =
+              Provider.of<StorageService>(context, listen: false);
+          final userPreferences =
+              await storageService.getUserPreferences() ?? {};
+          userPreferences['pending_asset_report_token'] =
+              _pendingAssetReportToken;
+          userPreferences['asset_report_created_at'] =
+              _assetReportCreatedAt!.toIso8601String();
+          await storageService.setUserPreferences(userPreferences);
+
+          // Set up periodic checking
+          _assetReportCheckTimer = Timer.periodic(
+            const Duration(seconds: 30),
+            (_) => _checkAssetReportStatus(),
+          );
+        }
+      }
+    } catch (e) {
+      _logger.e('Error fetching pending asset reports: $e');
+    } finally {
+      setState(() {
+        _isAssetReportLoading = false;
+      });
+    }
+  }
+
+  // Check status of the pending asset report
+  Future<void> _checkAssetReportStatus() async {
+    if (_pendingAssetReportToken == null) return;
+
+    try {
+      setState(() {
+        _isAssetReportLoading = true;
+      });
+
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final response = await authService.getAssetReportStatus(
+        assetReportToken: _pendingAssetReportToken!,
+      );
+
+      // Update the state based on response
+      if (response['status'] == 'ready') {
+        _logger.i('Asset report is ready');
+
+        try {
+          // Fetch the complete asset report
+          _logger.i('Fetching complete asset report data');
+          final reportData = await authService.getAssetReport(
+            assetReportToken: _pendingAssetReportToken!,
+            includeInsights: true, // Get detailed insights if available
+          );
+
+          // Process the asset report data
+          await _processAssetReportData(reportData);
+
+          _logger.i('Asset report successfully processed');
+        } catch (reportError) {
+          _logger.e('Error fetching or processing asset report: $reportError');
+          // Even if there's an error fetching the report, we'll continue with cleanup
+        }
+
+        setState(() {
+          _hasPendingAssetReport = false;
+          _assetReportStatus = 'Report ready';
+        });
+
+        // Clear the stored token since report is ready
+        final storageService =
+            Provider.of<StorageService>(context, listen: false);
+        final userPreferences = await storageService.getUserPreferences() ?? {};
+        userPreferences.remove('pending_asset_report_token');
+        userPreferences.remove('asset_report_created_at');
+        await storageService.setUserPreferences(userPreferences);
+
+        // Cancel the periodic timer
+        _assetReportCheckTimer?.cancel();
+      } else if (response['status'] == 'pending') {
+        // Still pending, update the status with time remaining if available
+        final int estimatedWaitTime = response['estimated_wait_time'] ?? 0;
+        setState(() {
+          _assetReportStatus = estimatedWaitTime > 0
+              ? 'Analyzing your bank data (est. ${estimatedWaitTime}m remaining)...'
+              : 'Analyzing your bank data...';
+        });
+      } else if (response['exists'] == false) {
+        // Report doesn't exist, clear state
+        setState(() {
+          _hasPendingAssetReport = false;
+        });
+
+        // Clear stored preferences
+        final storageService =
+            Provider.of<StorageService>(context, listen: false);
+        final userPreferences = await storageService.getUserPreferences() ?? {};
+        userPreferences.remove('pending_asset_report_token');
+        userPreferences.remove('asset_report_created_at');
+        await storageService.setUserPreferences(userPreferences);
+
+        // Cancel timer
+        _assetReportCheckTimer?.cancel();
+      }
+    } catch (e) {
+      _logger.e('Error checking asset report status: $e');
+    } finally {
+      setState(() {
+        _isAssetReportLoading = false;
+      });
+    }
+  }
+
+  // Process and store the asset report data
+  Future<void> _processAssetReportData(Map<String, dynamic> reportData) async {
+    try {
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+
+      // Extract key financial data from the report
+      // Note: The exact structure depends on your Plaid implementation
+      Map<String, dynamic> financialSummary = {};
+
+      // Extract account data if available
+      if (reportData.containsKey('items') && reportData['items'] is List) {
+        final items = reportData['items'] as List;
+        int totalAccounts = 0;
+        double totalBalance = 0.0;
+
+        for (var item in items) {
+          if (item is Map<String, dynamic> &&
+              item.containsKey('accounts') &&
+              item['accounts'] is List) {
+            final accounts = item['accounts'] as List;
+            totalAccounts += accounts.length;
+
+            for (var account in accounts) {
+              if (account is Map<String, dynamic> &&
+                  account.containsKey('balances') &&
+                  account['balances'] is Map<String, dynamic>) {
+                final balances = account['balances'] as Map<String, dynamic>;
+                if (balances.containsKey('current') &&
+                    balances['current'] is num) {
+                  totalBalance += (balances['current'] as num).toDouble();
+                }
+              }
+            }
+          }
+        }
+
+        financialSummary['total_accounts'] = totalAccounts;
+        financialSummary['total_balance'] = totalBalance;
+      }
+
+      // Extract summary data if available
+      if (reportData.containsKey('report') &&
+          reportData['report'] is Map<String, dynamic>) {
+        final report = reportData['report'] as Map<String, dynamic>;
+
+        if (report.containsKey('income')) {
+          financialSummary['income'] = report['income'];
+        }
+
+        if (report.containsKey('cash_flow_analysis')) {
+          financialSummary['cash_flow'] = report['cash_flow_analysis'];
+        }
+      }
+
+      // Store the processed data in user preferences for later use
+      final userPreferences = await storageService.getUserPreferences() ?? {};
+      userPreferences['financial_summary'] = jsonEncode(financialSummary);
+      userPreferences['asset_report_processed_at'] =
+          DateTime.now().toIso8601String();
+      await storageService.setUserPreferences(userPreferences);
+
+      _logger.i('Stored processed financial summary from asset report');
+
+      // Instead of calling _fetchFinancialData which might not exist,
+      // we'll just trigger a UI refresh if needed through setState
+      if (mounted) {
+        setState(() {
+          // Refresh data display with the newly processed financial data
+          _currentBalance =
+              financialSummary['total_balance'] ?? _currentBalance;
+        });
+      }
+    } catch (e) {
+      _logger.e('Error processing asset report data: $e');
+      // The error is caught here and doesn't propagate to avoid breaking the app flow
+    }
+  }
+
+  // Helper method to format time ago
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+    } else {
+      return 'just now';
+    }
+  }
+
+  // Helper method to get access token from backend
+  Future<String?> _getAccessTokenFromBackend() async {
+    try {
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+
+      // Try to get access token from the backend
+      try {
+        // Use the correct getPlaidAccessToken method that returns a single access token
+        return await authService.getPlaidAccessToken();
+      } catch (e) {
+        _logger.e('Error retrieving Plaid access token: $e');
+      }
+
+      _logger.w('No access token found in backend response');
+      return null;
+    } catch (e) {
+      _logger.e('Error getting access token from backend: $e');
+      return null;
+    }
+  }
+
+  // Add new method to load bank account data using the account screen's method
+  Future<void> _loadBankAccountFromAPI() async {
+    if (!mounted) return;
+
+    try {
+      _logger.i('Loading bank accounts from API using account screen method');
+
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+      final token = await authService.getToken();
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/bank-accounts/plaid-items'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final accountsData = responseData['data'] as List;
+
+          if (accountsData.isNotEmpty) {
+            final account = accountsData.first;
+            final availableBalance =
+                double.tryParse(account['balance_available'] ?? '0') ?? 0.0;
+            final currentBalance =
+                double.tryParse(account['balance_current'] ?? '0') ?? 0.0;
+
+            // Prefer available balance, fallback to current balance
+            final balance =
+                availableBalance > 0 ? availableBalance : currentBalance;
+
+            _logger.i('Loaded account balance from API: $balance');
+
+            if (!mounted) return;
+
+            setState(() {
+              _currentBalance = balance;
+              _balanceLastUpdated = DateTime.now();
+            });
+
+            // Trigger animation
+            if (_animationController.isAnimating) {
+              _animationController.stop();
+            }
+
+            _animationController.reset();
+            _animationController.forward();
+
+            // Store balance in preferences for future use
+            final storageService =
+                Provider.of<StorageService>(context, listen: false);
+            final userPreferences =
+                await storageService.getUserPreferences() ?? {};
+
+            Map<String, dynamic> financialSummary = {};
+            if (userPreferences.containsKey('financial_summary')) {
+              try {
+                financialSummary =
+                    jsonDecode(userPreferences['financial_summary']);
+              } catch (e) {
+                _logger.e('Error parsing stored financial summary: $e');
+                financialSummary = {};
+              }
+            }
+
+            financialSummary['total_balance'] = balance;
+            financialSummary['last_updated'] = DateTime.now().toIso8601String();
+
+            userPreferences['financial_summary'] = jsonEncode(financialSummary);
+            await storageService.setUserPreferences(userPreferences);
+          }
+        }
+      }
+    } catch (e) {
+      _logger.e('Error in _loadBankAccountFromAPI: $e');
+    }
+  }
+
+  void _navigateToBlinkAdvance() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            BlinkAdvanceSplashScreen(bankAccountId: _bankAccountId),
+      ),
+    );
+  }
+}
 
 // Custom painter for circular progress
 class _CircularProgressPainter extends CustomPainter {

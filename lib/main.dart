@@ -18,6 +18,7 @@ import 'package:blink_app/features/error/presentation/error_screen.dart';
 import 'package:blink_app/features/insights/presentation/financial_insights_screen.dart';
 import 'package:blink_app/features/onboarding/presentation/onboarding_wrapper.dart';
 import 'package:blink_app/features/insights/presentation/recurring_expenses_screen.dart';
+import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';  // Temporarily removed
 import 'package:blink_app/utils/temp_localizations.dart'; // Temporary placeholder
@@ -219,6 +220,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/home': (context) => const HomeScreen(),
         '/insights': (context) => const FinancialInsightsScreen(),
         '/recurring-expenses': (context) => const RecurringExpensesScreen(),
+        '/link_plaid': (context) => const LinkPlaidBankScreen(),
       },
       onUnknownRoute: (settings) {
         return MaterialPageRoute(

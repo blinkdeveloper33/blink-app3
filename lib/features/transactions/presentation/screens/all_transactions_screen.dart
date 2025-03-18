@@ -17,6 +17,9 @@ import 'package:logger/logger.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'dart:ui' as ui;
 import 'package:blink_app/features/transactions/domain/services/category_service.dart';
+import 'package:blink_app/features/transactions/domain/services/merchant_logo_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:blink_app/features/transactions/domain/models/transaction_converter.dart';
 
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({Key? key}) : super(key: key);
@@ -93,6 +96,17 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         _groupTransactions();
         _isLoading = false;
       });
+
+      // Preload logos in the background for better user experience
+      // This won't block the UI since we're not awaiting it
+      // Convert transactions to the expected type
+      final convertedTransactions = transactions
+          .map((t) => TransactionConverter.convertToFeatureTransaction(t))
+          .toList();
+
+      MerchantLogoService.preloadLogos(convertedTransactions, _isDarkMode)
+          .then((_) => _logger.d('Finished preloading merchant logos'))
+          .catchError((e) => _logger.e('Error preloading logos: $e'));
     } catch (e) {
       _logger.e('Error loading all transactions: $e');
       if (mounted) {
@@ -676,9 +690,8 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    // Category Icon with Gradient Border - Use CategoryService
-                    CategoryService.buildEnhancedCategoryIcon(
-                        transaction.category, _isDarkMode),
+                    // Replace the category icon with our new method that includes merchant logos
+                    _buildMerchantLogoOrCategoryIcon(transaction),
                     const SizedBox(width: 16),
 
                     // Transaction Details
@@ -813,6 +826,85 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMerchantLogoOrCategoryIcon(Transaction transaction) {
+    // Check if we should attempt to show a logo
+    if (!MerchantLogoService.shouldAttemptLogo(transaction.merchantName)) {
+      return CategoryService.buildEnhancedCategoryIcon(
+          transaction.category, _isDarkMode);
+    }
+
+    // Use FutureBuilder to handle async logo URL fetching
+    return FutureBuilder<String>(
+      // Use the new backend API method
+      future: MerchantLogoService.getLogoUrlFromBackend(
+        merchantName: transaction.merchantName!,
+        type: 'icon',
+        width: 60,
+        height: 60,
+        isDarkMode: _isDarkMode,
+      ),
+      builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+        // If we got a valid URL, show the logo
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData &&
+            snapshot.data!.isNotEmpty) {
+          return Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              // Add a gradient background that works with both light and dark logos
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: _isDarkMode
+                    ? [
+                        Colors.white.withOpacity(0.12),
+                        Colors.white.withOpacity(0.08)
+                      ]
+                    : [
+                        Colors.grey.withOpacity(0.08),
+                        Colors.grey.withOpacity(0.15)
+                      ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.05),
+                width: 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: CachedNetworkImage(
+                imageUrl: snapshot.data!,
+                width: 40,
+                height: 40,
+                fit: BoxFit.contain,
+                placeholder: (context, url) =>
+                    CategoryService.buildEnhancedCategoryIcon(
+                        transaction.category, _isDarkMode),
+                errorWidget: (context, error, stackTrace) {
+                  // Mark as failed to avoid future attempts
+                  MerchantLogoService.markDomainAsFailed(
+                      transaction.merchantName!);
+                  _logger.w(
+                      'Failed to load logo for ${transaction.merchantName}: $error');
+                  return CategoryService.buildEnhancedCategoryIcon(
+                      transaction.category, _isDarkMode);
+                },
+              ),
+            ),
+          );
+        }
+
+        // While loading or if the URL is empty, show the category icon
+        return CategoryService.buildEnhancedCategoryIcon(
+            transaction.category, _isDarkMode);
+      },
     );
   }
 
@@ -2057,12 +2149,133 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
 
   Widget _buildHeader(BuildContext context, bool isDarkMode) {
     final currencyFormatter = NumberFormat.currency(symbol: '\$');
+    final merchantName = widget.transaction.merchantName ?? 'Unknown Merchant';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Add merchant logo at the top
+        if (MerchantLogoService.shouldAttemptLogo(merchantName))
+          Center(
+            child: FutureBuilder<String>(
+              future: MerchantLogoService.getLogoUrlFromBackend(
+                merchantName: merchantName,
+                type: 'logo', // Use full logo in details view
+                width: 160,
+                height: 160,
+                isDarkMode: isDarkMode,
+              ),
+              builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+                // If no logo URL yet, show a loading spinner
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Container(
+                    width: 80,
+                    height: 80,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      // Use gradient background for better logo visibility
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDarkMode
+                            ? [
+                                Colors.white.withOpacity(0.12),
+                                Colors.white.withOpacity(0.08)
+                              ]
+                            : [
+                                Colors.grey.withOpacity(0.08),
+                                Colors.grey.withOpacity(0.15)
+                              ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: isDarkMode
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isDarkMode ? Colors.white60 : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                // We have a logo URL, display it
+                return Container(
+                  width: 80,
+                  height: 80,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    // Use gradient background for better logo visibility
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDarkMode
+                          ? [
+                              Colors.white.withOpacity(0.12),
+                              Colors.white.withOpacity(0.08)
+                            ]
+                          : [
+                              Colors.grey.withOpacity(0.08),
+                              Colors.grey.withOpacity(0.15)
+                            ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: isDarkMode
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: CachedNetworkImage(
+                      imageUrl: snapshot.data!,
+                      fit: BoxFit.contain,
+                      placeholder: (context, url) => Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isDarkMode ? Colors.white60 : Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, error, stackTrace) {
+                        // Mark domain as failed for future requests
+                        MerchantLogoService.markDomainAsFailed(merchantName);
+                        // Just return empty space if logo fails to load
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
         Text(
-          widget.transaction.merchantName ?? 'Unknown Merchant',
+          merchantName,
           style: TextStyle(
             color: isDarkMode ? Colors.white : Colors.black87,
             fontSize: 26,

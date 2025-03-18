@@ -56,4 +56,7 @@ dependencies {
 
     // Plaid SDK dependency
     implementation 'com.plaid.link:sdk-core:3.10.0'
+    
+    // Google Sign-In dependencies
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
 }

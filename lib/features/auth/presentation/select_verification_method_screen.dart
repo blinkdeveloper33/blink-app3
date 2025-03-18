@@ -28,59 +28,150 @@ class _SelectVerificationMethodScreenState
   final Logger _logger = Logger();
 
   Future<void> _initiateVerification() async {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
+
     setState(() {
       _isSending = true;
     });
 
-    // First navigate to OTP screen
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => EnterOtpScreen(email: widget.email),
-      ),
-    );
-
-    // Then make the API call
     final authService = Provider.of<AuthService>(context, listen: false);
 
     try {
       final response =
           await authService.initiateEmailVerification(widget.email);
 
-      if (response['success'] != true) {
-        // Show error snackbar if API call fails
+      if (!mounted) return;
+
+      // Check if the email is already verified
+      if (response['isVerified'] == true) {
+        // Show a dialog informing the user to login instead
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF061535),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue[300],
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Already Registered',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              content: Text(
+                response['message'] ??
+                    'This email is already registered. Please login instead.',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontFamily: 'Onest',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close dialog
+                    Navigator.of(context).pushReplacementNamed(
+                        '/auth'); // Navigate to auth screen
+                  },
+                  child: const Text(
+                    'Go to Login',
+                    style: TextStyle(
+                      color: Color(0xFF2196F3),
+                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+        return;
+      }
+
+      // If email is not verified or is a new user, proceed to OTP screen
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => EnterOtpScreen(email: widget.email),
+        ),
+      );
+
+      // Show success snackbar if needed
+      if (response['message']?.contains('sent successfully') == true) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
-              'There was an error processing your request. Please try again later.',
-              style: TextStyle(
-                fontFamily: 'Onest',
-                fontWeight: FontWeight.w500,
-              ),
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Verification code sent to ${widget.email}',
+                    style: const TextStyle(
+                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: const Color(0xFF00C853),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
             margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e, stackTrace) {
       _logger.e('Error initiating verification',
           error: e, stackTrace: stackTrace);
-      // Show error snackbar if API call fails
       if (!mounted) return;
+
+      // Show error snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'There was an error processing your request. Please try again later.',
-            style: TextStyle(
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.w500,
-            ),
+          content: Row(
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'There was an error processing your request. Please try again later.',
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
@@ -88,6 +179,7 @@ class _SelectVerificationMethodScreenState
             borderRadius: BorderRadius.circular(16),
           ),
           margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 4),
         ),
       );
     } finally {
@@ -361,40 +453,46 @@ class _SelectVerificationMethodScreenState
               ),
               // Scrollable Content
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        ClipRect(
-                          child: FadeInDown(
-                            duration: const Duration(milliseconds: 600),
-                            child: Center(
-                              child: Lottie.asset(
-                                'assets/animations/verification.json',
-                                width: 180,
-                                height: 180,
-                                fit: BoxFit.contain,
+                child: GestureDetector(
+                  onTap: () {
+                    // Dismiss keyboard when tapping outside of text fields
+                    FocusScope.of(context).unfocus();
+                  },
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          ClipRect(
+                            child: FadeInDown(
+                              duration: const Duration(milliseconds: 600),
+                              child: Center(
+                                child: Lottie.asset(
+                                  'assets/animations/verification.json',
+                                  width: 180,
+                                  height: 180,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 600),
-                          child: _buildVerificationOptions(),
-                        ),
-                        const SizedBox(height: 32),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 200),
-                          child: _buildContinueButton(),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
+                          const SizedBox(height: 24),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 600),
+                            child: _buildVerificationOptions(),
+                          ),
+                          const SizedBox(height: 32),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 200),
+                            child: _buildContinueButton(),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
                     ),
                   ),
                 ),

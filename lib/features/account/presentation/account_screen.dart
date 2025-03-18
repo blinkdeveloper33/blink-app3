@@ -27,6 +27,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'package:blink_app/config/api_config.dart';
+import 'package:shimmer/shimmer.dart'; // Add shimmer package for professional loading effects
 
 class BankAccount {
   final String bankAccountId;
@@ -82,7 +83,7 @@ class _AccountScreenState extends State<AccountScreen> {
   String _email = '';
   List<BankAccount>? _bankAccounts;
   bool _isLoadingBankAccounts = false;
-  Map<String, dynamic>? _accountData;
+  bool _isInitialLoad = true; // Track if this is the first load
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0;
   final ImagePicker _imagePicker = ImagePicker();
@@ -91,11 +92,95 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfilePicture();
-    _loadUserProfileFromAPI();
-    _loadBankAccountsFromAPI();
-    _loadAccountData();
+    _loadInitialData();
     _scrollController.addListener(_onScroll);
+  }
+
+  // New method to handle initial data loading
+  Future<void> _loadInitialData() async {
+    // First try to load data from cache
+    await _loadCachedUserData();
+    await _loadCachedBankAccounts();
+
+    // Then refresh data in the background
+    _refreshDataInBackground();
+  }
+
+  // Load user data from cache first
+  Future<void> _loadCachedUserData() async {
+    final storageService = Provider.of<StorageService>(context, listen: false);
+    final profileProvider =
+        Provider.of<ProfileProvider>(context, listen: false);
+
+    // Load profile picture if available
+    final userId = storageService.getUserId();
+    if (userId != null) {
+      await profileProvider.loadProfilePicture(userId);
+    }
+
+    // Set user data from local storage
+    final cachedName =
+        '${storageService.getFirstName() ?? ''} ${storageService.getLastName() ?? ''}'
+            .trim();
+    final cachedEmail = storageService.getEmail() ?? '';
+
+    if (mounted && (cachedName.isNotEmpty || cachedEmail.isNotEmpty)) {
+      setState(() {
+        _userName = cachedName;
+        _email = cachedEmail;
+      });
+    }
+  }
+
+  // Load bank accounts from cache
+  Future<void> _loadCachedBankAccounts() async {
+    try {
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
+      final userPreferences = await storageService.getUserPreferences() ?? {};
+
+      if (userPreferences.containsKey('bank_accounts_cache')) {
+        final cachedAccounts =
+            jsonDecode(userPreferences['bank_accounts_cache']);
+        if (cachedAccounts is List && cachedAccounts.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _bankAccounts = cachedAccounts
+                  .map((account) => BankAccount.fromJson(account))
+                  .toList();
+              _isInitialLoad = false;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading cached bank accounts: $e');
+    }
+  }
+
+  // Refresh data in background without showing loading indicators if we already have data
+  Future<void> _refreshDataInBackground() async {
+    // Only show loading indicators if this is the initial load
+    if (_isInitialLoad) {
+      if (mounted) {
+        setState(() {
+          _isLoadingBankAccounts = _bankAccounts == null;
+        });
+      }
+    }
+
+    // Refresh data from API
+    await Future.wait([
+      _loadUserProfileFromAPI(showLoading: _isInitialLoad),
+      _loadBankAccountsFromAPI(showLoading: _isInitialLoad),
+    ]);
+
+    // Mark initial load as complete
+    if (mounted && _isInitialLoad) {
+      setState(() {
+        _isInitialLoad = false;
+      });
+    }
   }
 
   @override
@@ -110,7 +195,7 @@ class _AccountScreenState extends State<AccountScreen> {
     });
   }
 
-  Future<void> _loadUserProfileFromAPI() async {
+  Future<void> _loadUserProfileFromAPI({bool showLoading = true}) async {
     try {
       debugPrint('Fetching user profile from API...');
       final authService = Provider.of<AuthService>(context, listen: false);
@@ -129,6 +214,8 @@ class _AccountScreenState extends State<AccountScreen> {
 
         if (data['success'] == true && data['data'] != null) {
           final userData = data['data'];
+          final storageService =
+              Provider.of<StorageService>(context, listen: false);
 
           if (mounted) {
             setState(() {
@@ -136,25 +223,34 @@ class _AccountScreenState extends State<AccountScreen> {
                   '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'
                       .trim();
               _email = userData['email'] ?? '';
-              debugPrint('Loaded user profile: $_userName, $_email');
+              debugPrint('Updated user profile from API: $_userName, $_email');
             });
           }
         } else {
           debugPrint('User profile API returned success=false or no data');
-          _loadUserData(); // Fall back to local storage
+          // Don't call _loadUserData() if we already have data and this is a background refresh
+          if (showLoading || _userName.isEmpty) {
+            await _loadUserData();
+          }
         }
       } else {
         debugPrint('Failed to get user profile: HTTP ${response.statusCode}');
-        _loadUserData(); // Fall back to local storage
+        // Don't call _loadUserData() if we already have data and this is a background refresh
+        if (showLoading || _userName.isEmpty) {
+          await _loadUserData();
+        }
       }
     } catch (e) {
       debugPrint('Error loading user profile from API: $e');
-      _loadUserData(); // Fall back to local storage
+      // Don't call _loadUserData() if we already have data and this is a background refresh
+      if (showLoading || _userName.isEmpty) {
+        await _loadUserData();
+      }
     }
   }
 
-  Future<void> _loadBankAccountsFromAPI() async {
-    if (mounted) {
+  Future<void> _loadBankAccountsFromAPI({bool showLoading = true}) async {
+    if (mounted && showLoading) {
       setState(() {
         _isLoadingBankAccounts = true;
       });
@@ -164,6 +260,8 @@ class _AccountScreenState extends State<AccountScreen> {
       debugPrint('Fetching bank accounts from API...');
       final authService = Provider.of<AuthService>(context, listen: false);
       final token = await authService.getToken();
+      final storageService =
+          Provider.of<StorageService>(context, listen: false);
 
       final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/api/bank-accounts/plaid-items'),
@@ -178,60 +276,95 @@ class _AccountScreenState extends State<AccountScreen> {
 
         if (responseData['success'] == true && responseData['data'] != null) {
           final accountsData = responseData['data'] as List;
+          final List<BankAccount> accounts = accountsData.map((account) {
+            return BankAccount(
+              bankAccountId: account['id'] ?? '',
+              accountName: account['account_name'] ??
+                  account['institution_name'] ??
+                  'Bank Account',
+              accountType: account['account_subtype'] ?? 'Unknown',
+              accountSubtype: account['account_subtype'] ?? '',
+              accountMask: account['account_mask'] ?? '****',
+              availableBalance:
+                  double.tryParse(account['balance_available'] ?? '0') ?? 0.0,
+              currentBalance:
+                  double.tryParse(account['balance_current'] ?? '0') ?? 0.0,
+              currency: account['iso_currency_code'] ?? 'USD',
+              createdAt: DateTime.tryParse(account['created_at'] ?? '') ??
+                  DateTime.now(),
+              cursor: account['id'] ?? '',
+            );
+          }).toList();
 
           if (mounted) {
             setState(() {
-              _bankAccounts = accountsData.map((account) {
-                return BankAccount(
-                  bankAccountId: account['id'] ?? '',
-                  accountName: account['account_name'] ??
-                      account['institution_name'] ??
-                      'Bank Account',
-                  accountType: account['account_subtype'] ?? 'Unknown',
-                  accountSubtype: account['account_subtype'] ?? '',
-                  accountMask: account['account_mask'] ?? '****',
-                  availableBalance:
-                      double.tryParse(account['balance_available'] ?? '0') ??
-                          0.0,
-                  currentBalance:
-                      double.tryParse(account['balance_current'] ?? '0') ?? 0.0,
-                  currency: account['iso_currency_code'] ?? 'USD',
-                  createdAt: DateTime.tryParse(account['created_at'] ?? '') ??
-                      DateTime.now(),
-                  cursor: account['id'] ?? '',
-                );
-              }).toList();
+              _bankAccounts = accounts;
               _isLoadingBankAccounts = false;
               debugPrint(
-                  'Loaded ${_bankAccounts?.length ?? 0} bank accounts from API');
+                  'Updated ${_bankAccounts?.length ?? 0} bank accounts from API');
             });
+          }
+
+          // Cache the bank accounts data
+          try {
+            final userPreferences =
+                await storageService.getUserPreferences() ?? {};
+            userPreferences['bank_accounts_cache'] = jsonEncode(
+              accounts
+                  .map((account) => {
+                        'bankAccountId': account.bankAccountId,
+                        'accountName': account.accountName,
+                        'accountType': account.accountType,
+                        'accountSubtype': account.accountSubtype,
+                        'accountMask': account.accountMask,
+                        'availableBalance': account.availableBalance,
+                        'currentBalance': account.currentBalance,
+                        'currency': account.currency,
+                        'createdAt': account.createdAt.toIso8601String(),
+                        'cursor': account.cursor,
+                      })
+                  .toList(),
+            );
+            await storageService.setUserPreferences(userPreferences);
+            debugPrint('Bank accounts cached successfully');
+          } catch (e) {
+            debugPrint('Error caching bank accounts: $e');
           }
         } else {
           debugPrint('Bank accounts API returned success=false or no data');
-          if (mounted) {
+          if (mounted && showLoading) {
             setState(() {
               _isLoadingBankAccounts = false;
             });
           }
-          _loadBankAccounts(); // Fall back to old method
+          // Only call fallback if we don't have data or if explicitly showing loading
+          if (showLoading || _bankAccounts == null || _bankAccounts!.isEmpty) {
+            await _loadBankAccounts();
+          }
         }
       } else {
         debugPrint('Failed to get bank accounts: HTTP ${response.statusCode}');
-        if (mounted) {
+        if (mounted && showLoading) {
           setState(() {
             _isLoadingBankAccounts = false;
           });
         }
-        _loadBankAccounts(); // Fall back to old method
+        // Only call fallback if we don't have data or if explicitly showing loading
+        if (showLoading || _bankAccounts == null || _bankAccounts!.isEmpty) {
+          await _loadBankAccounts();
+        }
       }
     } catch (e) {
       debugPrint('Error loading bank accounts from API: $e');
-      if (mounted) {
+      if (mounted && showLoading) {
         setState(() {
           _isLoadingBankAccounts = false;
         });
       }
-      _loadBankAccounts(); // Fall back to old method
+      // Only call fallback if we don't have data or if explicitly showing loading
+      if (showLoading || _bankAccounts == null || _bankAccounts!.isEmpty) {
+        await _loadBankAccounts();
+      }
     }
   }
 
@@ -398,21 +531,6 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _loadAccountData() async {
-    try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final accountData = await authService.getAccountData();
-
-      if (mounted) {
-        setState(() {
-          _accountData = accountData;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading account data: $e');
     }
   }
 
@@ -676,137 +794,172 @@ class _AccountScreenState extends State<AccountScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Profile picture with edit button
-                  Center(
-                    child: Stack(
-                      children: [
-                        Hero(
-                          tag: 'profilePicture',
-                          child: GestureDetector(
-                            onTap:
-                                _isLoading ? null : _showImagePickerBottomSheet,
-                            child: Container(
-                              width: profileSize,
-                              height: profileSize,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 3,
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 500),
+                    opacity: 1.0,
+                    child: Center(
+                      child: Stack(
+                        children: [
+                          Hero(
+                            tag: 'profilePicture',
+                            child: GestureDetector(
+                              onTap: _isLoading
+                                  ? null
+                                  : _showImagePickerBottomSheet,
+                              child: Container(
+                                width: profileSize,
+                                height: profileSize,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 16,
+                                      spreadRadius: 3,
+                                    ),
+                                  ],
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
-                                    blurRadius: 16,
-                                    spreadRadius: 3,
-                                  ),
-                                ],
-                              ),
-                              child: _buildProfilePictureContent(),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: GestureDetector(
-                            onTap:
-                                _isLoading ? null : _showImagePickerBottomSheet,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    spreadRadius: 1,
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.edit_outlined,
-                                color: Color(0xFF1A237E),
-                                size: 16,
+                                child: _buildProfilePictureContent(),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: GestureDetector(
+                              onTap: _isLoading
+                                  ? null
+                                  : _showImagePickerBottomSheet,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.edit_outlined,
+                                  color: Color(0xFF1A237E),
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   SizedBox(height: min(availableHeight * 0.04, 16.0)),
-                  // Name with shadow for better readability
+                  // Name with shimmer effect when loading
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 4,
                     ),
-                    child: FadeInUp(
-                      duration: const Duration(milliseconds: 500),
-                      child: Text(
-                        _userName,
-                        style: TextStyle(
-                          fontSize: min(26, availableHeight * 0.1),
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                          shadows: [
-                            Shadow(
-                              offset: const Offset(0, 2),
-                              blurRadius: 4,
-                              color: Colors.black.withOpacity(0.2),
+                    child: _userName.isEmpty
+                        ? Shimmer.fromColors(
+                            baseColor: Colors.white24,
+                            highlightColor: Colors.white38,
+                            child: Container(
+                              height: 26,
+                              width: 180,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
                             ),
-                          ],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                          )
+                        : AnimatedOpacity(
+                            opacity: 1.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: Text(
+                              _userName,
+                              style: TextStyle(
+                                fontSize: min(26, availableHeight * 0.1),
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
+                                shadows: [
+                                  Shadow(
+                                    offset: const Offset(0, 2),
+                                    blurRadius: 4,
+                                    color: Colors.black.withOpacity(0.2),
+                                  ),
+                                ],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                   ),
                   SizedBox(height: min(availableHeight * 0.02, 8.0)),
-                  // Enhanced email container
-                  FadeInUp(
-                    duration: const Duration(milliseconds: 600),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.15),
-                            width: 1,
+                  // Enhanced email container with shimmer effect when loading
+                  _email.isEmpty
+                      ? Shimmer.fromColors(
+                          baseColor: Colors.white24,
+                          highlightColor: Colors.white38,
+                          child: Container(
+                            height: 30,
+                            width: 150,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        )
+                      : AnimatedOpacity(
+                          duration: const Duration(milliseconds: 300),
+                          opacity: 1.0,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.15),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.email_outlined,
+                                    size: 15,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _email,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white.withOpacity(0.9),
+                                      letterSpacing: 0.2,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.email_outlined,
-                              size: 15,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _email,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white.withOpacity(0.9),
-                                letterSpacing: 0.2,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               );
             },
@@ -848,20 +1001,18 @@ class _AccountScreenState extends State<AccountScreen> {
                   fit: BoxFit.cover,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
-                    return Container(
-                      color: Colors.white.withOpacity(0.1),
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
+
+                    // Enhanced loading state with shimmer effect
+                    return Shimmer.fromColors(
+                      baseColor: Colors.white10,
+                      highlightColor: Colors.white24,
+                      child: Container(
+                        color: Colors.white.withOpacity(0.1),
                       ),
                     );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return _buildAvatarFallback();
                   },
                 )
               else
@@ -876,9 +1027,14 @@ class _AccountScreenState extends State<AccountScreen> {
               if (_isLoading)
                 Container(
                   color: Colors.black.withOpacity(0.5),
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  child: Center(
+                    child: AnimatedOpacity(
+                      opacity: 1.0,
+                      duration: const Duration(milliseconds: 500),
+                      child: const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        strokeWidth: 2.5,
+                      ),
                     ),
                   ),
                 ),
@@ -1125,36 +1281,77 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
             ],
           ),
-          child: Column(
-            children: [
-              Container(
-                width: 45,
-                height: 45,
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? Colors.white.withOpacity(0.1)
-                      : Colors.grey.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      isDarkMode ? Colors.white : Colors.black87,
+          child: Shimmer.fromColors(
+            baseColor: isDarkMode ? Colors.white12 : Colors.grey[300]!,
+            highlightColor: isDarkMode ? Colors.white24 : Colors.grey[100]!,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                    strokeWidth: 2,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            height: 14,
+                            width: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  height: 16,
+                  width: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loading Account Details',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                const SizedBox(height: 12),
+                Container(
+                  height: 34,
+                  width: 160,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Container(
+                  height: 14,
+                  width: 140,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -1163,8 +1360,8 @@ class _AccountScreenState extends State<AccountScreen> {
     final bankAccount = _bankAccounts?.firstOrNull;
 
     if (bankAccount == null) {
-      return FadeInUp(
-        duration: const Duration(milliseconds: 400),
+      return FadeIn(
+        duration: const Duration(milliseconds: 300),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           padding: const EdgeInsets.all(24),
@@ -1316,8 +1513,8 @@ class _AccountScreenState extends State<AccountScreen> {
       );
     }
 
-    return FadeInUp(
-      duration: const Duration(milliseconds: 400),
+    return FadeIn(
+      duration: const Duration(milliseconds: 300),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         decoration: BoxDecoration(

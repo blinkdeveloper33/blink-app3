@@ -11,6 +11,7 @@ import '../blink_advance_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:blink_app/config/api_config.dart';
 import 'dart:convert';
+import 'package:blink_app/core/utils/responsive_utils.dart';
 
 class Particle {
   double x;
@@ -886,29 +887,31 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
                       ],
                       const SizedBox(height: 24),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                        padding: ResponsiveUtils.getResponsivePadding(
+                          context, 
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(12 * ResponsiveUtils.getElementSizeMultiplier(context)),
                         ),
                         child: Text(
                           'Please repay your current advance\nbefore requesting a new one.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
+                            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                             fontFamily: 'Onest',
                             height: 1.4,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16 * ResponsiveUtils.getElementSizeMultiplier(context)),
                       Text(
                         'Returning to home screen...',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.7),
-                          fontSize: 14,
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
                           fontFamily: 'Onest',
                           fontStyle: FontStyle.italic,
                         ),

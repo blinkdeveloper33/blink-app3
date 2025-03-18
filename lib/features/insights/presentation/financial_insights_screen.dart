@@ -99,6 +99,8 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
   Widget build(BuildContext context) {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 375; // iPhone SE and smaller devices
 
     return Scaffold(
       backgroundColor:
@@ -128,28 +130,47 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
           SafeArea(
             child: Column(
               children: [
-                // Header with back button
-                Container(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 24, 0),
+                // Improved header with better spacing
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      16, isSmallScreen ? 12 : 16, 16, isSmallScreen ? 8 : 12),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Back button with custom design
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => Navigator.of(context).pop(),
-                          borderRadius: BorderRadius.circular(50),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            child: Icon(
-                              Icons.arrow_back_ios_rounded,
-                              color:
-                                  isDarkMode ? Colors.white70 : Colors.black54,
-                              size: 20,
+                      // Back button with fixed positioning
+                      Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => Navigator.of(context).pop(),
+                            borderRadius: BorderRadius.circular(40),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isDarkMode
+                                    ? Colors.white.withOpacity(0.05)
+                                    : Colors.black.withOpacity(0.03),
+                                borderRadius: BorderRadius.circular(40),
+                                border: Border.all(
+                                  color: isDarkMode
+                                      ? Colors.white.withOpacity(0.1)
+                                      : Colors.black.withOpacity(0.05),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.arrow_back_ios_rounded,
+                                color: isDarkMode
+                                    ? Colors.white70
+                                    : Colors.black54,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
                       ),
+                      // Header with title and subtitle
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,7 +180,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                               style: TextStyle(
                                 color:
                                     isDarkMode ? Colors.white : Colors.black87,
-                                fontSize: 24,
+                                fontSize: isSmallScreen ? 22 : 24,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.5,
                                 fontFamily: 'Onest',
@@ -174,29 +195,47 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                                     : Colors.black45,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
+                                letterSpacing: -0.2,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      TimePeriodSelector(
-                        selectedPeriod: _selectedPeriod,
-                        onPeriodChanged: _handlePeriodChanged,
-                        isDarkMode: isDarkMode,
+                      // Period selector with proper sizing
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.05)
+                              : Colors.black.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDarkMode
+                                ? Colors.white.withOpacity(0.1)
+                                : Colors.black.withOpacity(0.05),
+                            width: 1,
+                          ),
+                        ),
+                        child: TimePeriodSelector(
+                          selectedPeriod: _selectedPeriod,
+                          onPeriodChanged: _handlePeriodChanged,
+                          isDarkMode: isDarkMode,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                // Custom tab bar with glass effect
+                const SizedBox(height: 16),
+                // Enhanced tab bar with proper scaling
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  height: 56,
+                  margin:
+                      EdgeInsets.symmetric(horizontal: isSmallScreen ? 16 : 24),
+                  height: 52,
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? Colors.white.withAlpha(10)
-                        : Colors.white.withAlpha(150),
-                    borderRadius: BorderRadius.circular(28),
+                        : Colors.white.withAlpha(180),
+                    borderRadius: BorderRadius.circular(26),
                     border: Border.all(
                       color: isDarkMode
                           ? Colors.white.withAlpha(15)
@@ -208,12 +247,13 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                             ? Colors.black.withAlpha(50)
                             : Colors.black.withAlpha(5),
                         blurRadius: 20,
+                        spreadRadius: 0,
                         offset: const Offset(0, 10),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(26),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Theme(
@@ -229,20 +269,20 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                           unselectedLabelColor: isDarkMode
                               ? Colors.white.withOpacity(0.5)
                               : const Color(0xFF2D3142).withOpacity(0.5),
-                          labelStyle: const TextStyle(
+                          labelStyle: TextStyle(
                             fontWeight: FontWeight.w600,
-                            fontSize: 15,
+                            fontSize: isSmallScreen ? 14 : 15,
                             fontFamily: 'Onest',
                             letterSpacing: -0.2,
                           ),
-                          unselectedLabelStyle: const TextStyle(
+                          unselectedLabelStyle: TextStyle(
                             fontWeight: FontWeight.w500,
-                            fontSize: 15,
+                            fontSize: isSmallScreen ? 14 : 15,
                             fontFamily: 'Onest',
                             letterSpacing: -0.2,
                           ),
                           indicator: BoxDecoration(
-                            borderRadius: BorderRadius.circular(25),
+                            borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
                                 color: isDarkMode
@@ -269,7 +309,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                           indicatorSize: TabBarIndicatorSize.tab,
                           dividerColor: Colors.transparent,
                           padding: const EdgeInsets.all(4),
-                          splashBorderRadius: BorderRadius.circular(25),
+                          splashBorderRadius: BorderRadius.circular(24),
                           overlayColor:
                               MaterialStateProperty.resolveWith<Color?>(
                             (Set<MaterialState> states) {
@@ -287,15 +327,22 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                // Content area
+                const SizedBox(height: 20),
+                // Content area with improved padding
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildExpensesTab(
-                          isDarkMode, MediaQuery.of(context).size.width < 600),
-                      _buildCashFlowTab(isDarkMode),
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 300),
+                        opacity: _tabController.index == 0 ? 1.0 : 0.0,
+                        child: _buildExpensesTab(isDarkMode, screenWidth < 600),
+                      ),
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 300),
+                        opacity: _tabController.index == 1 ? 1.0 : 0.0,
+                        child: _buildCashFlowTab(isDarkMode),
+                      ),
                     ],
                   ),
                 ),
@@ -535,6 +582,13 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                     ? Colors.red.withAlpha(30)
                     : Colors.red.withAlpha(20),
                 borderRadius: BorderRadius.circular(50),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.1),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: Icon(
                 Icons.error_outline_rounded,
@@ -550,6 +604,8 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                 color: isDarkMode ? Colors.white70 : Colors.black54,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
+                fontFamily: 'Onest',
+                letterSpacing: -0.3,
               ),
             ),
           ],
@@ -572,6 +628,15 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                     ? Colors.white.withAlpha(10)
                     : Colors.black.withAlpha(5),
                 borderRadius: BorderRadius.circular(50),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDarkMode
+                        ? Colors.black.withOpacity(0.2)
+                        : Colors.black.withOpacity(0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: Icon(
                 Icons.analytics_outlined,
@@ -587,6 +652,8 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
                 color: isDarkMode ? Colors.white70 : Colors.black54,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
+                fontFamily: 'Onest',
+                letterSpacing: -0.3,
               ),
             ),
           ],
@@ -681,6 +748,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
         return CashFlowTab(
           data: provider.cashFlowData!,
           isLoading: provider.cashFlowState == DataState.loading,
+          showChart: false,
         );
       },
     );
@@ -689,7 +757,7 @@ class _FinancialInsightsScreenState extends State<FinancialInsightsScreen>
   Widget _buildTab(String text, int index) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      height: 48,
+      height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Stack(
         children: [

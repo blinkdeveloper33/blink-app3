@@ -38,9 +38,12 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
   late Animation<double> _scrollIndicatorAnimation;
   bool _hasUserInteracted = false;
 
+  bool _isSwipeInProgress = false;
+
   final List<ModernOnboardingPage> _pages = [
     ModernOnboardingPage(
-      image: 'assets/images/onboarding/pexels-mizunokozuki-13431763.jpg',
+      image:
+          'https://fcmptjhsrbsbuwuctlsr.supabase.co/storage/v1/object/sign/onboarding_images/pexels-mizunokozuki-13431763.jpg?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJvbmJvYXJkaW5nX2ltYWdlcy9wZXhlbHMtbWl6dW5va296dWtpLTEzNDMxNzYzLmpwZyIsImlhdCI6MTc0MjE2OTAwNCwiZXhwIjoxODM2Nzc3MDA0fQ.WFTdeibZLGyQEGKswBUZZMa155V4BDH0A9CyfOI-dok',
       title: 'INSTANT\nCASH',
       subtitle: '',
       showEmoji: true,
@@ -65,7 +68,8 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       overlayColor: const Color(0xFF1E3A8A).withOpacity(0.35),
     ),
     ModernOnboardingPage(
-      image: 'assets/images/onboarding/pexels-timmossholder-3105409.jpg',
+      image:
+          'https://fcmptjhsrbsbuwuctlsr.supabase.co/storage/v1/object/sign/onboarding_images/pexels-timmossholder-3105409.jpg?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJvbmJvYXJkaW5nX2ltYWdlcy9wZXhlbHMtdGltbW9zc2hvbGRlci0zMTA1NDA5LmpwZyIsImlhdCI6MTc0MjE2OTA1OSwiZXhwIjoxODM2Nzc3MDU5fQ.5Hnly8DiiV_MhdkrAH4OXVB8fzfnbGYTXWvTWEHJcJM',
       title: 'FLEXIBLE\nREPAYMENT',
       subtitle: '',
       showEmoji: true,
@@ -91,7 +95,8 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
       overlayColor: const Color(0xFF1E3A8A).withOpacity(0.35),
     ),
     ModernOnboardingPage(
-      image: 'assets/images/onboarding/pexels-shvetsa-6631412.jpg',
+      image:
+          'https://fcmptjhsrbsbuwuctlsr.supabase.co/storage/v1/object/sign/onboarding_images/pexels-shvetsa-6631412.jpg?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJvbmJvYXJkaW5nX2ltYWdlcy9wZXhlbHMtc2h2ZXRzYS02NjMxNDEyLmpwZyIsImlhdCI6MTc0MjE2OTA5NywiZXhwIjoxODM2Nzc3MDk3fQ.PEA-eTYig_XCg6Eev6lg3dGpOSr_Oa3gQinvEPUe8Iw',
       title: 'BANK-LEVEL\nSECURITY',
       subtitle: '',
       showEmoji: true,
@@ -212,8 +217,12 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
   void _initializeImages() {
     for (var page in _pages) {
       _imageLoadingState[page.image] = false;
-      _cachedImages[page.image] = Image.asset(
-        page.image,
+
+      // Create network image instance
+      final networkImage = NetworkImage(page.image);
+
+      _cachedImages[page.image] = Image(
+        image: networkImage,
         fit: BoxFit.cover,
         gaplessPlayback: true,
         filterQuality: FilterQuality.high,
@@ -228,13 +237,16 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
           }
           return child;
         },
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('Error loading image: $error');
+          return Container(
+            color: const Color(0xFF1E1F2E),
+          );
+        },
       );
 
-      // Start preloading
-      _cachedImages[page.image]!
-          .image
-          .resolve(const ImageConfiguration())
-          .addListener(
+      // Preload images
+      networkImage.resolve(const ImageConfiguration()).addListener(
         ImageStreamListener((info, synchronousCall) {
           if (mounted) {
             setState(() => _imageLoadingState[page.image] = true);
@@ -313,6 +325,32 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
     });
   }
 
+  void _handleSwipeToFinish(ScrollUpdateNotification notification) {
+    if (_currentPage == _pages.length - 1 && !_isSwipeInProgress) {
+      final double overscroll =
+          notification.metrics.pixels - notification.metrics.maxScrollExtent;
+
+      // Define threshold for swipe (adjust this value to make it more or less sensitive)
+      const double swipeThreshold = 50.0;
+
+      if (overscroll > swipeThreshold) {
+        _isSwipeInProgress = true;
+        // Trigger haptic feedback
+        HapticFeedback.mediumImpact();
+        Future.delayed(const Duration(milliseconds: 100), () {
+          HapticFeedback.lightImpact();
+        });
+
+        // Finish onboarding with a slight delay for better feel
+        Future.delayed(const Duration(milliseconds: 150), () {
+          if (mounted) {
+            _finishOnboarding();
+          }
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     // Reset to default when leaving the screen
@@ -344,8 +382,12 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
                   if (!_isPageTransitioning) {
                     setState(() => _isPageTransitioning = true);
                   }
+
+                  // Handle swipe on last page
+                  _handleSwipeToFinish(notification);
                 }
               } else if (notification is ScrollEndNotification) {
+                _isSwipeInProgress = false;
                 Future.delayed(const Duration(milliseconds: 100), () {
                   if (mounted) {
                     setState(() => _isPageTransitioning = false);
@@ -364,6 +406,8 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
                 HapticFeedback.selectionClick();
                 _resetAndPlayAnimation();
               },
+              // Allow scrolling beyond bounds for swipe detection
+              physics: const BouncingScrollPhysics(),
               itemCount: _pages.length,
               itemBuilder: (context, index) {
                 return AnimatedOpacity(
@@ -377,7 +421,6 @@ class _ModernOnboardingScreenState extends State<ModernOnboardingScreen>
               pageSnapping: true,
               allowImplicitScrolling: false,
               padEnds: false,
-              physics: const ClampingScrollPhysics(),
             ),
           ),
           // Top gradient overlay for better visibility

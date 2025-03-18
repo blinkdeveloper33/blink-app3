@@ -17,12 +17,12 @@ class AnimatedBubble extends StatefulWidget {
   final Duration duration;
 
   const AnimatedBubble({
-    Key? key,
+    super.key,
     required this.size,
     required this.initialX,
     required this.initialY,
     required this.duration,
-  }) : super(key: key);
+  });
 
   @override
   State<AnimatedBubble> createState() => _AnimatedBubbleState();
@@ -99,7 +99,8 @@ class EnterOtpScreen extends StatefulWidget {
   State<EnterOtpScreen> createState() => _EnterOtpScreenState();
 }
 
-class _EnterOtpScreenState extends State<EnterOtpScreen> {
+class _EnterOtpScreenState extends State<EnterOtpScreen>
+    with SingleTickerProviderStateMixin {
   final List<TextEditingController> _controllers = List.generate(
     6,
     (index) => TextEditingController(),
@@ -108,6 +109,11 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
     6,
     (index) => FocusNode(),
   );
+
+  // Add new controllers for animations
+  late AnimationController _fieldAnimationController;
+  final List<bool> _fieldValidStates = List.generate(6, (index) => true);
+  bool _isPasting = false;
 
   Timer? _timer;
   int _timeLeft = 30;
@@ -136,6 +142,24 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
   void initState() {
     super.initState();
     startTimer();
+
+    // Initialize animation controller
+    _fieldAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+
+    // Setup focus listeners for visual feedback
+    for (var i = 0; i < _focusNodes.length; i++) {
+      _focusNodes[i].addListener(() {
+        if (_focusNodes[i].hasFocus) {
+          _fieldAnimationController.forward();
+        } else {
+          _fieldAnimationController.reverse();
+        }
+      });
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNodes[0].requestFocus();
     });
@@ -158,24 +182,69 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _fieldAnimationController.dispose();
     for (var controller in _controllers) {
       controller.dispose();
     }
     for (var node in _focusNodes) {
       node.dispose();
     }
+    _timer?.cancel();
     super.dispose();
   }
 
+  // Enhanced paste handling
+  Future<void> _handlePaste() async {
+    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data != null && data.text != null) {
+      final String pastedText = data.text!.trim();
+      if (pastedText.length == 6 && pastedText.contains(RegExp(r'^\d{6}$'))) {
+        setState(() => _isPasting = true);
+        for (var i = 0; i < 6; i++) {
+          _controllers[i].text = pastedText[i];
+          _fieldValidStates[i] = true;
+        }
+        _focusNodes[5].requestFocus();
+        setState(() => _isPasting = false);
+      }
+    }
+  }
+
+  // Enhanced backspace handling
+  void _handleKeyPress(KeyEvent event, int index) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.backspace) {
+        if (_controllers[index].text.isEmpty && index > 0) {
+          _focusNodes[index - 1].requestFocus();
+          _controllers[index - 1].clear();
+        }
+      }
+    }
+  }
+
+  // Enhanced input validation and field navigation
   void _onCodeChanged(String value, int index) {
-    if (value.length == 1 && index < 5) {
-      _focusNodes[index + 1].requestFocus();
+    if (value.length > 1) {
+      // Handle paste into individual field
+      if (value.length == 6 && value.contains(RegExp(r'^\d{6}$'))) {
+        _handlePaste();
+        return;
+      }
+      _controllers[index].text = value[0];
     }
-    if (value.isEmpty && index > 0) {
-      _focusNodes[index - 1].requestFocus();
+
+    setState(() {
+      _fieldValidStates[index] =
+          value.isEmpty || RegExp(r'^\d$').hasMatch(value);
+    });
+
+    if (value.length == 1 && _fieldValidStates[index]) {
+      if (index < 5) {
+        _focusNodes[index + 1].requestFocus();
+      } else {
+        _focusNodes[index].unfocus();
+      }
     }
-    setState(() {});
   }
 
   String get _completeCode {
@@ -183,6 +252,9 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
   }
 
   Future<void> _verifyOtp() async {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
+
     final otp = _completeCode.trim();
     if (otp.length != 6) {
       _showSnackBar('Please enter the 6-digit OTP.', isError: true);
@@ -227,6 +299,9 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
   }
 
   Future<void> _resendOtp() async {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
+
     setState(() {
       _isResending = true;
     });
@@ -234,21 +309,28 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
     final authService = Provider.of<AuthService>(context, listen: false);
 
     try {
-      final response = await authService.sendOtp(widget.email);
-      if (response['success']) {
+      final response = await authService.resendVerificationEmail({
+        'email': widget.email,
+      });
+
+      if (response['message']?.contains('resent successfully') == true) {
         startTimer();
         for (var controller in _controllers) {
           controller.clear();
         }
         _focusNodes[0].requestFocus();
-        _showSnackBar('A new verification code has been sent to your email.');
+        _showSnackBar(
+          'A new verification code has been sent to your email.',
+          isSuccess: true,
+        );
       } else {
-        final message =
-            response['message'] ?? 'Failed to resend OTP. Please try again.';
+        final message = response['message'] ??
+            'Failed to resend verification code. Please try again.';
         _showErrorDialog(message);
       }
     } catch (e, stackTrace) {
-      _logger.e('Error during resending OTP', error: e, stackTrace: stackTrace);
+      _logger.e('Error during resending verification code',
+          error: e, stackTrace: stackTrace);
       _showErrorDialog('An unexpected error occurred. Please try again.');
     } finally {
       if (mounted) {
@@ -300,22 +382,44 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
     );
   }
 
-  void _showSnackBar(String message, {bool isError = false}) {
+  void _showSnackBar(String message,
+      {bool isError = false, bool isSuccess = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(
-            fontFamily: 'Onest',
-            fontWeight: FontWeight.w500,
-          ),
+        content: Row(
+          children: [
+            Icon(
+              isError
+                  ? Icons.error_outline
+                  : isSuccess
+                      ? Icons.check_circle_outline
+                      : Icons.info_outline,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Onest',
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        backgroundColor: isError
+            ? Colors.redAccent
+            : isSuccess
+                ? const Color(0xFF00C853)
+                : Colors.blueAccent,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -327,52 +431,76 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
         6,
         (index) => SizedBox(
           width: 45,
-          child: TextField(
-            controller: _controllers[index],
-            focusNode: _focusNodes[index],
-            cursorColor: Colors.white,
-            decoration: InputDecoration(
-              counterText: '',
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.1),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
+          child: KeyboardListener(
+            focusNode: FocusNode(),
+            onKeyEvent: (event) => _handleKeyPress(event, index),
+            child: TextFormField(
+              controller: _controllers[index],
+              focusNode: _focusNodes[index],
+              cursorColor: Colors.white,
+              decoration: InputDecoration(
+                counterText: '',
+                filled: true,
+                fillColor: Colors.white.withAlpha(25),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: _fieldValidStates[index]
+                        ? Colors.white.withAlpha(51)
+                        : Colors.redAccent,
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  color: Colors.white.withOpacity(0.5),
-                  width: 1.5,
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: _fieldValidStates[index]
+                        ? Colors.white.withAlpha(204)
+                        : Colors.redAccent,
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                borderRadius: BorderRadius.circular(12),
+                errorBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(
+                    color: Colors.redAccent,
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
+              style: TextStyle(
+                color:
+                    _fieldValidStates[index] ? Colors.white : Colors.redAccent,
+                fontSize: 24,
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w600,
+              ),
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(1),
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (value) => _onCodeChanged(value, index),
+              onTap: () {
+                if (_controllers[index].text.isNotEmpty) {
+                  _controllers[index].selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: _controllers[index].text.length,
+                  );
+                }
+              },
+              autocorrect: false,
+              enableSuggestions: false,
+              enableInteractiveSelection: true,
+              showCursor: true,
+              autofocus: index == 0,
+              onEditingComplete: () {
+                if (index == 5) {
+                  TextInput.finishAutofillContext();
+                }
+              },
             ),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.w600,
-            ),
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            inputFormatters: [
-              LengthLimitingTextInputFormatter(1),
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-            onChanged: (value) => _onCodeChanged(value, index),
-            autocorrect: false,
-            enableSuggestions: false,
-            enableInteractiveSelection: true,
-            showCursor: true,
-            autofocus: index == 0,
-            onEditingComplete: () {
-              if (index == 5) {
-                TextInput.finishAutofillContext();
-              }
-            },
           ),
         ),
       ),
@@ -383,32 +511,64 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-              width: 1,
+        if (_timeLeft > 0)
+          FadeTransition(
+            opacity: Tween<double>(begin: 1.0, end: 0.0).animate(
+              CurvedAnimation(
+                parent: _fieldAnimationController,
+                curve: Curves.easeInOut,
+              ),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(25),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withAlpha(51),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 16,
+                    color: Colors.white.withAlpha(230),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_timeLeft}s',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(230),
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          child: Text(
-            '${_timeLeft}s',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 14,
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: _timeLeft > 0 ? 16 : 0,
         ),
-        const SizedBox(width: 16),
         TextButton(
           onPressed: (_timeLeft == 0 && !_isResending) ? _resendOtp : null,
           style: TextButton.styleFrom(
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: _timeLeft == 0
+                    ? Colors.white.withAlpha(77)
+                    : Colors.transparent,
+                width: 1,
+              ),
+            ),
           ),
           child: _isResending
               ? SizedBox(
@@ -417,18 +577,30 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.white.withOpacity(0.8),
+                      Colors.white.withAlpha(204),
                     ),
                   ),
                 )
-              : Text(
-                  'Resend Code',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                    fontFamily: 'Onest',
-                    fontWeight: FontWeight.w600,
-                  ),
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.refresh_rounded,
+                      size: 16,
+                      color: Colors.white.withAlpha(_timeLeft == 0 ? 230 : 102),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Resend Code',
+                      style: TextStyle(
+                        color:
+                            Colors.white.withAlpha(_timeLeft == 0 ? 230 : 102),
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ],
@@ -544,94 +716,100 @@ class _EnterOtpScreenState extends State<EnterOtpScreen> {
               ),
               // Scrollable Content
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        FadeInDown(
-                          duration: const Duration(milliseconds: 600),
-                          child: Center(
-                            child: Lottie.asset(
-                              'assets/animations/enterotp.json',
-                              width: 180,
-                              height: 180,
-                              fit: BoxFit.contain,
+                child: GestureDetector(
+                  onTap: () {
+                    // Dismiss keyboard when tapping outside of text fields
+                    FocusScope.of(context).unfocus();
+                  },
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          FadeInDown(
+                            duration: const Duration(milliseconds: 600),
+                            child: Center(
+                              child: Lottie.asset(
+                                'assets/animations/enterotp.json',
+                                width: 180,
+                                height: 180,
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 600),
-                          child: const Text(
-                            'Enter Verification Code',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontFamily: 'Onest',
-                              fontWeight: FontWeight.bold,
-                              height: 1.2,
+                          const SizedBox(height: 32),
+                          FadeInLeft(
+                            duration: const Duration(milliseconds: 600),
+                            child: const Text(
+                              'Enter Verification Code',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontFamily: 'Onest',
+                                fontWeight: FontWeight.bold,
+                                height: 1.2,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        FadeInLeft(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 200),
-                          child: Text(
-                            'We\'ve sent a verification code to ${widget.email}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 15,
-                              fontFamily: 'Onest',
-                              height: 1.5,
-                              letterSpacing: -0.2,
+                          const SizedBox(height: 12),
+                          FadeInLeft(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 200),
+                            child: Text(
+                              'We\'ve sent a verification code to ${widget.email}',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 15,
+                                fontFamily: 'Onest',
+                                height: 1.5,
+                                letterSpacing: -0.2,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                              width: 1,
+                          const SizedBox(height: 32),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1,
+                              ),
                             ),
-                          ),
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Enter the 6-digit code we sent to your email address. If you don\'t see it, check your spam folder.',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
-                                  fontFamily: 'Onest',
-                                  height: 1.5,
-                                  letterSpacing: -0.2,
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Enter the 6-digit code we sent to your email address. If you don\'t see it, check your spam folder.',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontSize: 14,
+                                    fontFamily: 'Onest',
+                                    height: 1.5,
+                                    letterSpacing: -0.2,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 24),
-                              _buildOtpFields(),
-                              const SizedBox(height: 24),
-                              Center(
-                                child: _buildTimerAndResend(),
-                              ),
-                            ],
+                                const SizedBox(height: 24),
+                                _buildOtpFields(),
+                                const SizedBox(height: 24),
+                                Center(
+                                  child: _buildTimerAndResend(),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 600),
-                          delay: const Duration(milliseconds: 400),
-                          child: _buildVerifyNowButton(),
-                        ),
-                      ],
+                          const SizedBox(height: 32),
+                          FadeInUp(
+                            duration: const Duration(milliseconds: 600),
+                            delay: const Duration(milliseconds: 400),
+                            child: _buildVerifyNowButton(),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

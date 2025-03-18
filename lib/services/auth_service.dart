@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:blink_app/config/api_config.dart';
+import 'dart:math' show min;
 
 class User {
   final String id;
@@ -233,6 +234,23 @@ class AuthService {
       _logger.i('Email verification initiated for: $email');
       return response;
     } catch (e) {
+      // Check for 409 Conflict status
+      if (e.toString().contains('409')) {
+        try {
+          // Parse the error response to check for isVerified flag
+          final errorData = json.decode(e.toString().split(' - ').last);
+          if (errorData['isVerified'] == true) {
+            _logger.i('Email already verified: $email');
+            return {
+              'isVerified': true,
+              'message': errorData['message'] ??
+                  'Email already registered and verified'
+            };
+          }
+        } catch (parseError) {
+          _logger.e('Error parsing verification response:', error: parseError);
+        }
+      }
       _logger.e('Error initiating email verification:', error: e);
       rethrow;
     }
@@ -286,6 +304,25 @@ class AuthService {
         email); // Reuse the same endpoint for resending
   }
 
+  // Add new resend verification email endpoint
+  Future<Map<String, dynamic>> resendVerificationEmail(
+      Map<String, dynamic> data) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/auth/email/verify/resend',
+        method: 'POST',
+        body: data,
+        requireAuth: false,
+      );
+
+      _logger.i('Verification email resent for: ${data['email']}');
+      return response;
+    } catch (e) {
+      _logger.e('Error resending verification email:', error: e);
+      rethrow;
+    }
+  }
+
   // Complete registration with login
   Future<Map<String, dynamic>> registerCompleteWithLogin({
     required String email,
@@ -321,6 +358,44 @@ class AuthService {
       return response;
     } catch (e) {
       _logger.e('Error during registration:', error: e);
+      rethrow;
+    }
+  }
+
+  // Complete Google user profile by setting password and updating profile
+  Future<Map<String, dynamic>> completeGoogleUserProfile({
+    required String userId,
+    required String password,
+    required String state,
+    required String zipCode,
+    required bool agreedToTerms,
+  }) async {
+    try {
+      _logger.i('Completing Google user profile for userId: $userId');
+
+      final response = await _makeRequest(
+        endpoint: '/api/auth/complete-google-profile',
+        method: 'POST',
+        body: {
+          'userId': userId,
+          'password': password,
+          'confirmPassword': password,
+          'state': state,
+          'zipCode': zipCode,
+          'agreedToTerms': agreedToTerms,
+        },
+        requireAuth: false,
+      );
+
+      if (response['token'] != null) {
+        await _storageService.setToken(response['token']);
+        _logger.i('Updated token for Google user');
+      }
+
+      _logger.i('Google user profile completion successful');
+      return response;
+    } catch (e) {
+      _logger.e('Error completing Google user profile:', error: e);
       rethrow;
     }
   }
@@ -579,18 +654,66 @@ class AuthService {
   // Get user profile data
   Future<Map<String, dynamic>?> getUserProfile() async {
     try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/profile',
-        method: 'GET',
-        requireAuth: true,
-      );
+      // First try the original endpoint
+      try {
+        final response = await _makeRequest(
+          endpoint: '/api/users/profile',
+          method: 'GET',
+          requireAuth: true,
+        );
 
-      if (response != null && response['user'] != null) {
-        _logger.i('User profile retrieved successfully');
-        return response['user'] as Map<String, dynamic>;
+        if (response != null && response['user'] != null) {
+          _logger
+              .i('User profile retrieved successfully from /api/users/profile');
+          return response['user'] as Map<String, dynamic>;
+        } else if (response != null) {
+          // Some APIs return the user directly
+          _logger.i('User profile data returned directly');
+          return response as Map<String, dynamic>;
+        }
+      } catch (firstAttemptError) {
+        _logger.w('First profile endpoint failed: $firstAttemptError');
       }
 
-      _logger.w('User profile response missing user data');
+      // If first attempt fails, try alternative endpoint
+      try {
+        final response = await _makeRequest(
+          endpoint: '/api/user',
+          method: 'GET',
+          requireAuth: true,
+        );
+
+        if (response != null && response['user'] != null) {
+          _logger.i('User profile retrieved successfully from /api/user');
+          return response['user'] as Map<String, dynamic>;
+        } else if (response != null) {
+          _logger.i('User data returned directly from alternative endpoint');
+          return response as Map<String, dynamic>;
+        }
+      } catch (secondAttemptError) {
+        _logger.w('Second profile endpoint failed: $secondAttemptError');
+      }
+
+      // Try a third common endpoint pattern
+      try {
+        final response = await _makeRequest(
+          endpoint: '/api/auth/me',
+          method: 'GET',
+          requireAuth: true,
+        );
+
+        if (response != null && response['user'] != null) {
+          _logger.i('User profile retrieved successfully from /api/auth/me');
+          return response['user'] as Map<String, dynamic>;
+        } else if (response != null) {
+          _logger.i('User data returned directly from auth/me endpoint');
+          return response as Map<String, dynamic>;
+        }
+      } catch (thirdAttemptError) {
+        _logger.w('Third profile endpoint failed: $thirdAttemptError');
+      }
+
+      _logger.w('All user profile endpoints failed');
       return null;
     } catch (e) {
       _logger.e('Error getting user profile:', error: e);
@@ -678,6 +801,47 @@ class AuthService {
     } catch (e) {
       _logger.e('Error requesting password reset:', error: e);
       rethrow;
+    }
+  }
+
+  // Verify OTP for password reset
+  Future<Map<String, dynamic>> verifyPasswordResetOtp(
+      String email, String otp) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/auth/password/reset/verify',
+        method: 'POST',
+        body: {
+          'email': email,
+          'otp': otp,
+        },
+        requireAuth: false,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error verifying password reset OTP:', error: e);
+      throw e;
+    }
+  }
+
+  // Complete password reset with new password
+  Future<Map<String, dynamic>> completePasswordReset(
+      String email, String password, String confirmPassword) async {
+    try {
+      final response = await _makeRequest(
+        endpoint: '/api/auth/password/reset/complete',
+        method: 'POST',
+        body: {
+          'email': email,
+          'password': password,
+          'confirmPassword': confirmPassword,
+        },
+        requireAuth: false,
+      );
+      return response;
+    } catch (e) {
+      _logger.e('Error completing password reset:', error: e);
+      throw e;
     }
   }
 
@@ -1210,6 +1374,156 @@ class AuthService {
       };
     } catch (e) {
       _logger.e('Error creating asset report:', error: e);
+
+      // Check for institution registration error
+      if (e is Exception &&
+          e.toString().contains('INSTITUTION_REGISTRATION_REQUIRED')) {
+        throw Exception(
+            'This institution requires registration with Plaid before you can create items for it. Please contact support.');
+      }
+
+      rethrow;
+    }
+  }
+
+  // Retry asset report creation with reduced timeframe to enhance success rate
+  Future<Map<String, dynamic>> retryAssetReport({
+    required List<String> accessTokens,
+    int daysRequested = 365, // Default to 365 days (reduced from 731)
+    Map<String, dynamic>? options,
+  }) async {
+    try {
+      _logger.i(
+          'Retrying asset report creation with reduced days: $daysRequested');
+
+      // Add client_report_id to indicate this is a retry
+      final retryOptions = options ?? {};
+      retryOptions['client_report_id'] =
+          'retry-${DateTime.now().millisecondsSinceEpoch}';
+
+      // Call the endpoint with the retry flag in the URL
+      final response = await _makeRequest(
+        endpoint: '/api/asset_report/retry',
+        method: 'POST',
+        body: {
+          'access_tokens': accessTokens,
+          'days_requested': daysRequested,
+          'options': retryOptions,
+        },
+        requireAuth: true,
+      );
+
+      // Fall back to regular creation if retry endpoint not available
+      if (response['error']?.toString().contains('not found') ?? false) {
+        _logger.w(
+            'Retry endpoint not found, falling back to standard creation endpoint');
+        return createAssetReport(
+          accessTokens: accessTokens,
+          daysRequested: daysRequested,
+          options: retryOptions,
+        );
+      }
+
+      if (response['asset_report_token'] == null) {
+        throw Exception(
+            'No asset report token received from server during retry');
+      }
+
+      _logger.i('Asset report retry successful');
+      return {
+        'asset_report_token': response['asset_report_token'],
+        'asset_report_id': response['asset_report_id'],
+        'request_id': response['request_id'],
+        'retry_success': true,
+      };
+    } catch (e) {
+      _logger.e('Error retrying asset report creation:', error: e);
+
+      // If the retry endpoint fails, try the standard endpoint with reduced days
+      if (e.toString().contains('not found') || e.toString().contains('404')) {
+        _logger.i(
+            'Falling back to standard asset report creation with reduced days');
+        try {
+          return await createAssetReport(
+            accessTokens: accessTokens,
+            daysRequested: daysRequested,
+            options: options,
+          );
+        } catch (fallbackError) {
+          _logger.e('Fallback asset report creation also failed:',
+              error: fallbackError);
+          rethrow;
+        }
+      }
+
+      rethrow;
+    }
+  }
+
+  // Check the status of an asset report
+  Future<Map<String, dynamic>> getAssetReportStatus({
+    required String assetReportToken,
+  }) async {
+    try {
+      _logger.i(
+          'Checking status of asset report: ${assetReportToken.substring(0, min(10, assetReportToken.length))}...');
+
+      final response = await _makeRequest(
+        endpoint: '/api/asset_report/status/$assetReportToken',
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      _logger.i(
+          'Asset report status retrieved successfully: ${response['status']}');
+      return response;
+    } catch (e) {
+      _logger.e('Error checking asset report status:', error: e);
+      rethrow;
+    }
+  }
+
+  // List all pending asset reports for the user
+  Future<Map<String, dynamic>> getPendingAssetReports() async {
+    try {
+      _logger.i('Retrieving pending asset reports...');
+
+      final response = await _makeRequest(
+        endpoint: '/api/asset_report/pending',
+        method: 'GET',
+        requireAuth: true,
+      );
+
+      _logger.i('Retrieved ${response['count'] ?? 0} pending asset reports');
+      return response;
+    } catch (e) {
+      _logger.e('Error retrieving pending asset reports:', error: e);
+      return {'pending_reports': [], 'count': 0};
+    }
+  }
+
+  // Test webhook integration (development only)
+  Future<Map<String, dynamic>> testAssetReportWebhook({
+    required String assetReportId,
+    required String assetReportToken,
+  }) async {
+    try {
+      _logger.i('Testing webhook for asset report: $assetReportId');
+
+      final response = await _makeRequest(
+        endpoint: '/api/asset_report/test-webhook',
+        method: 'POST',
+        body: {
+          'asset_report_id': assetReportId,
+          'asset_report_token': assetReportToken,
+        },
+        requireAuth: true,
+      );
+
+      _logger.i('Test webhook initiated successfully');
+      return response;
+    } catch (e) {
+      _logger.e('Error testing webhook integration:', error: e);
       rethrow;
     }
   }
@@ -1478,6 +1792,41 @@ class AuthService {
         'message': 'Failed to load recurring expenses data',
         'error': e.toString(),
       };
+    }
+  }
+
+  // Utility method to extract userId from JWT token
+  String? extractUserIdFromToken(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) {
+        _logger.e('Invalid JWT token format');
+        return null;
+      }
+
+      final payload = parts[1];
+      // Pad the base64 string if needed
+      final padded =
+          payload.padRight(payload.length + (4 - payload.length % 4) % 4, '=');
+      // Decode base64
+      final normalized = padded.replaceAll('-', '+').replaceAll('_', '/');
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> json = jsonDecode(decoded);
+
+      // Most JWT tokens store user id as 'userId', 'sub', or similar
+      final userId =
+          json['userId'] ?? json['sub'] ?? json['id'] ?? json['user_id'];
+
+      if (userId != null) {
+        _logger.i('Successfully extracted userId from JWT: $userId');
+        return userId.toString(); // Convert to string in case it's a number
+      } else {
+        _logger.w('No userId found in JWT payload: $json');
+        return null;
+      }
+    } catch (e) {
+      _logger.e('Error parsing JWT token: $e');
+      return null;
     }
   }
 }

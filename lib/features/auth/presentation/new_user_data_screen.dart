@@ -86,11 +86,17 @@ class _AnimatedBubbleState extends State<AnimatedBubble>
 
 class NewUserDataScreen extends StatefulWidget {
   final String email;
+  final String? firstName;
+  final String? lastName;
+  final bool isGoogleSignIn;
 
   const NewUserDataScreen({
-    super.key,
+    Key? key,
     required this.email,
-  });
+    this.firstName,
+    this.lastName,
+    this.isGoogleSignIn = false,
+  }) : super(key: key);
 
   @override
   State<NewUserDataScreen> createState() => _NewUserDataScreenState();
@@ -132,6 +138,20 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   void initState() {
     super.initState();
     _storageService = Provider.of<StorageService>(context, listen: false);
+
+    // Pre-fill with data from Google Sign-In if available
+    if (widget.firstName != null && widget.firstName!.isNotEmpty) {
+      _firstNameController.text = widget.firstName!;
+    }
+
+    if (widget.lastName != null && widget.lastName!.isNotEmpty) {
+      _lastNameController.text = widget.lastName!;
+    }
+
+    // Set email from props
+    if (widget.email.isNotEmpty) {
+      _storageService.setEmail(widget.email);
+    }
 
     _animationController = AnimationController(
       vsync: this,
@@ -318,6 +338,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   }
 
   Future<void> _submitForm() async {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -344,6 +367,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
           MaterialPageRoute(
             builder: (context) => CreatePasswordScreen(
               email: widget.email,
+              isGoogleSignIn: widget.isGoogleSignIn,
             ),
           ),
         );
@@ -563,12 +587,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
         ).animate(_fadeInAnimation),
         child: Column(
           children: [
-            Lottie.asset(
-              animations[_currentStep],
-              height: 200,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 8),
             _buildStepSpecificContent(),
           ],
         ),
@@ -578,6 +597,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
 
   Widget _buildStepSpecificContent() {
     return Container(
+      margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
@@ -707,6 +727,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
         if (_currentStep > 0)
           TextButton(
             onPressed: () {
+              // Dismiss keyboard first
+              FocusScope.of(context).unfocus();
+
               setState(() {
                 _currentStep--;
               });
@@ -749,6 +772,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
           ),
           child: ElevatedButton(
             onPressed: () {
+              // Dismiss keyboard first
+              FocusScope.of(context).unfocus();
+
               if (_formKey.currentState!.validate()) {
                 if (_currentStep < 2) {
                   setState(() {
@@ -818,8 +844,8 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF1E3A8A),
-                Color(0xFF2563EB),
+                Color(0xFF0F2B73), // Darker blue
+                Color(0xFF1E4CAD), // Darker accent
               ],
               stops: [0.0, 1.0],
             ),
@@ -828,7 +854,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
             children: [
               // Fixed Header
               Container(
-                color: const Color(0xFF1E3A8A).withOpacity(0.95),
+                color: const Color(0xFF0F2B73).withOpacity(0.95),
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
@@ -837,11 +863,42 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          icon:
-                              const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () => Navigator.of(context)
-                              .pushReplacementNamed('/auth'),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          onPressed: () {
+                            // Dismiss keyboard first
+                            FocusScope.of(context).unfocus();
+                            Navigator.of(context).pushReplacementNamed('/auth');
+                          },
                           tooltip: 'Go Back',
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Registration (${_currentStep + 1}/3)',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black26,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                         Hero(
                           tag: 'logo',
@@ -856,64 +913,119 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
                   ),
                 ),
               ),
-              // Scrollable Content
+              // Content and Buttons in a layout that ensures buttons stay at bottom
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 24.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 24),
-                          FadeInLeft(
-                            duration: const Duration(milliseconds: 600),
-                            child: Text(
-                              _getStepTitle(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontFamily: 'Onest',
-                                fontWeight: FontWeight.bold,
-                                height: 1.2,
-                              ),
+                child: Stack(
+                  children: [
+                    // Scrollable Content
+                    GestureDetector(
+                      onTap: () {
+                        // Dismiss keyboard when tapping outside of text fields
+                        FocusScope.of(context).unfocus();
+                      },
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0,
+                              100.0), // Added bottom padding for buttons
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 24),
+                                FadeInLeft(
+                                  duration: const Duration(milliseconds: 600),
+                                  child: Text(
+                                    _getStepTitle(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontFamily: 'Onest',
+                                      fontWeight: FontWeight.bold,
+                                      height: 1.2,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black26,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                FadeInLeft(
+                                  duration: const Duration(milliseconds: 600),
+                                  delay: const Duration(milliseconds: 200),
+                                  child: Text(
+                                    _getStepSubtitle(),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontFamily: 'Onest',
+                                      height: 1.5,
+                                      letterSpacing: -0.2,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black26,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 32),
+                                _buildStepContent(),
+                                const SizedBox(height: 32),
+                                FadeInUp(
+                                  duration: const Duration(milliseconds: 600),
+                                  delay: const Duration(milliseconds: 200),
+                                  child: _buildProgressIndicator(),
+                                ),
+                                const SizedBox(height: 24),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          FadeInLeft(
-                            duration: const Duration(milliseconds: 600),
-                            delay: const Duration(milliseconds: 200),
-                            child: Text(
-                              _getStepSubtitle(),
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 15,
-                                fontFamily: 'Onest',
-                                height: 1.5,
-                                letterSpacing: -0.2,
-                              ),
+                        ),
+                      ),
+                    ),
+                    // Fixed Navigation Buttons at bottom
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF0F2B73).withOpacity(0.9),
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, -4),
                             ),
-                          ),
-                          const SizedBox(height: 32),
-                          _buildStepContent(),
-                          const SizedBox(height: 32),
-                          FadeInUp(
-                            duration: const Duration(milliseconds: 600),
-                            delay: const Duration(milliseconds: 200),
-                            child: _buildProgressIndicator(),
-                          ),
-                          const SizedBox(height: 24),
-                          FadeInUp(
+                          ],
+                        ),
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                        child: SafeArea(
+                          top: false,
+                          child: FadeInUp(
                             duration: const Duration(milliseconds: 600),
                             delay: const Duration(milliseconds: 400),
                             child: _buildNavigationButtons(),
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -926,7 +1038,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   String _getStepTitle() {
     switch (_currentStep) {
       case 0:
-        return 'Create Your Profile';
+        return widget.isGoogleSignIn
+            ? 'Confirm Your Profile'
+            : 'Create Your Profile';
       case 1:
         return 'Set Your Location';
       case 2:
@@ -939,7 +1053,9 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   String _getStepSubtitle() {
     switch (_currentStep) {
       case 0:
-        return 'Help us personalize your experience by sharing your name';
+        return widget.isGoogleSignIn
+            ? 'Verify your information to complete your account setup'
+            : 'Help us personalize your experience by sharing your name';
       case 1:
         return 'Choose your location to access relevant features and services';
       case 2:
@@ -952,7 +1068,7 @@ class _NewUserDataScreenState extends State<NewUserDataScreen>
   String _getStepInstructions() {
     switch (_currentStep) {
       case 0:
-        return 'Please enter your first and last name as they appear on your official documents. This helps us maintain a secure and trustworthy community.';
+        return 'Please enter your first and last name as they appear on your official documents. This helps us maintain a secure and trustworthy ecosystem.';
       case 1:
         return 'Select your state to help us provide you with location-specific services and connect you with nearby users. Your location information is securely stored.';
       case 2:

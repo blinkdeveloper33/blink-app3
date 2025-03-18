@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:blink_app/services/storage_service.dart';
 import 'package:blink_app/utils/temp_localizations.dart';
+import 'dart:math' as math;
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -22,6 +23,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   late AnimationController _cardAnimationController;
   late Animation<double> _cardAnimation;
   int _currentPage = 0;
+  bool _isNavigating = false;
 
   late List<OnboardingPage> _pages;
 
@@ -113,6 +115,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   void _navigateToSignUp() async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+
     HapticFeedback.mediumImpact();
     final storageService = Provider.of<StorageService>(context, listen: false);
     await storageService.setBool('has_shown_onboarding', true);
@@ -124,6 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     HapticFeedback.selectionClick();
     setState(() {
       _currentPage = page;
+      _isNavigating = false;
     });
     _backgroundAnimationController.reset();
     _backgroundColorAnimation = ColorTween(
@@ -189,23 +195,40 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   Column(
                     children: [
                       Expanded(
-                        child: PageView.builder(
-                          controller: _pageController,
-                          onPageChanged: _onPageChanged,
-                          itemCount: _pages.length,
-                          itemBuilder: (context, index) {
-                            return FadeTransition(
-                              opacity: _cardAnimation,
-                              child: SlideTransition(
-                                position: Tween<Offset>(
-                                  begin: const Offset(0.2, 0.0),
-                                  end: Offset.zero,
-                                ).animate(_cardAnimation),
-                                child:
-                                    OnboardingPageWidget(page: _pages[index]),
-                              ),
-                            );
+                        // Add a GestureDetector to handle swipes
+                        child: GestureDetector(
+                          onHorizontalDragEnd: (details) {
+                            // Only process swipe on the last page
+                            if (_currentPage == _pages.length - 1 &&
+                                !_isNavigating) {
+                              // Check for a left swipe (negative velocity)
+                              // Use a more moderate threshold for better reliability
+                              if (details.primaryVelocity != null &&
+                                  details.primaryVelocity! < -300) {
+                                _navigateToSignUp();
+                              }
+                            }
                           },
+                          // The regular PageView for page navigation
+                          child: PageView.builder(
+                            controller: _pageController,
+                            onPageChanged: _onPageChanged,
+                            itemCount: _pages.length,
+                            physics: const BouncingScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              return FadeTransition(
+                                opacity: _cardAnimation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0.2, 0.0),
+                                    end: Offset.zero,
+                                  ).animate(_cardAnimation),
+                                  child:
+                                      OnboardingPageWidget(page: _pages[index]),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                       AnimatedBuilder(
@@ -277,6 +300,41 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                     )
                                   else
                                     const SizedBox(width: 80),
+                                  if (_currentPage == _pages.length - 1)
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 16, vertical: 12),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                Colors.white.withOpacity(0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                'Swipe left',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Icon(
+                                                Icons.arrow_forward_ios_rounded,
+                                                color: Colors.white,
+                                                size: 14,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                      ],
+                                    ),
                                   Container(
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(30),

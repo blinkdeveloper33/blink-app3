@@ -5,6 +5,7 @@ import 'package:blink_app/features/auth/presentation/sign_up_screen.dart';
 import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/storage_service.dart';
 import 'package:blink_app/services/biometric_service.dart';
+import 'package:blink_app/services/google_auth_service.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
@@ -15,6 +16,7 @@ import 'package:animated_emoji/animated_emoji.dart';
 import 'package:blink_app/features/auth/presentation/forgot_password_screen.dart';
 import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart';
 import 'package:blink_app/features/home/presentation/home_screen.dart';
+import 'package:blink_app/features/auth/presentation/new_user_data_screen.dart';
 import 'package:blink_app/utils/temp_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -145,21 +147,25 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.asset(
                           iconPath,
-                          height: 24,
-                          width: 24,
+                          height: 20,
+                          width: 20,
                         ),
-                        const SizedBox(width: 16),
-                        Text(
-                          text,
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            color:
-                                Colors.white.withOpacity(0.9 + (0.1 * value)),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Text(
+                            text,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              color:
+                                  Colors.white.withOpacity(0.9 + (0.1 * value)),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -559,8 +565,58 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _handleGoogleSignIn() {
-    _logger.d('Google Sign In Pressed');
+  void _handleGoogleSignIn() async {
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      _logger.d('Starting Google Sign In process');
+
+      // Get the GoogleAuthService using Provider
+      final googleAuthService = GoogleAuthService(
+        storageService: Provider.of<StorageService>(context, listen: false),
+        authService: Provider.of<AuthService>(context, listen: false),
+      );
+
+      // Start the Google Sign-In flow
+      final response = await googleAuthService.signInWithGoogle(context);
+
+      if (!mounted) return;
+
+      // Handle response based on isNewUser flag
+      if (response['isNewUser'] == true) {
+        // New user - navigate to the profile completion page
+        _logger.i('New Google user, redirecting to profile completion');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => NewUserDataScreen(
+              email: response['email'] ?? '',
+              firstName: response['firstName'] ?? '',
+              lastName: response['lastName'] ?? '',
+              isGoogleSignIn: true,
+            ),
+          ),
+        );
+      } else {
+        // Existing user - navigate to the Link Plaid screen
+        _logger.i('Existing Google user, redirecting to Link Plaid screen');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const LinkPlaidBankScreen(),
+          ),
+        );
+      }
+    } catch (e) {
+      _logger.e('Error during Google sign-in:', error: e);
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = 'Failed to sign in with Google. Please try again.';
+        });
+      }
+    }
   }
 
   void _handleAppleSignIn() {

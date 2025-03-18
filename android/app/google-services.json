@@ -1,26 +1,36 @@
 {
   "project_info": {
-    "project_number": "605613323591",
-    "project_id": "blinkcashadvances",
-    "storage_bucket": "blinkcashadvances.firebasestorage.app"
+    "project_number": "402547583247",
+    "project_id": "blink-app-auth",
+    "storage_bucket": "blink-app-auth.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:605613323591:android:b8bae68560349306118862",
+        "mobilesdk_app_id": "1:402547583247:android:abc123def456ghi789jkl",
         "android_client_info": {
           "package_name": "com.example.blink_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "402547583247-6p1ahq0tj8o6d3opmp69duv5h0p6c8j6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyBD0Yd1dwOhMQMT1ZMqx3g5mjCIMzc03QA"
+          "current_key": "AIzaSyDummyKeyForTheExample"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "402547583247-6p1ahq0tj8o6d3opmp69duv5h0p6c8j6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
