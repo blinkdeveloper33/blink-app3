@@ -17,6 +17,7 @@ import 'package:blink_app/providers/profile_provider.dart' show ProfileProvider;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:blink_app/config/api_config.dart';
+import 'package:blink_app/core/utils/responsive_utils.dart';
 
 const Color kPrimaryColor = Color(0xFF0E6BA8);
 const Color kSecondaryColor = Color(0xFF1A237E);
@@ -551,7 +552,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
         style: TextStyle(
           fontFamily: 'Onest',
           color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-          fontSize: 16,
+          fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
           height: 1.5,
           letterSpacing: 0.3,
           fontWeight: FontWeight.w600,
@@ -576,7 +577,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
           style: TextStyle(
             fontFamily: 'Onest',
             color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-            fontSize: 17,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 17),
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
           ),
@@ -599,7 +600,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 style: TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-                  fontSize: 16,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                   height: 1.5,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w500,
@@ -610,7 +611,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 style: TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF0066CC),
-                  fontSize: 17,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 17),
                   height: 1.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -621,7 +622,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 style: TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-                  fontSize: 16,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                   height: 1.5,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w500,
@@ -635,7 +636,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
             style: TextStyle(
               fontFamily: 'Onest',
               color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-              fontSize: 16,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
               height: 1.5,
               letterSpacing: 0.3,
               fontWeight: FontWeight.w500,
@@ -649,7 +650,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
           style: TextStyle(
             fontFamily: 'Onest',
             color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-            fontSize: 18,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 18),
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
             height: 1.5,
@@ -711,7 +712,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
             style: TextStyle(
               fontFamily: 'Onest',
               color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-              fontSize: 16,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
               height: 1.5,
               letterSpacing: 0.3,
               fontWeight: FontWeight.w600,
@@ -730,7 +731,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 style: TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-                  fontSize: 16,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                   height: 1.5,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w600,
@@ -745,7 +746,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 specialStyle = TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF0066CC),
-                  fontSize: 18,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 18),
                   height: 1.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -755,7 +756,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 specialStyle = TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF5E35B1),
-                  fontSize: 17,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 17),
                   height: 1.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -765,7 +766,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 specialStyle = TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF00796B),
-                  fontSize: 16,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                   height: 1.5,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.3,
@@ -775,7 +776,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 specialStyle = TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-                  fontSize: 16,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                   height: 1.5,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w600,
@@ -797,7 +798,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
               style: TextStyle(
                 fontFamily: 'Onest',
                 color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-                fontSize: 16,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                 height: 1.5,
                 letterSpacing: 0.3,
                 fontWeight: FontWeight.w600,
@@ -849,7 +850,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
             style: TextStyle(
               fontFamily: 'Onest',
               color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-              fontSize: 16,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
               height: 1.5,
               letterSpacing: 0.3,
               fontWeight: FontWeight.w600,
@@ -868,7 +869,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 style: TextStyle(
                   fontFamily: 'Onest',
                   color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-                  fontSize: 16,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                   height: 1.5,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w600,
@@ -884,7 +885,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 color: isUser
                     ? Colors.white.withOpacity(1.0)
                     : const Color(0xFF0066CC),
-                fontSize: 17,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 17),
                 height: 1.5,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
@@ -895,7 +896,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
                 color: isUser
                     ? Colors.white.withOpacity(1.0)
                     : const Color(0xFF5E35B1),
-                fontSize: 17,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 17),
                 height: 1.5,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
@@ -917,7 +918,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
               style: TextStyle(
                 fontFamily: 'Onest',
                 color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-                fontSize: 16,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                 height: 1.5,
                 letterSpacing: 0.3,
                 fontWeight: FontWeight.w600,
@@ -934,7 +935,7 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
           style: TextStyle(
             fontFamily: 'Onest',
             color: isUser ? Colors.white : const Color(0xFF1E3A8A),
-            fontSize: 16,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
             height: 1.5,
             letterSpacing: 0.3,
             fontWeight: FontWeight.w600,
@@ -1429,8 +1430,17 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     final screenHeight = MediaQuery.of(context).size.height;
     final bottomSheetHeight = _conversationState ==
             ConversationState.dateSelection
-        ? screenHeight * 0.2 * 1.2 * 1.2 // 1.2 times higher for date selection
-        : screenHeight * 0.2 * 1.2; // normal height for other states
+        ? screenHeight *
+            0.2 *
+            1.2 *
+            1.2 *
+            ResponsiveUtils.getElementSizeMultiplier(
+                context) // 1.2 times higher for date selection with responsive multiplier
+        : screenHeight *
+            0.2 *
+            1.2 *
+            ResponsiveUtils.getElementSizeMultiplier(
+                context); // normal height with responsive multiplier
 
     return Container(
       decoration: BoxDecoration(
@@ -1450,7 +1460,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Container(
-            height: _isBottomSheetCollapsed ? 60 : bottomSheetHeight,
+            height: _isBottomSheetCollapsed
+                ? 60 * ResponsiveUtils.getElementSizeMultiplier(context)
+                : bottomSheetHeight,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -1495,7 +1507,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                     child: SingleChildScrollView(
                       physics: const NeverScrollableScrollPhysics(),
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                        padding: ResponsiveUtils.getResponsivePadding(
+                            context, const EdgeInsets.fromLTRB(16, 12, 16, 16)),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           mainAxisSize: MainAxisSize.min,
@@ -1524,7 +1537,7 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       title,
       style: TextStyle(
         color: Colors.white,
-        fontSize: 18,
+        fontSize: ResponsiveUtils.getResponsiveFontSize(context, 18),
         fontWeight: FontWeight.w700,
         letterSpacing: 0.5,
         fontFamily: 'Onest',
@@ -1557,7 +1570,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 title: 'Instant',
                 subtitle: 'Minutes',
                 amount: '\$25.00',
-                emoji: AnimatedEmoji(AnimatedEmojis.electricity, size: 22),
+                emoji: AnimatedEmoji(AnimatedEmojis.electricity,
+                    size:
+                        22 * ResponsiveUtils.getElementSizeMultiplier(context)),
                 gradientColors: [
                   Color(0xFF9C27B0),
                   Color(0xFF7B1FA2),
@@ -1572,7 +1587,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 title: 'Standard',
                 subtitle: '1-3 days',
                 amount: '\$20.00',
-                emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 22),
+                emoji: AnimatedEmoji(AnimatedEmojis.alarmClock,
+                    size:
+                        22 * ResponsiveUtils.getElementSizeMultiplier(context)),
                 gradientColors: [
                   Color(0xFF1E88E5),
                   Color(0xFF1976D2),
@@ -1593,7 +1610,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 subtitle: '10% Fee Discount',
                 amount: '\$${discountedFee.toStringAsFixed(2)}',
                 originalAmount: '\$${baseFee.toStringAsFixed(2)}',
-                emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings, size: 22),
+                emoji: AnimatedEmoji(AnimatedEmojis.moneyWithWings,
+                    size:
+                        22 * ResponsiveUtils.getElementSizeMultiplier(context)),
                 gradientColors: [
                   Color(0xFF43A047),
                   Color(0xFF2E7D32),
@@ -1609,7 +1628,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 title: '14 Days',
                 subtitle: 'More flexibility',
                 amount: '\$${baseFee.toStringAsFixed(2)}',
-                emoji: AnimatedEmoji(AnimatedEmojis.alarmClock, size: 22),
+                emoji: AnimatedEmoji(AnimatedEmojis.alarmClock,
+                    size:
+                        22 * ResponsiveUtils.getElementSizeMultiplier(context)),
                 gradientColors: [
                   Color(0xFF5E35B1),
                   Color(0xFF4527A0),
@@ -1627,7 +1648,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 title: 'Confirm',
                 subtitle: 'Process advance',
                 amount: '\$200.00',
-                emoji: AnimatedEmoji(AnimatedEmojis.checkMark, size: 22),
+                emoji: AnimatedEmoji(AnimatedEmojis.checkMark,
+                    size:
+                        22 * ResponsiveUtils.getElementSizeMultiplier(context)),
                 gradientColors: [
                   Color(0xFF43A047),
                   Color(0xFF2E7D32),
@@ -1642,7 +1665,9 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                 title: 'Cancel',
                 subtitle: 'Exit process',
                 amount: '',
-                emoji: AnimatedEmoji(AnimatedEmojis.crossMark, size: 22),
+                emoji: AnimatedEmoji(AnimatedEmojis.crossMark,
+                    size:
+                        22 * ResponsiveUtils.getElementSizeMultiplier(context)),
                 gradientColors: [
                   Color(0xFFE53935),
                   Color(0xFFC62828),
@@ -1685,7 +1710,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: EdgeInsets.all(12),
+            padding: ResponsiveUtils.getResponsivePadding(
+                context, EdgeInsets.all(12)),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               gradient: LinearGradient(
@@ -1711,7 +1737,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                         title,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(
+                              context, 16),
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.5,
                           fontFamily: 'Onest',
@@ -1730,7 +1757,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                           originalAmount,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.7),
-                            fontSize: 14,
+                            fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                context, 14),
                             fontWeight: FontWeight.w500,
                             fontFamily: 'Onest',
                             decoration: TextDecoration.lineThrough,
@@ -1740,8 +1768,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                         ),
                         Container(
                           margin: EdgeInsets.only(left: 8),
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: ResponsiveUtils.getResponsivePadding(context,
+                              EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(4),
@@ -1750,7 +1778,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                             '-10%',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                  context, 12),
                               fontWeight: FontWeight.w600,
                               fontFamily: 'Onest',
                             ),
@@ -1758,28 +1787,29 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                         ),
                       ],
                     ),
-                    SizedBox(height: 6),
+                    SizedBox(height: 4),
                   ],
                   Text(
                     amount,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: showDiscount ? 22 : 20,
-                      fontWeight: FontWeight.w800,
+                      fontSize:
+                          ResponsiveUtils.getResponsiveFontSize(context, 18),
+                      fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
                       fontFamily: 'Onest',
                     ),
                   ),
                 ],
-                SizedBox(height: 4),
+                SizedBox(height: 6),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.85),
+                    fontSize:
+                        ResponsiveUtils.getResponsiveFontSize(context, 14),
                     fontWeight: FontWeight.w500,
                     fontFamily: 'Onest',
-                    letterSpacing: 0.3,
                   ),
                 ),
               ],
@@ -2785,6 +2815,14 @@ Ready to proceed with your $blinkType advance?""",
                   (_selectedDate!.difference(DateTime.now()).inDays <= 8)
               ? 7
               : 14,
+          // Add metadata field for the new status handling
+          'metadata': {
+            'status_version': 'enum_v1',
+            'discount_applied': _selectedDate != null &&
+                    (_selectedDate!.difference(DateTime.now()).inDays <= 8)
+                ? true
+                : false
+          }
         }),
       );
 

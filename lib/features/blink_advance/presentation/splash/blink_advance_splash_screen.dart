@@ -350,16 +350,30 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
           print("Status from nested API response: '$status'");
         }
 
-        // Make case-insensitive check to handle any capitalization issues
-        if (status != null &&
-            (status == 'approved' || status.contains('approved'))) {
+        // Standardize the status value if we have one
+        if (status != null) {
+          status = _standardizeStatusValue(status);
+          print("Standardized status: '$status'");
+        }
+
+        // Check if user is approved based on standardized status
+        if (status != null && status == 'authorization_approved') {
           // User is approved - check if they have an active advance
           setState(() {
             _isApproved = true;
             _approvalStatusMessage = statusMessage;
           });
 
-          await _checkActiveAdvance();
+          print("⭐ User is approved! Checking for active advances...");
+
+          try {
+            // Call the active advance check with proper error handling
+            await _checkActiveAdvance();
+          } catch (e) {
+            print("🔴 ERROR in _checkActiveAdvance: $e");
+            // Still continue to advance screen if there's an error checking for advances
+            _proceedToAdvanceScreen();
+          }
         } else {
           // User is not approved or status couldn't be determined
           print("User not approved. Status: $status");
@@ -445,10 +459,14 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
   }
 
   Future<void> _checkActiveAdvance() async {
+    print("🔍 STARTING _checkActiveAdvance check");
     try {
       // Get auth token and make API call
       final authService = Provider.of<AuthService>(context, listen: false);
       final token = await authService.getToken();
+
+      print(
+          "🔍 Making request to ${ApiConfig.baseUrl}/api/cash-advance/active");
 
       final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/api/cash-advance/active'),
@@ -459,6 +477,9 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
       );
 
       if (!mounted) return;
+
+      print("🔍 Active advance API response status: ${response.statusCode}");
+      print("🔍 Active advance API response body: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -516,6 +537,9 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
           // Extract the status with default fallback
           String status = _safeGetString(cashAdvance, 'status') ?? 'active';
 
+          // Standardize the status value using our helper method
+          status = _standardizeStatusValue(status);
+
           final mappedAdvance = {
             'id': cashAdvance['id'] ?? '',
             'amount': principalAmount,
@@ -556,22 +580,26 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
             'has_active_advance':
                 true // Clear flag to indicate there's an active advance
           };
-          print("🔴 Returning to home screen with active advance data: $resultData");
+          print(
+              "🔴 Returning to home screen with active advance data: $resultData");
           Navigator.of(context).pop(resultData);
         } else {
+          print("🔍 No active advance found, proceeding to advance screen");
           setState(() {
             _isLoading = false;
           });
           _proceedToAdvanceScreen();
         }
       } else {
+        print(
+            "⚠️ Active advance check failed with status ${response.statusCode}");
         setState(() {
           _isLoading = false;
         });
         _proceedToAdvanceScreen();
       }
     } catch (e) {
-      print("Error checking active cash advance: $e");
+      print("🔴 Error checking active cash advance: $e");
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -888,30 +916,37 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
                       const SizedBox(height: 24),
                       Container(
                         padding: ResponsiveUtils.getResponsivePadding(
-                          context, 
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
-                        ),
+                            context,
+                            const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8)),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12 * ResponsiveUtils.getElementSizeMultiplier(context)),
+                          borderRadius: BorderRadius.circular(12 *
+                              ResponsiveUtils.getElementSizeMultiplier(
+                                  context)),
                         ),
                         child: Text(
                           'Please repay your current advance\nbefore requesting a new one.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
-                            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
+                            fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                context, 16),
                             fontFamily: 'Onest',
                             height: 1.4,
                           ),
                         ),
                       ),
-                      SizedBox(height: 16 * ResponsiveUtils.getElementSizeMultiplier(context)),
+                      SizedBox(
+                          height: 16 *
+                              ResponsiveUtils.getElementSizeMultiplier(
+                                  context)),
                       Text(
                         'Returning to home screen...',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.7),
-                          fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(
+                              context, 14),
                           fontFamily: 'Onest',
                           fontStyle: FontStyle.italic,
                         ),
@@ -1007,35 +1042,81 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
     );
   }
 
+  // Helper method to standardize status values across the app
+  // This helps to convert legacy status values to the new enum values
+  String _standardizeStatusValue(String? status) {
+    if (status == null) return 'unknown';
+
+    // Convert to lowercase for case-insensitive comparison
+    final lowerStatus = status.toLowerCase();
+
+    // Map legacy values to new enum values
+    switch (lowerStatus) {
+      case 'approved':
+        return 'authorization_approved';
+      case 'active':
+        return 'disbursed'; // Assuming 'active' in old system means funds were disbursed
+      default:
+        // Return the original status if no conversion needed
+        return lowerStatus;
+    }
+  }
+
   Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
+    // Standardize the status value first
+    final standardStatus = _standardizeStatusValue(status);
+
+    switch (standardStatus) {
       case 'requested':
         return Colors.orange.withOpacity(0.7);
-      case 'disbursed':
+      case 'authorization_approved':
         return Colors.green.withOpacity(0.7);
-      case 'approved':
+      case 'disbursing':
+        return Colors.blue.withOpacity(0.7);
+      case 'disbursed':
         return Colors.green.withOpacity(0.7);
       case 'pending':
         return Colors.orange.withOpacity(0.7);
       case 'overdue':
         return Colors.red.withOpacity(0.7);
+      case 'repaid':
+        return Colors.green.withOpacity(0.7);
+      case 'failed':
+        return Colors.red.withOpacity(0.7);
+      case 'refunded':
+        return Colors.purple.withOpacity(0.7);
+      case 'voided':
+        return Colors.grey.withOpacity(0.7);
       default:
         return Colors.blue.withOpacity(0.7);
     }
   }
 
   String _getStatusText(String? status) {
-    switch (status?.toLowerCase()) {
+    // Standardize the status value first
+    final standardStatus = _standardizeStatusValue(status);
+
+    switch (standardStatus) {
       case 'requested':
         return 'Processing Request';
+      case 'authorization_approved':
+        return 'Approved';
+      case 'disbursing':
+        return 'Processing Transfer';
       case 'disbursed':
         return 'Funds Disbursed';
-      case 'approved':
-        return 'Approved';
       case 'pending':
         return 'Pending';
       case 'overdue':
         return 'Overdue';
+      case 'repaid':
+        return 'Repaid';
+      case 'failed':
+        return 'Failed';
+      case 'refunded':
+        return 'Refunded';
+      case 'voided':
+        return 'Voided';
       default:
         return 'Active Advance';
     }

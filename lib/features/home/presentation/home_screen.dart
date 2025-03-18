@@ -1197,6 +1197,14 @@ Successful investing requires patience, research, and discipline. Start small, s
       )
           .then((result) {
         if (result != null && result is Map<String, dynamic>) {
+          print("🔍 DETAILED SPLASH SCREEN RESULT:");
+          print("🔍 Full result: $result");
+          print("🔍 has_active_advance: ${result['has_active_advance']}");
+          print("🔍 quick_action_status: ${result['quick_action_status']}");
+          print("🔍 repayment_date: ${result['repayment_date']}");
+          print(
+              "🔍 total_repayment_amount: ${result['total_repayment_amount']}");
+
           setState(() {
             _activeAdvanceData = result;
 
@@ -1222,6 +1230,25 @@ Successful investing requires patience, research, and discipline. Start small, s
           print("💰 Splash screen result: $result");
           print(
               "💰 Current status: $_blinkAdvanceStatus, Has active advance: $_hasActiveAdvance");
+
+          // Explicitly check if the repayment data fields are present
+          if (_hasActiveAdvance &&
+              (result['repayment_date'] == null ||
+                  result['total_repayment_amount'] == null)) {
+            print(
+                "⚠️ WARNING: Active advance data is missing required fields!");
+            print("⚠️ repayment_date: ${result['repayment_date']}");
+            print(
+                "⚠️ total_repayment_amount: ${result['total_repayment_amount']}");
+          }
+
+          // Force a rebuild of the repayment card
+          if (_hasActiveAdvance) {
+            // If card is not flipped, flip it to show the back with repayment details
+            if (!_isRepaymentCardFlipped) {
+              _flipRepaymentCard();
+            }
+          }
         }
       });
     }
@@ -1429,6 +1456,16 @@ Successful investing requires patience, research, and discipline. Start small, s
 
     // Check for pending asset reports
     _checkForPendingAssetReports();
+
+    // If an active advance exists, show the repayment details by flipping the card
+    Future.delayed(Duration(milliseconds: 1500), () {
+      if (mounted && _hasActiveAdvance && _activeAdvanceData != null) {
+        print("🔄 Auto-flipping repayment card to show active advance details");
+        if (!_isRepaymentCardFlipped) {
+          _flipRepaymentCard();
+        }
+      }
+    });
   }
 
   void _setupRepaymentPulseAnimation() {
@@ -4414,17 +4451,49 @@ Successful investing requires patience, research, and discipline. Start small, s
   Widget _buildRepaymentBackCard(Color color, Color textColor) {
     const repaymentBlue = Color.fromRGBO(30, 54, 100, 1.0);
     final hasActiveAdvance = _activeAdvanceData != null;
+
+    // Debug print to see what data we're receiving
+    print("💰 Active advance data in repayment card: $_activeAdvanceData");
+
+    // More robust handling of repayment amount with fallbacks
     final repaymentAmount = hasActiveAdvance
         ? (double.tryParse(
                 _activeAdvanceData!['total_repayment_amount']?.toString() ??
+                    _activeAdvanceData!['amount']?.toString() ??
                     '0') ??
             0.0)
         : 0.0;
-    final repaymentDate = hasActiveAdvance
-        ? DateTime.tryParse(
-                _activeAdvanceData!['repayment_date']?.toString() ?? '') ??
-            DateTime.now()
-        : DateTime.now();
+
+    // More robust handling of repayment date with fallbacks
+    DateTime repaymentDate;
+    if (hasActiveAdvance) {
+      try {
+        // Try multiple date field names that might be present
+        final dateStr = _activeAdvanceData!['repayment_date']?.toString() ??
+            _activeAdvanceData!['repayment_due_date']?.toString();
+
+        repaymentDate = DateTime.tryParse(dateStr ?? '') ?? DateTime.now();
+
+        // If the parsed date is more than 30 days away, it's likely invalid, use fallback
+        if (repaymentDate.difference(DateTime.now()).inDays > 30) {
+          print("⚠️ Invalid repayment date detected, using fallback");
+          repaymentDate = DateTime.now().add(const Duration(days: 7));
+        }
+      } catch (e) {
+        print("⚠️ Error parsing repayment date: $e");
+        repaymentDate = DateTime.now().add(const Duration(days: 7));
+      }
+    } else {
+      repaymentDate = DateTime.now();
+    }
+
+    // Debug print for specific fields
+    if (hasActiveAdvance) {
+      print("💰 Repayment amount: $repaymentAmount, date: $repaymentDate");
+      print(
+          "💰 Raw values - Amount: ${_activeAdvanceData!['total_repayment_amount'] ?? _activeAdvanceData!['amount']}, Date: ${_activeAdvanceData!['repayment_date'] ?? _activeAdvanceData!['repayment_due_date']}");
+      print("💰 Active advance status: ${_activeAdvanceData!['status']}");
+    }
 
     final deviceMultiplier = ResponsiveUtils.getElementSizeMultiplier(context);
     final fontSizeMultiplier = ResponsiveUtils.getFontSizeMultiplier(context);

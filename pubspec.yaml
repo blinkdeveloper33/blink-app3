@@ -85,26 +85,8 @@ flutter:
   assets:
     - .env
     - assets/images/
-    - assets/animations/
     - assets/images/blink_logo.png
     - assets/images/blink_logo_white.png
-    - assets/images/newsimages/
-    # Icons
-    - assets/images/icons/icons8-expensive-price-80.png
-    - assets/images/icons/icons8-profit-analysis-100.png
-    - assets/images/icons/icons8-transaction-80.png
-    - assets/images/icons/icons8-transaction-100.png
-    - assets/images/icons/icons8-money-circulation-96.png
-    - assets/images/icons/icons8-time-is-money-96.png
-    - assets/images/icons/icons8-receive-dollar-96.png
-    - assets/images/icons/icons8-pie-chart-96.png
-    - assets/images/icons/icons8-check-dollar-96.png
-    # Onboarding images
-    - assets/images/onboarding/pexels-mizunokozuki-13431763.jpg
-    - assets/images/onboarding/pexels-shvets-production-7544453.jpg
-    - assets/images/onboarding/pexels-cottonbro-5138195.jpg
-    - assets/images/onboarding/pexels-timmossholder-3105409.jpg
-    - assets/images/onboarding/pexels-shvetsa-6631412.jpg
 
     # Animated Emoji Assets
     - packages/animated_emoji/lottie/moneyWithWings.json
@@ -127,7 +109,6 @@ flutter:
     - packages/animated_emoji/lottie/bicycle.json
     - packages/animated_emoji/lottie/wave.json
     - packages/animated_emoji/lottie/robot.json
-    - assets/animations/success.json
 
   fonts:
     - family: Roboto
