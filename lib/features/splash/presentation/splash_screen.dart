@@ -5,6 +5,7 @@ import 'package:blink_app/services/auth_service.dart';
 import 'package:blink_app/services/biometric_service.dart';
 import 'package:blink_app/features/onboarding/presentation/onboarding_wrapper.dart';
 import 'package:blink_app/services/storage_service.dart';
+import 'package:blink_app/providers/profile_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,6 +19,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _mainController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  bool _isInitialized = false;
 
   // List of onboarding images to preload
   final List<String> _onboardingImages = [
@@ -55,10 +57,19 @@ class _SplashScreenState extends State<SplashScreen>
           _mainController.forward();
         }
       });
-
-      _initializeApp();
     } catch (e) {
       debugPrint('Error initializing SplashScreen: $e');
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Only run initialization once
+    if (!_isInitialized) {
+      _isInitialized = true;
+      _initializeApp();
     }
   }
 
@@ -132,16 +143,36 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initializeApp() async {
+    if (!mounted) return;
+
+    // Access providers after the widget is fully built
     final authService = Provider.of<AuthService>(context, listen: false);
     final biometricService =
         Provider.of<BiometricService>(context, listen: false);
     final storageService = Provider.of<StorageService>(context, listen: false);
+    final profileProvider =
+        Provider.of<ProfileProvider>(context, listen: false);
 
     // Start preloading images immediately
     final preloadFuture = _preloadOnboardingImages();
     final timerFuture = Future.delayed(const Duration(milliseconds: 3000));
 
     try {
+      // Try to load user profile picture in parallel if we have a user ID
+      final userId = storageService.getUserId();
+      if (userId != null) {
+        debugPrint('Loading profile picture for user $userId');
+        // Schedule profile picture loading on the next frame to avoid build conflicts
+        Future.microtask(() {
+          if (mounted) {
+            profileProvider.loadProfilePicture(userId).catchError((e) {
+              // Just log the error, don't interrupt the app startup
+              debugPrint('Error loading profile picture: $e');
+            });
+          }
+        });
+      }
+
       await Future.wait([timerFuture, preloadFuture]);
       debugPrint(
           'Splash screen minimum duration and image preloading completed');

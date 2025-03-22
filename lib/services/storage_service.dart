@@ -515,10 +515,13 @@ class StorageService {
 
   String? getProfilePictureUrl(String userId) {
     try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      return _supabase.storage
-          .from('profiles')
-          .getPublicUrl('$userId-$timestamp.jpg');
+      // Don't generate a new timestamp - use the SupabaseStorageService to find the latest image
+      // This is a synchronous method so we can't await, just return null
+      // The app should use ProfileProvider and SupabaseStorageService directly
+      // for proper profile picture handling
+      _logger.w(
+          'Warning: Using deprecated getProfilePictureUrl method in StorageService');
+      return null;
     } catch (e) {
       _logger.e('Error getting profile picture URL', error: e);
       return null;

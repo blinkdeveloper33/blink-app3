@@ -830,6 +830,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   Widget _buildMerchantLogoOrCategoryIcon(Transaction transaction) {
+    // Temporarily disabled merchant logo fetching for enhancement
+    return CategoryService.buildEnhancedCategoryIcon(
+        transaction.category, _isDarkMode);
+
+    /* Original implementation:
     // Check if we should attempt to show a logo
     if (!MerchantLogoService.shouldAttemptLogo(transaction.merchantName)) {
       return CategoryService.buildEnhancedCategoryIcon(
@@ -906,6 +911,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             transaction.category, _isDarkMode);
       },
     );
+    */
   }
 
   Widget _buildShimmerLoading() {
@@ -2154,7 +2160,8 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Add merchant logo at the top
+        // Merchant logo temporarily disabled for enhancement
+        /* Original implementation:
         if (MerchantLogoService.shouldAttemptLogo(merchantName))
           Center(
             child: FutureBuilder<String>(
@@ -2273,6 +2280,7 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
               },
             ),
           ),
+        */
 
         Text(
           merchantName,

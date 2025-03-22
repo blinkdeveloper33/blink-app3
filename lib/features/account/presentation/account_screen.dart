@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
+import 'dart:async'; // Add async for timeout
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import 'package:blink_app/services/storage_service.dart';
 import 'package:blink_app/services/supabase_storage_service.dart';
 import 'package:blink_app/widgets/glass_container.dart';
 import 'package:blink_app/providers/theme_provider.dart';
+import 'package:blink_app/providers/color_palette_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:haptic_feedback/haptic_feedback.dart' as haptics;
@@ -28,46 +30,30 @@ import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'package:blink_app/config/api_config.dart';
 import 'package:shimmer/shimmer.dart'; // Add shimmer package for professional loading effects
+import 'package:path_provider/path_provider.dart';
+import 'package:animated_emoji/animated_emoji.dart';
+import 'package:blink_app/features/account/presentation/components/profile_header.dart';
+import 'package:blink_app/features/account/presentation/components/bank_account_section.dart';
+import 'package:blink_app/features/account/presentation/components/settings_section.dart';
+import 'package:blink_app/features/account/presentation/components/action_buttons.dart';
 
-class BankAccount {
-  final String bankAccountId;
-  final String accountName;
-  final String accountType;
-  final String accountSubtype;
-  final String accountMask;
-  final double availableBalance;
-  final double currentBalance;
-  final String currency;
-  final DateTime createdAt;
-  final String cursor;
+// Define a custom AnimatedEmojiData for the locked emoji
+final lockedEmoji = AnimatedEmojiData('1f512', name: 'locked');
 
-  BankAccount({
-    required this.bankAccountId,
-    required this.accountName,
-    required this.accountType,
-    required this.accountSubtype,
-    required this.accountMask,
-    required this.availableBalance,
-    required this.currentBalance,
-    required this.currency,
-    required this.createdAt,
-    required this.cursor,
-  });
-
-  factory BankAccount.fromJson(Map<String, dynamic> json) {
-    return BankAccount(
-      bankAccountId: json['bankAccountId'] as String,
-      accountName: json['accountName'] as String,
-      accountType: json['accountType'] as String,
-      accountSubtype: json['accountSubtype'] as String,
-      accountMask: json['accountMask'] as String,
-      availableBalance: (json['availableBalance'] as num).toDouble(),
-      currentBalance: (json['currentBalance'] as num).toDouble(),
-      currency: json['currency'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      cursor: json['cursor'] as String,
-    );
-  }
+// Helper function to deserialize BankAccount
+BankAccount bankAccountFromJson(Map<String, dynamic> json) {
+  return BankAccount(
+    bankAccountId: json['bankAccountId'] as String,
+    accountName: json['accountName'] as String,
+    accountType: json['accountType'] as String,
+    accountSubtype: json['accountSubtype'] as String,
+    accountMask: json['accountMask'] as String,
+    availableBalance: (json['availableBalance'] as num).toDouble(),
+    currentBalance: (json['currentBalance'] as num).toDouble(),
+    currency: json['currency'] as String,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    cursor: json['cursor'] as String,
+  );
 }
 
 class AccountScreen extends StatefulWidget {
@@ -101,6 +87,9 @@ class _AccountScreenState extends State<AccountScreen> {
     // First try to load data from cache
     await _loadCachedUserData();
     await _loadCachedBankAccounts();
+
+    // Extract colors from profile picture if available
+    _extractColorsFromProfilePicture();
 
     // Then refresh data in the background
     _refreshDataInBackground();
@@ -146,7 +135,8 @@ class _AccountScreenState extends State<AccountScreen> {
           if (mounted) {
             setState(() {
               _bankAccounts = cachedAccounts
-                  .map((account) => BankAccount.fromJson(account))
+                  .map((account) =>
+                      bankAccountFromJson(account as Map<String, dynamic>))
                   .toList();
               _isInitialLoad = false;
             });
@@ -186,6 +176,8 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    // Cancel the color extraction timer
+    _colorExtractionTimer?.cancel();
     super.dispose();
   }
 
@@ -193,6 +185,38 @@ class _AccountScreenState extends State<AccountScreen> {
     setState(() {
       _scrollOffset = _scrollController.offset;
     });
+
+    // Don't extract colors while scrolling to save resources
+    if (!_isLoadingBankAccounts && !_isInitialLoad) {
+      _debounceColorExtraction();
+    }
+  }
+
+  // Debouncer for color extraction
+  Timer? _colorExtractionTimer;
+
+  void _debounceColorExtraction() {
+    // If a timer is already active, cancel it
+    if (_colorExtractionTimer?.isActive ?? false) {
+      _colorExtractionTimer!.cancel();
+    }
+
+    // Set a new timer - only extract colors after scrolling stops for 500ms
+    _colorExtractionTimer = Timer(const Duration(milliseconds: 500), () {
+      _extractColorsFromProfilePicture();
+    });
+  }
+
+  void _extractColorsFromProfilePicture() {
+    final profileProvider =
+        Provider.of<ProfileProvider>(context, listen: false);
+    final colorPaletteProvider =
+        Provider.of<ColorPaletteProvider>(context, listen: false);
+
+    if (profileProvider.profilePictureUrl != null) {
+      colorPaletteProvider
+          .extractColorsFromProfileImage(profileProvider.profilePictureUrl);
+    }
   }
 
   Future<void> _loadUserProfileFromAPI({bool showLoading = true}) async {
@@ -386,19 +410,25 @@ class _AccountScreenState extends State<AccountScreen> {
 
     if (userId != null) {
       await profileProvider.loadProfilePicture(userId);
+      // Extract colors after loading the profile picture
+      _extractColorsFromProfilePicture();
     }
   }
 
   Future<void> _pickAndUploadImage() async {
     try {
-      final pickedFile =
-          await _imagePicker.pickImage(source: ImageSource.gallery);
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800, // Limit image width
+        maxHeight: 800, // Limit image height
+        imageQuality: 60, // Reduce quality further
+      );
       if (pickedFile == null) return;
 
       final croppedFile = await _imageCropper.cropImage(
         sourcePath: pickedFile.path,
         aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        compressQuality: 70,
+        compressQuality: 50, // Reduce quality for smaller file size
         compressFormat: ImageCompressFormat.jpg,
         uiSettings: [
           AndroidUiSettings(
@@ -437,8 +467,10 @@ class _AccountScreenState extends State<AccountScreen> {
         return;
       }
 
-      // Create multipart request
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/users/profile-picture');
+      // Create multipart request with a timeout
+      final url = Uri.parse(
+          '${ApiConfig.baseUrl}/api/user-profile/upload-profile-picture');
+      debugPrint('Sending profile picture to endpoint: $url');
       final request = http.MultipartRequest('POST', url);
 
       // Add auth header
@@ -450,44 +482,147 @@ class _AccountScreenState extends State<AccountScreen> {
           contentType: MediaType('image', 'jpeg'));
       request.files.add(file);
 
-      // Send request
-      final response = await request.send();
+      // Create a client with timeout
+      final client = http.Client();
+      try {
+        debugPrint(
+            'Sending profile picture upload request to ${ApiConfig.baseUrl}/api/user-profile/upload-profile-picture');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Read response
-        final responseData = await response.stream.bytesToString();
-        final data = jsonDecode(responseData);
+        // Implement retry logic with exponential backoff
+        int retries = 3;
+        http.StreamedResponse? streamedResponse;
 
-        // Get the profile picture URL from the response
-        final String profilePictureUrl = data['profile_picture_url'];
+        while (retries > 0) {
+          try {
+            // Send request with timeout
+            streamedResponse = await client.send(request).timeout(
+                const Duration(seconds: 60)); // 1 minute timeout per attempt
+            break; // Success, exit retry loop
+          } catch (e) {
+            retries--;
+            if (retries == 0) {
+              // Re-throw on last attempt
+              rethrow;
+            }
 
-        // Update profile provider
-        if (mounted) {
-          final profileProvider =
-              Provider.of<ProfileProvider>(context, listen: false);
-          profileProvider.updateProfilePicture(profilePictureUrl);
+            // Wait with exponential backoff
+            final backoffSeconds = pow(2, 3 - retries).toInt();
+            debugPrint(
+                'Upload failed, retrying in $backoffSeconds seconds. ${retries} retries left.');
+            await Future.delayed(Duration(seconds: backoffSeconds));
+          }
         }
 
+        if (streamedResponse == null) {
+          throw Exception('Failed to upload after retry attempts');
+        }
+
+        debugPrint('Profile picture upload response received');
+        final response = await http.Response.fromStream(streamedResponse);
+        debugPrint('Response status: ${response.statusCode}');
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final responseBody = response.body;
+          debugPrint('Response body: $responseBody');
+
+          Map<String, dynamic> data;
+          try {
+            data = jsonDecode(responseBody);
+            debugPrint('Parsed JSON: $data');
+
+            // Get the profile picture URL from the response with safer extraction
+            String? profilePictureUrl;
+            if (data.containsKey('data') &&
+                data['data'] is Map<String, dynamic>) {
+              final dataMap = data['data'] as Map<String, dynamic>;
+              if (dataMap.containsKey('imageUrl')) {
+                profilePictureUrl = dataMap['imageUrl'] as String?;
+              }
+            }
+
+            if (profilePictureUrl != null) {
+              debugPrint('Profile picture URL: $profilePictureUrl');
+
+              // Update profile provider
+              if (mounted) {
+                final profileProvider =
+                    Provider.of<ProfileProvider>(context, listen: false);
+                profileProvider.updateProfilePicture(profilePictureUrl);
+
+                // Also reload profile from API to ensure we have the latest
+                final storageService =
+                    Provider.of<StorageService>(context, listen: false);
+                final userId = storageService.getUserId();
+                if (userId != null) {
+                  // Fire and forget - this will update the profile picture URL when the API responds
+                  profileProvider.loadProfilePicture(userId).catchError((e) {
+                    debugPrint('Error refreshing profile from API: $e');
+                  });
+                }
+
+                // Extract colors from the new profile picture
+                final colorPaletteProvider =
+                    Provider.of<ColorPaletteProvider>(context, listen: false);
+                colorPaletteProvider
+                    .extractColorsFromProfileImage(profilePictureUrl);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Profile picture updated successfully!')),
+                );
+              }
+            } else {
+              throw Exception('Profile picture URL not found in response');
+            }
+          } catch (e) {
+            debugPrint('Error parsing response: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text(
+                        'Error processing server response: ${e.toString()}')),
+              );
+            }
+          }
+        } else {
+          debugPrint(
+              'Failed to upload profile picture: ${response.statusCode} - ${response.body}');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(
+                      'Failed to update profile picture. Server returned ${response.statusCode}')),
+            );
+          }
+        }
+      } on TimeoutException {
+        debugPrint('Profile picture upload timed out');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Profile picture updated successfully!')),
+                content: Text(
+                    'Connection timed out. Please try with a smaller image or check your network')),
           );
         }
-      } else {
+      } catch (e) {
+        debugPrint('Error in HTTP request: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text(
-                    'Failed to update profile picture. Status: ${response.statusCode}')),
+                    'Network error: ${e.toString().substring(0, min(50, e.toString().length))}')),
           );
         }
+      } finally {
+        client.close();
       }
     } catch (e) {
+      debugPrint('Error updating profile picture: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Error updating profile picture: ${e.toString()}')),
+              content: Text(
+                  'Error updating profile picture. Please try again with a smaller image.')),
         );
       }
     } finally {
@@ -513,7 +648,7 @@ class _AccountScreenState extends State<AccountScreen> {
       if (mounted) {
         setState(() {
           _bankAccounts = detailedAccounts
-              .map((account) => BankAccount.fromJson(account))
+              .map((account) => bankAccountFromJson(account))
               .toList();
           _isLoadingBankAccounts = false;
         });
@@ -534,1352 +669,12 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  Widget _buildAvatarFallback() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Container(
-      width: 120,
-      height: 120,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isDarkMode
-              ? Colors.white.withOpacity(0.2)
-              : const Color(0xFF2196F3),
-          width: 3,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDarkMode
-                ? Colors.black.withOpacity(0.3)
-                : Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: Container(
-          color: isDarkMode ? Colors.white.withOpacity(0.1) : Colors.grey[200],
-          child: Icon(
-            Icons.person,
-            size: 60,
-            color: isDarkMode ? Colors.white70 : Colors.grey[400],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfilePicture() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Hero(
-      tag: 'profilePicture',
-      child: GestureDetector(
-        onTap: _isLoading
-            ? null
-            : () {
-                haptics.Haptics.vibrate(haptics.HapticsType.light);
-                _showImagePickerBottomSheet();
-              },
-        child: Stack(
-          children: [
-            Consumer<ProfileProvider>(
-              builder: (context, profileProvider, child) {
-                final profilePictureUrl = profileProvider.profilePictureUrl;
-                return Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isDarkMode
-                          ? Colors.white.withOpacity(0.2)
-                          : const Color(0xFF2196F3),
-                      width: 3,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDarkMode
-                            ? Colors.black.withOpacity(0.3)
-                            : Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: profilePictureUrl != null
-                        ? Image.network(
-                            profilePictureUrl,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                color: isDarkMode
-                                    ? Colors.white.withOpacity(0.1)
-                                    : Colors.grey[200],
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes !=
-                                            null
-                                        ? loadingProgress
-                                                .cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                        : null,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      isDarkMode
-                                          ? Colors.white
-                                          : const Color(0xFF2196F3),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return _buildAvatarFallback();
-                            },
-                          )
-                        : _buildAvatarFallback(),
-                  ),
-                );
-              },
-            ),
-            if (_isLoading)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isDarkMode ? Colors.white : const Color(0xFF2196F3),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isDarkMode ? const Color(0xFF1A2942) : Colors.white,
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 5,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.camera_alt,
-                  size: 20,
-                  color: isDarkMode ? const Color(0xFF1A2942) : Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showImagePickerBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Update Profile Picture',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: Color(0xFF2196F3),
-                  child: Icon(Icons.photo_library, color: Colors.white),
-                ),
-                title: const Text('Choose from Gallery'),
-                onTap: () {
-                  haptics.Haptics.vibrate(haptics.HapticsType.light);
-                  Navigator.pop(context);
-                  _pickAndUploadImage();
-                },
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.red.shade400,
-                  child: const Icon(Icons.delete_outline, color: Colors.white),
-                ),
-                title: const Text('Remove Current Picture'),
-                onTap: () {
-                  haptics.Haptics.vibrate(haptics.HapticsType.heavy);
-                  // Implement remove picture functionality
-                  Navigator.pop(context);
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    final size = MediaQuery.of(context).size;
-    final padding = MediaQuery.of(context).padding;
-    final headerHeight = min(size.height * 0.38, 320.0);
-
-    return Container(
-      height: headerHeight,
-      padding: EdgeInsets.only(top: padding.top + 56), // Add padding for AppBar
-      child: Stack(
-        children: [
-          // Add gradient overlay for better text readability
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.2),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Profile section
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final availableHeight = constraints.maxHeight;
-              final profileSize = min(availableHeight * 0.45, 110.0);
-
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Profile picture with edit button
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 500),
-                    opacity: 1.0,
-                    child: Center(
-                      child: Stack(
-                        children: [
-                          Hero(
-                            tag: 'profilePicture',
-                            child: GestureDetector(
-                              onTap: _isLoading
-                                  ? null
-                                  : _showImagePickerBottomSheet,
-                              child: Container(
-                                width: profileSize,
-                                height: profileSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 3,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.15),
-                                      blurRadius: 16,
-                                      spreadRadius: 3,
-                                    ),
-                                  ],
-                                ),
-                                child: _buildProfilePictureContent(),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: GestureDetector(
-                              onTap: _isLoading
-                                  ? null
-                                  : _showImagePickerBottomSheet,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 8,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.edit_outlined,
-                                  color: Color(0xFF1A237E),
-                                  size: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: min(availableHeight * 0.04, 16.0)),
-                  // Name with shimmer effect when loading
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 4,
-                    ),
-                    child: _userName.isEmpty
-                        ? Shimmer.fromColors(
-                            baseColor: Colors.white24,
-                            highlightColor: Colors.white38,
-                            child: Container(
-                              height: 26,
-                              width: 180,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          )
-                        : AnimatedOpacity(
-                            opacity: 1.0,
-                            duration: const Duration(milliseconds: 300),
-                            child: Text(
-                              _userName,
-                              style: TextStyle(
-                                fontSize: min(26, availableHeight * 0.1),
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                letterSpacing: 0.3,
-                                shadows: [
-                                  Shadow(
-                                    offset: const Offset(0, 2),
-                                    blurRadius: 4,
-                                    color: Colors.black.withOpacity(0.2),
-                                  ),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                  ),
-                  SizedBox(height: min(availableHeight * 0.02, 8.0)),
-                  // Enhanced email container with shimmer effect when loading
-                  _email.isEmpty
-                      ? Shimmer.fromColors(
-                          baseColor: Colors.white24,
-                          highlightColor: Colors.white38,
-                          child: Container(
-                            height: 30,
-                            width: 150,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                        )
-                      : AnimatedOpacity(
-                          duration: const Duration(milliseconds: 300),
-                          opacity: 1.0,
-                          child: Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.15),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.email_outlined,
-                                    size: 15,
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    _email,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.white.withOpacity(0.9),
-                                      letterSpacing: 0.2,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return Material(
-      color: Colors.transparent,
-      child: IconButton(
-        onPressed: () {
-          haptics.Haptics.vibrate(haptics.HapticsType.light);
-          Navigator.pop(context);
-        },
-        icon: Icon(
-          Icons.arrow_back_ios_new,
-          color: Colors.white.withOpacity(0.9),
-          size: 20,
-        ),
-        splashRadius: 24,
-      ),
-    );
-  }
-
-  Widget _buildProfilePictureContent() {
-    return Consumer<ProfileProvider>(
-      builder: (context, profileProvider, child) {
-        final profilePictureUrl = profileProvider.profilePictureUrl;
-        return ClipOval(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (profilePictureUrl != null)
-                Image.network(
-                  profilePictureUrl,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-
-                    // Enhanced loading state with shimmer effect
-                    return Shimmer.fromColors(
-                      baseColor: Colors.white10,
-                      highlightColor: Colors.white24,
-                      child: Container(
-                        color: Colors.white.withOpacity(0.1),
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return _buildAvatarFallback();
-                  },
-                )
-              else
-                Container(
-                  color: Colors.white.withOpacity(0.1),
-                  child: const Icon(
-                    Icons.person,
-                    size: 80,
-                    color: Colors.white70,
-                  ),
-                ),
-              if (_isLoading)
-                Container(
-                  color: Colors.black.withOpacity(0.5),
-                  child: Center(
-                    child: AnimatedOpacity(
-                      opacity: 1.0,
-                      duration: const Duration(milliseconds: 500),
-                      child: const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        strokeWidth: 2.5,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSettingTile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    VoidCallback? onTap,
-    Widget? trailing,
-  }) {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Row(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? Colors.white.withOpacity(0.1)
-                      : Colors.grey.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  icon,
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: isDarkMode ? Colors.white : Colors.black87,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDarkMode ? Colors.white60 : Colors.black54,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              trailing ??
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: isDarkMode ? Colors.white60 : Colors.black45,
-                    size: 24,
-                  ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsGroup(
-      {required String title, required List<Widget> children}) {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-          child: Text(
-            title.toUpperCase(),
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-              color: isDarkMode ? Colors.white60 : Colors.grey[700],
-            ),
-          ),
-        ),
-        ...children,
-      ],
-    );
-  }
-
-  Widget _buildSettingsSection() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    final localizations = AppLocalizations.of(context)!;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: BoxDecoration(
-        color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDarkMode
-              ? Colors.white.withOpacity(0.1)
-              : Colors.grey.withOpacity(0.2),
-        ),
-        boxShadow: [
-          if (!isDarkMode)
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDarkMode
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    Icons.settings,
-                    color: isDarkMode ? Colors.white : Colors.black87,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  localizations.settings,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDarkMode ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _buildSettingsGroup(
-            title: localizations.account,
-            children: [
-              _buildSettingTile(
-                icon: Icons.person_outline,
-                title: localizations.personalInformation,
-                subtitle: localizations.managePersonalDetails,
-                onTap: () {
-                  haptics.Haptics.vibrate(haptics.HapticsType.light);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PersonalInformationScreen(),
-                    ),
-                  );
-                },
-              ),
-              _buildSettingTile(
-                icon: Icons.security_outlined,
-                title: localizations.security,
-                subtitle: localizations.manageSecuritySettings,
-                onTap: () {
-                  haptics.Haptics.vibrate(haptics.HapticsType.light);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SecurityScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          _buildSettingsGroup(
-            title: localizations.general,
-            children: [
-              _buildSettingTile(
-                icon: Icons.notifications_outlined,
-                title: localizations.notifications,
-                subtitle: localizations.configureNotifications,
-                onTap: () {
-                  haptics.Haptics.vibrate(haptics.HapticsType.light);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NotificationsScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBankAccountSection() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    final localizations = AppLocalizations.of(context)!;
-
-    if (_isLoadingBankAccounts) {
-      return FadeIn(
-        duration: const Duration(milliseconds: 300),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.2),
-            ),
-            boxShadow: [
-              if (!isDarkMode)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-            ],
-          ),
-          child: Shimmer.fromColors(
-            baseColor: isDarkMode ? Colors.white12 : Colors.grey[300]!,
-            highlightColor: isDarkMode ? Colors.white24 : Colors.grey[100]!,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            height: 14,
-                            width: 120,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  height: 16,
-                  width: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  height: 34,
-                  width: 160,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  height: 14,
-                  width: 140,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    final bankAccount = _bankAccounts?.firstOrNull;
-
-    if (bankAccount == null) {
-      return FadeIn(
-        duration: const Duration(milliseconds: 300),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isDarkMode
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.2),
-            ),
-            boxShadow: [
-              if (!isDarkMode)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.grey.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      Icons.account_balance,
-                      color: isDarkMode ? Colors.white : Colors.black87,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          localizations.bankAccount,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: isDarkMode ? Colors.white : Colors.black87,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          localizations.connectToGetStarted,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isDarkMode ? Colors.white60 : Colors.black54,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? Colors.white.withOpacity(0.03)
-                      : Colors.grey.withOpacity(0.03),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isDarkMode
-                        ? Colors.white.withOpacity(0.05)
-                        : Colors.grey.withOpacity(0.1),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 20,
-                          color: isDarkMode ? Colors.white70 : Colors.black87,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            localizations.accountConnectionRequired,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color:
-                                  isDarkMode ? Colors.white70 : Colors.black87,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      localizations.accountConnectionMessage,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDarkMode ? Colors.white60 : Colors.black54,
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    haptics.Haptics.vibrate(haptics.HapticsType.light);
-                    // TODO: Implement Plaid connection
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDarkMode
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.1),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    localizations.connectBankAccount,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return FadeIn(
-      duration: const Duration(milliseconds: 300),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.grey.withOpacity(0.2),
-          ),
-          boxShadow: [
-            if (!isDarkMode)
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isDarkMode
-                              ? Colors.white.withOpacity(0.1)
-                              : Colors.grey.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.account_balance,
-                          color: isDarkMode ? Colors.white : Colors.black87,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              bankAccount.accountName,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color:
-                                    isDarkMode ? Colors.white : Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${bankAccount.accountType} Account',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDarkMode
-                                    ? Colors.white60
-                                    : Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDarkMode
-                              ? Colors.white.withOpacity(0.05)
-                              : Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '**** ${bankAccount.accountMask}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isDarkMode ? Colors.white70 : Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: isDarkMode
-                    ? Colors.white.withOpacity(0.03)
-                    : Colors.grey.withOpacity(0.03),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              localizations.availableBalance,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDarkMode
-                                    ? Colors.white60
-                                    : Colors.black54,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            RichText(
-                              text: TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text:
-                                        '\$${bankAccount.availableBalance.toStringAsFixed(0)}',
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDarkMode
-                                          ? Colors.white
-                                          : Colors.black87,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text:
-                                        '.${bankAccount.availableBalance.toStringAsFixed(2).split('.')[1]}',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDarkMode
-                                          ? Colors.white70
-                                          : Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? Colors.white.withOpacity(0.05)
-                          : Colors.grey.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.black.withOpacity(0.1),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 16,
-                          color: isDarkMode ? Colors.white60 : Colors.black54,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            localizations.connectedOn(DateFormat('MMM d, yyyy')
-                                .format(bankAccount.createdAt)),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color:
-                                  isDarkMode ? Colors.white60 : Colors.black54,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-    final localizations = AppLocalizations.of(context)!;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: Column(
-        children: [
-          _buildActionButton(
-            icon: Icons.support_outlined,
-            title: localizations.helpAndSupport,
-            subtitle: localizations.getHelpWithAccount,
-            onTap: () {
-              haptics.Haptics.vibrate(haptics.HapticsType.light);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const HelpSupportScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          _buildActionButton(
-            icon: Icons.logout,
-            title: localizations.logOut,
-            subtitle: localizations.signOutOfAccount,
-            isDestructive: true,
-            onTap: () async {
-              haptics.Haptics.vibrate(haptics.HapticsType.heavy);
-              final authService =
-                  Provider.of<AuthService>(context, listen: false);
-              await authService.logout();
-              if (mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/auth',
-                  (route) => false,
-                );
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
-
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDestructive
-              ? (isDarkMode
-                  ? Colors.red.withOpacity(0.1)
-                  : Colors.red.withOpacity(0.05))
-              : (isDarkMode ? Colors.white.withOpacity(0.05) : Colors.white),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isDestructive
-                ? (isDarkMode
-                    ? Colors.red.withOpacity(0.2)
-                    : Colors.red.withOpacity(0.1))
-                : (isDarkMode
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.2)),
-          ),
-          boxShadow: !isDarkMode && !isDestructive
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDestructive
-                        ? (isDarkMode
-                            ? Colors.red.withOpacity(0.15)
-                            : Colors.red.withOpacity(0.1))
-                        : (isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.grey.withOpacity(0.1)),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 24,
-                    color: isDestructive
-                        ? Colors.red
-                        : (isDarkMode ? Colors.white : Colors.black87),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: isDestructive
-                              ? Colors.red
-                              : (isDarkMode ? Colors.white : Colors.black87),
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isDarkMode ? Colors.white60 : Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: isDestructive
-                      ? Colors.red.withOpacity(0.7)
-                      : (isDarkMode ? Colors.white60 : Colors.black45),
-                  size: 24,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Provider.of<ThemeProvider>(context).isDarkMode;
     final appBarOpacity = (_scrollOffset / 100).clamp(0.0, 0.8);
     final localizations = AppLocalizations.of(context)!;
+    final colorPaletteProvider = Provider.of<ColorPaletteProvider>(context);
 
     return Scaffold(
       backgroundColor:
@@ -1953,34 +748,11 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
       body: Stack(
         children: [
-          // Enhanced background gradient
+          // Enhanced background gradient - now using colors from profile picture
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0.0, 0.2, 0.5, 1.0],
-                  colors: [
-                    const Color(0xFF1A237E).withOpacity(0.95),
-                    const Color(0xFF0D47A1).withOpacity(0.8),
-                    isDarkMode
-                        ? const Color(0xFF121212).withOpacity(0.95)
-                        : const Color(0xFFF5F5F7).withOpacity(0.95),
-                    isDarkMode
-                        ? const Color(0xFF121212)
-                        : const Color(0xFFF5F5F7),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Subtle pattern overlay
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.02,
-              child: CustomPaint(
-                painter: PatternPainter(),
+                gradient: colorPaletteProvider.createGradient(isDarkMode),
               ),
             ),
           ),
@@ -1991,10 +763,22 @@ class _AccountScreenState extends State<AccountScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildHeader(),
+                // Profile Header (in a centered container for proper alignment)
+                Container(
+                  width: double.infinity,
+                  alignment: Alignment.center,
+                  child: ProfileHeader(
+                    onReload: _refreshDataInBackground,
+                    userName: _userName,
+                    email: _email,
+                    showEmail: false,
+                  ),
+                ),
+
                 // Content sections with glass effect background
                 Container(
-                  margin: const EdgeInsets.only(top: 16),
+                  margin: EdgeInsets.only(
+                      top: MediaQuery.of(context).size.height < 700 ? 0 : 8),
                   decoration: BoxDecoration(
                     color: (isDarkMode ? Colors.white : Colors.black)
                         .withOpacity(0.03),
@@ -2007,11 +791,26 @@ class _AccountScreenState extends State<AccountScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: 24),
-                        _buildBankAccountSection(),
+
+                        // Bank Account Section
+                        BankAccountSection(
+                          bankAccounts: _bankAccounts,
+                          isLoading: _isLoadingBankAccounts,
+                          onConnectBankAccount: () {
+                            // Implement Plaid connection
+                          },
+                        ),
+
                         const SizedBox(height: 16),
-                        _buildSettingsSection(),
+
+                        // Settings Section
+                        const SettingsSection(),
+
                         const SizedBox(height: 16),
-                        _buildActionButtons(),
+
+                        // Action Buttons
+                        const ActionButtons(),
+
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -2024,26 +823,22 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
     );
   }
-}
 
-class PatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    final spacing = 20.0;
-    for (double i = 0; i < size.width + size.height; i += spacing) {
-      canvas.drawLine(
-        Offset(0, i),
-        Offset(i, 0),
-        paint,
-      );
-    }
+  Widget _buildBackButton() {
+    return Material(
+      color: Colors.transparent,
+      child: IconButton(
+        onPressed: () {
+          haptics.Haptics.vibrate(haptics.HapticsType.light);
+          Navigator.pop(context);
+        },
+        icon: Icon(
+          Icons.arrow_back_ios_new,
+          color: Colors.white.withOpacity(0.9),
+          size: 20,
+        ),
+        splashRadius: 24,
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

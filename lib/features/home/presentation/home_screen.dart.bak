@@ -44,10 +44,6 @@ import 'package:animated_emoji/emojis.g.dart';
 import 'package:blink_app/features/home/presentation/widgets/blink_advance_card.dart';
 import 'package:blink_app/features/insights/presentation/widgets/insights_quick_action_card.dart';
 import 'package:blink_app/features/repayment/presentation/widgets/blink_repay_card.dart';
-import 'package:blink_app/features/home/presentation/widgets/recent_transactions_section.dart';
-import 'package:blink_app/features/home/presentation/widgets/stories_section.dart';
-import 'package:blink_app/features/home/domain/services/news_service.dart';
-import 'package:blink_app/features/home/domain/models/news_item.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -62,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   static const cashAdvanceBlue = Color(0xFF1E3A4F);
   final NumberFormat currencyFormatter =
       NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+  List<auth.Transaction> _recentTransactions = [];
   double _currentBalance = 0.0;
   DateTime? _balanceLastUpdated;
   late AnimationController _animationController;
@@ -80,16 +77,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _hasActiveAdvance = false;
   Map<String, dynamic>? _activeAdvance;
   bool _hapticFeedbackEnabled = true;
-
-  // News items related state
-  List<Map<String, String>> _newsItems = [];
-  bool _isNewsLoading = true;
-  NewsService? _newsService;
-
-  // Feature flags - can be switched on/off
-  // NOTE: The news section is temporarily disabled.
-  // To re-enable it, simply change the value below to 'true'
-  bool _showNewsSection = false; // Turn off news section temporarily
 
   // Asset report status related variables
   bool _hasPendingAssetReport = false;
@@ -111,6 +98,334 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0;
   double _blurIntensity = 0;
+
+  final List<Map<String, String>> _newsItems = [
+    {
+      'title':
+          'The Cascading Effects of Late Debt Payments on Creditworthiness and Purchasing Power',
+      'description':
+          'The failure to meet debt obligations punctually initiates a complex chain of financial consequences that extend far beyond immediate penalties. This analysis synthesizes empirical evidence from credit industry studies, legal frameworks, and economic research to elucidate how payment delays degrade credit standing, erode purchasing capacity, and alter long-term financial trajectories.',
+      'imageUrl':
+          'assets/images/onboarding/pexels-shvets-production-7544453.jpg',
+      'content':
+          r'''# The Cascading Effects of Late Debt Payments on Creditworthiness and Purchasing Power
+
+The failure to meet debt obligations punctually initiates a complex chain of financial consequences that extend far beyond immediate penalties. This analysis synthesizes empirical evidence from credit industry studies, legal frameworks, and economic research to elucidate how payment delays degrade credit standing, erode purchasing capacity, and alter long-term financial trajectories.
+
+## Structural Mechanisms of Credit Score Degradation
+
+### The 30-Day Threshold and Credit Reporting
+Creditors universally recognize a 30-day delinquency as the first major inflection point in credit reporting. While lenders may impose late fees immediately after a missed due date, the 30-day mark triggers mandatory reporting to credit bureaus under the Fair Credit Reporting Act. Experian's longitudinal data reveals that a single 30-day delinquency can reduce FICO scores by 90-110 points for consumers with previously excellent credit. This penalty escalates nonlinearly—90-day delinquencies often compound the damage by an additional 130-150 points due to increased risk weighting in scoring algorithms.
+
+The temporal aspect of delinquency reporting creates a pernicious feedback loop. Each subsequent 30-day interval (60, 90, 120 days past due) updates the derogatory mark's severity on credit reports, with FICO models interpreting extended delinquency periods as probability multipliers for default. This algorithmic reality explains why 43% of mortgage applicants with recent 60-day delinquencies face outright denials, compared to 11% rejection rates for those with isolated 30-day lates.
+
+### Interest Rate Spiral Dynamics
+Contemporary credit instruments frequently embed penalty APR clauses that activate upon delinquency. Analysis of 2024 credit card agreements shows 78% of issuers impose penalty rates averaging 29.99% after a single 60-day late payment. This creates a debt acceleration effect—the combination of compounded interest and late fees can increase total repayment obligations by 37-42% over 12 months for balances under $5,000.
+
+Mortgage products demonstrate similar punitive mechanisms. LendingTree's 2024 survey found that borrowers with recent 30-day mortgage lates faced average rate increases of 1.25 percentage points upon refinancing, translating to $18,750 in additional interest over a $300,000 30-year loan. The rate premium persists for 24-36 months post-delinquency, creating long-term cost multipliers.
+
+## Acquisition Power Erosion Pathways
+
+### Credit Availability Contraction
+Delinquency-induced score drops fundamentally alter access to capital markets. FICO score bands below 580 reduce unsecured credit approval rates to 18.7% compared to 83.4% for scores above 720. More critically, credit limits for approved applications show exponential decay—a 150-point score decrease corresponds to 67% lower average credit lines across personal loan products.
+
+The commercial lending landscape amplifies these effects through automated underwriting systems (AUS). VA loan programs illustrate how even minor delinquencies during mortgage processing can downgrade applications from automated approval to manual underwriting, a process that extends approval timelines by 22 days on average while reducing approval probabilities by 31%.
+
+### Risk-Based Pricing Penalties
+Risk-tiered pricing models convert credit imperfections into direct cost increments. Auto loan data from Q4 2024 demonstrates that a 60-day delinquency within the past year increases APRs by 4.2 percentage points for subprime borrowers versus 1.8 points for prime candidates. This bifurcation reflects lenders' use of delinquency recency as a key risk proxy in pricing models.
+
+The capitalization of these penalties creates durable financial headwinds. A $45,000 auto loan at 6% APR carries $8,598 total interest over 72 months. With a delinquency-induced rate hike to 10.2%, interest costs balloon to $15,318—a 78% increase that directly reduces disposable income available for other acquisitions.
+
+## Secondary Market Contagion Effects
+
+### Debt Sale Dynamics and Collection Multipliers
+Original creditors frequently liquidate delinquent accounts through tertiary markets, with 2024 data showing 38% of credit card debts 120+ days delinquent being sold to collection agencies. This secondary market transaction irrevocably alters the debtor's position—while statutory rights remain intact under FDCPA guidelines, the economic incentives of debt purchasers intensify collection pressures.'''
+    },
+    {
+      'title': 'Roth IRA vs. 401(k): What\'s the Difference?',
+      'description':
+          'Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals...',
+      'imageUrl': 'assets/images/roth_ira_vs_401k.png',
+      'content': '''# Roth IRA vs. 401(k): Understanding the Key Differences
+
+Both Roth IRAs and 401(k)s are popular tax-advantaged retirement savings accounts that allow your savings to grow tax-free. Understanding the differences can help you choose the best option for your financial goals.
+
+## Key Differences
+
+### Contribution Limits
+* **401(k)**: Higher contribution limits (\$22,500 for 2024, plus \$7,500 catch-up if age 50+)
+* **Roth IRA**: Lower limits (\$7,000 for 2024, plus \$1,000 catch-up if age 50+)
+
+### Tax Treatment
+* **401(k)**: Contributions are pre-tax, reducing your current taxable income
+* **Roth IRA**: Contributions are after-tax, but qualified withdrawals are tax-free
+
+### Employer Involvement
+* **401(k)**: Typically offered through employers, often with matching contributions
+* **Roth IRA**: Opened independently, no employer involvement required
+
+### Income Limits
+* **401(k)**: No income limits for contributions
+* **Roth IRA**: Income limits may restrict or prevent contributions
+
+## Making Your Choice
+
+Consider these factors when choosing between a Roth IRA and 401(k):
+
+1. Current vs. future tax rates
+2. Employer matching availability
+3. Investment options
+4. Withdrawal flexibility
+5. Current income level
+
+## Best Practices
+
+Many financial experts recommend:
+
+* Contribute enough to your 401(k) to get full employer match
+* Consider additional Roth IRA contributions for tax diversification
+* Review and adjust your strategy periodically
+* Consult with a financial advisor for personalized advice
+
+## Conclusion
+
+Both Roth IRAs and 401(k)s offer valuable benefits for retirement savings. The best choice often involves using both accounts strategically to maximize tax advantages and employer benefits while maintaining flexibility for your future needs.
+
+---
+
+*This article is for informational purposes only and should not be considered financial advice. Always consult with a qualified financial advisor before making investment decisions.*'''
+    },
+    {
+      'title': 'The Basics of Budgeting: A Step-by-Step Guide',
+      'description':
+          'Creating and sticking to a budget is a fundamental step in managing your finances. This guide walks you through the process of setting up a budget that works for your lifestyle and financial goals...',
+      'imageUrl': 'assets/images/budgeting_basics.png',
+      'content': '''# The Basics of Budgeting: Your Path to Financial Success
+
+Creating and maintaining a budget is the foundation of sound financial management. This comprehensive guide will help you develop a budget that works for your unique situation and goals.
+
+## Why Budget?
+
+Budgeting helps you:
+* Track spending patterns
+* Identify areas for savings
+* Plan for future goals
+* Reduce financial stress
+* Make informed decisions
+
+## Step-by-Step Budgeting Process
+
+### 1. Calculate Your Income
+* List all sources of income
+* Use after-tax (take-home) amounts
+* Include regular and variable income
+
+### 2. Track Your Expenses
+* Fixed expenses (rent, utilities)
+* Variable expenses (groceries, entertainment)
+* Debt payments
+* Savings and investments
+
+### 3. Set Financial Goals
+* Short-term (emergency fund)
+* Medium-term (debt repayment)
+* Long-term (retirement)
+
+### 4. Choose a Budgeting Method
+Popular options include:
+* 50/30/20 rule
+* Zero-based budgeting
+* Envelope system
+* Digital tracking apps
+
+## Smart Budgeting Tips
+
+1. Start with realistic goals
+2. Build an emergency fund
+3. Review and adjust regularly
+4. Use technology to your advantage
+5. Plan for irregular expenses
+
+## Common Challenges and Solutions
+
+* **Challenge**: Unexpected expenses
+* **Solution**: Build emergency fund
+
+* **Challenge**: Variable income
+* **Solution**: Budget based on lowest month
+
+* **Challenge**: Overspending
+* **Solution**: Track expenses daily
+
+## Conclusion
+
+Successful budgeting is a journey, not a destination. Start small, be consistent, and adjust as needed. Remember, the goal is progress, not perfection.
+
+---
+
+*This guide provides general information and should be adapted to your personal financial situation.*
+'''
+    },
+    {
+      'title': 'Understanding Credit Scores: What You Need to Know',
+      'description':
+          'Your credit score plays a crucial role in your financial life. Learn what factors influence your credit score, how to check it, and steps you can take to improve it over time...',
+      'imageUrl': 'assets/images/credit_scores.png',
+      'content': '''
+# Understanding Credit Scores: Your Financial Report Card
+
+Your credit score is a crucial number that influences many aspects of your financial life, from loan approvals to interest rates. Understanding how it works is key to maintaining good financial health.
+
+## What Is a Credit Score?
+
+A credit score is a three-digit number (typically 300-850) that represents your creditworthiness. It's calculated based on information in your credit reports.
+
+## Key Factors Affecting Your Score
+
+### 1. Payment History (35%)
+* On-time payments
+* Late payments
+* Missed payments
+* Bankruptcies
+
+### 2. Credit Utilization (30%)
+* Amount of credit used
+* Credit limits
+* Number of accounts with balances
+
+### 3. Length of Credit History (15%)
+* Age of accounts
+* Average age of credit
+* Recently opened accounts
+
+### 4. Credit Mix (10%)
+* Types of credit accounts
+* Diversity of credit
+
+### 5. New Credit (10%)
+* Recent credit applications
+* New account openings
+
+## How to Check Your Credit Score
+
+* Annual free credit reports
+* Credit monitoring services
+* Bank/credit card services
+* Credit score websites
+
+## Tips to Improve Your Score
+
+1. Pay bills on time
+2. Keep credit utilization low
+3. Maintain old accounts
+4. Limit new applications
+5. Monitor for errors
+
+## Common Myths Debunked
+
+* Checking your score doesn't hurt it
+* Closing old accounts can harm your score
+* Income isn't directly factored in
+* Marriage doesn't merge scores
+
+## Conclusion
+
+Your credit score is a vital financial tool. Regular monitoring and good credit habits can help you maintain a strong score and access better financial opportunities.
+
+---
+
+*This article provides general information about credit scores. Consult with financial professionals for personalized advice.*
+'''
+    },
+    {
+      'title': 'Investing for Beginners: Getting Started in the Stock Market',
+      'description':
+          'Thinking about investing in stocks? This article covers the basics of stock market investing, including how to open a brokerage account, understanding stock types, and strategies for beginners...',
+      'imageUrl': 'assets/images/investing_beginners.png',
+      'content': '''
+# Investing for Beginners: Your Guide to the Stock Market
+
+Starting your investment journey can seem daunting, but understanding the basics can help you build confidence and make informed decisions in the stock market.
+
+## Why Invest in Stocks?
+
+* Potential for long-term growth
+* Beat inflation
+* Build wealth
+* Generate passive income
+* Participate in company growth
+
+## Getting Started
+
+### 1. Choose a Brokerage Account
+Consider factors like:
+* Minimum investment requirements
+* Trading fees
+* Research tools
+* User interface
+* Customer support
+
+### 2. Understanding Stock Types
+* Common stocks
+* Preferred stocks
+* Growth stocks
+* Value stocks
+* Dividend stocks
+
+### 3. Basic Investment Strategies
+
+#### Dollar-Cost Averaging
+* Invest fixed amounts regularly
+* Reduces timing risk
+* Builds good habits
+
+#### Diversification
+* Spread investments across:
+  * Different companies
+  * Various sectors
+  * Multiple asset types
+  * Geographic regions
+
+## Important Concepts
+
+### Risk Management
+* Start small
+* Don't invest money you can't lose
+* Understand your risk tolerance
+* Have a long-term perspective
+
+### Research and Analysis
+* Company fundamentals
+* Industry trends
+* Market conditions
+* Economic factors
+
+## Common Mistakes to Avoid
+
+1. Investing without a plan
+2. Chasing hot tips
+3. Neglecting diversification
+4. Emotional trading
+5. Trying to time the market
+
+## Building Your Portfolio
+
+Start with:
+* Index funds
+* Blue-chip stocks
+* ETFs
+* Dividend-paying stocks
+
+## Conclusion
+
+Successful investing requires patience, research, and discipline. Start small, stay informed, and focus on long-term goals rather than short-term gains.
+
+---
+
+*This guide is for educational purposes only. Consider consulting with a financial advisor before making investment decisions.*
+'''
+    },
+  ];
 
   // Add these to the existing animation controllers in _HomeScreenState
   late AnimationController _blinkCardExpandController;
@@ -143,168 +458,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _repayPulseController;
   late Animation<double> _repayPulseAnimation;
 
+  final GlobalKey<BlinkRepayCardState> _blinkRepayCardKey =
+      GlobalKey<BlinkRepayCardState>();
+
+  bool _shouldFlipRepayCard = false;
+
   void _performHapticFeedback(haptics.HapticsType type) {
     if (_hapticFeedbackEnabled) {
       haptics.Haptics.vibrate(type);
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    if (!mounted) return;
-
-    try {
-      _flipController = AnimationController(
-        duration: const Duration(milliseconds: 800),
-        vsync: this,
-      );
-      _flipAnimation = Tween<double>(begin: 0, end: math.pi).animate(
-        CurvedAnimation(
-          parent: _flipController,
-          curve: Curves.easeInOutBack,
-        ),
-      );
-
-      // Initialize repayment flip controller
-      _repaymentFlipController = AnimationController(
-        duration: const Duration(milliseconds: 800),
-        vsync: this,
-      );
-      _repaymentFlipAnimation = Tween<double>(begin: 0, end: math.pi).animate(
-        CurvedAnimation(
-          parent: _repaymentFlipController,
-          curve: Curves.easeInOutBack,
-        ),
-      );
-
-      _initializeControllers();
-
-      _scrollController.addListener(_updateBlurEffect);
-
-      Future.microtask(() {
-        if (mounted) {
-          _safeLoadData();
-        }
-      });
-    } catch (e) {
-      _logger.e('Error in initState: $e');
-    }
-
-    // Load profile picture after a short delay to ensure proper initialization
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) {
-        _loadProfilePicture();
-      }
-    });
-
-    // Setup pulse animation for repayment button if needed
-    _setupRepaymentPulseAnimation();
-
-    // Check for pending asset reports
-    _checkForPendingAssetReports();
-
-    // If an active advance exists, show the repayment details by flipping the card
-    Future.delayed(Duration(milliseconds: 1500), () {
-      if (mounted && _hasActiveAdvance && _activeAdvanceData != null) {
-        print("🔄 Auto-flipping repayment card to show active advance details");
-        if (!_isRepaymentCardFlipped) {
-          _flipRepaymentCard();
-        }
-      }
-    });
-
-    // Initialize NewsService and load news only if the feature is enabled
-    if (_showNewsSection) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final authService =
-            Provider.of<auth.AuthService>(context, listen: false);
-        _newsService = NewsService(authService);
-        _loadNewsItems();
-      });
-    }
-  }
-
-  Future<void> _loadNewsItems() async {
-    if (!mounted || _newsService == null) return;
-
-    setState(() {
-      _isNewsLoading = true;
-    });
-
-    try {
-      final newsItems = await _newsService!.getNewsItems();
-
-      if (mounted) {
-        setState(() {
-          // Convert NewsItem objects to the Map<String, String> format used by the app
-          _newsItems = newsItems.map((item) => item.toDisplayMap()).toList();
-          _isNewsLoading = false;
-        });
-      }
-    } catch (e) {
-      _logger.e('Error loading news items: $e');
-
-      if (mounted) {
-        setState(() {
-          _isNewsLoading = false;
-        });
-      }
-    }
-  }
-
-  void _setupRepaymentPulseAnimation() {
-    _repayPulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-
-    _repayPulseAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 1.08)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 1.0,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.08, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 1.0,
-      ),
-    ]).animate(_repayPulseController);
-
-    _repayPulseController.repeat();
-  }
-
-  @override
-  void dispose() {
-    // Dispose of all animation controllers
-    _animationController.dispose();
-    _emojiAnimationController.dispose();
-    _repaymentEmojiAnimationController.dispose();
-    _insightsEmojiAnimationController.dispose();
-    _shimmerController.dispose();
-    _pulseController.dispose();
-
-    // Check if _blinkCardExpandController is initialized before disposing it
-    if (_blinkCardExpandController != null) {
-      _blinkCardExpandController.dispose();
-    }
-
-    _flipController.dispose();
-    _repaymentFlipController.dispose();
-    _repayPulseController.dispose();
-
-    // Cancel any active timers
-    _messageTimer?.cancel();
-    _assetReportCheckTimer?.cancel();
-
-    // Dispose of scroll controller
-    _scrollController.dispose();
-
-    _assetReportCheckTimer?.cancel();
-
-    super.dispose();
   }
 
   Widget _buildNewsCard(Map<String, String> newsItem, int index) {
@@ -368,7 +530,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             top: Radius.circular(20),
                           ),
                           image: DecorationImage(
-                            image: NetworkImage(newsItem['imageUrl']!),
+                            image: AssetImage(newsItem['imageUrl']!),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -755,12 +917,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           : 'Approved';
                     }
 
-                    // Trigger the repayment card flip if needed
-                    if (result['show_repay_card'] == true) {
-                      // Use a small delay to ensure UI is updated first
+                    // Check if we should trigger the repay card flip
+                    if (result['should_flip_repay'] == true) {
+                      // Add a small delay to ensure the UI is updated
                       Future.delayed(Duration(milliseconds: 300), () {
                         if (mounted) {
-                          _flipRepaymentCard();
+                          setState(() {
+                            _shouldFlipRepayCard = true;
+                          });
                         }
                       });
                     }
@@ -852,11 +1016,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         builder: (context, scrollController) => CategorySelectorSheet(
           initialCategory: currentCategory,
           onCategorySelected: (category) {
-            // Update the transaction category in the database
-            final authService =
-                Provider.of<auth.AuthService>(context, listen: false);
+            // Create a new auth.Transaction with updated category
+            final updatedTransaction = auth.Transaction(
+              id: transaction.id,
+              merchantName: transaction.merchantName ?? '',
+              amount: transaction.amount,
+              date: transaction.date,
+              category: category.name,
+              isOutflow: transaction.isOutflow,
+              transactionId:
+                  transaction.id, // Use transaction.id as transactionId
+            );
 
-            // Show confirmation
+            setState(() {
+              _recentTransactions = _recentTransactions
+                  .map((t) => t.id == transaction.id ? updatedTransaction : t)
+                  .toList();
+            });
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Category updated to ${category.name}'),
@@ -864,6 +1041,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
+                ),
+                action: SnackBarAction(
+                  label: 'Undo',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    setState(() {
+                      // Convert back to auth.Transaction for the revert
+                      final revertTransaction = auth.Transaction(
+                        id: transaction.id,
+                        merchantName: transaction.merchantName ?? '',
+                        amount: transaction.amount,
+                        date: transaction.date,
+                        category: transaction.category ?? '',
+                        isOutflow: transaction.isOutflow,
+                        transactionId: transaction
+                            .id, // Use transaction.id as transactionId
+                      );
+
+                      _recentTransactions = _recentTransactions
+                          .map((t) => t.id == updatedTransaction.id
+                              ? revertTransaction
+                              : t)
+                          .toList();
+                    });
+                  },
                 ),
               ),
             );
@@ -888,7 +1090,156 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Recent transactions loading is now handled by the RecentTransactionsSection component
+  // Update the transaction loading to use the conversion
+  Future<void> _loadRecentTransactions() async {
+    if (!mounted) return;
+
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      final authService = Provider.of<auth.AuthService>(context, listen: false);
+
+      final transactions = await authService.getLatestTransactions();
+
+      if (!mounted) return;
+
+      setState(() {
+        _recentTransactions = transactions;
+        _isLoading = false;
+      });
+    } catch (e) {
+      _logger.e('Error loading recent transactions: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Failed to load recent transactions: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (!mounted) return;
+
+    try {
+      _flipController = AnimationController(
+        duration: const Duration(milliseconds: 800),
+        vsync: this,
+      );
+      _flipAnimation = Tween<double>(begin: 0, end: math.pi).animate(
+        CurvedAnimation(
+          parent: _flipController,
+          curve: Curves.easeInOutBack,
+        ),
+      );
+
+      // Initialize repayment flip controller
+      _repaymentFlipController = AnimationController(
+        duration: const Duration(milliseconds: 800),
+        vsync: this,
+      );
+      _repaymentFlipAnimation = Tween<double>(begin: 0, end: math.pi).animate(
+        CurvedAnimation(
+          parent: _repaymentFlipController,
+          curve: Curves.easeInOutBack,
+        ),
+      );
+
+      _initializeControllers();
+
+      _scrollController.addListener(_updateBlurEffect);
+
+      Future.microtask(() {
+        if (mounted) {
+          _safeLoadData();
+        }
+      });
+    } catch (e) {
+      _logger.e('Error in initState: $e');
+    }
+
+    // Load profile picture after a short delay to ensure proper initialization
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _loadProfilePicture();
+      }
+    });
+
+    // Setup pulse animation for repayment button if needed
+    _setupRepaymentPulseAnimation();
+
+    // Check for pending asset reports
+    _checkForPendingAssetReports();
+
+    // If an active advance exists, show the repayment details by flipping the card
+    Future.delayed(Duration(milliseconds: 1500), () {
+      if (mounted && _hasActiveAdvance && _activeAdvanceData != null) {
+        print("🔄 Auto-flipping repayment card to show active advance details");
+        if (!_isRepaymentCardFlipped) {
+          _flipRepaymentCard();
+        }
+      }
+    });
+  }
+
+  void _setupRepaymentPulseAnimation() {
+    _repayPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _repayPulseAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 1.08)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 1.0,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.08, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 1.0,
+      ),
+    ]).animate(_repayPulseController);
+
+    _repayPulseController.repeat();
+  }
+
+  @override
+  void dispose() {
+    // Dispose of all animation controllers
+    _animationController.dispose();
+    _emojiAnimationController.dispose();
+    _repaymentEmojiAnimationController.dispose();
+    _insightsEmojiAnimationController.dispose();
+    _shimmerController.dispose();
+    _pulseController.dispose();
+    _blinkCardExpandController.dispose();
+    _flipController.dispose();
+    _repaymentFlipController.dispose();
+    _repayPulseController.dispose();
+
+    // Cancel any active timers
+    _messageTimer?.cancel();
+    _assetReportCheckTimer?.cancel();
+
+    // Dispose of scroll controller
+    _scrollController.dispose();
+
+    _assetReportCheckTimer?.cancel();
+
+    super.dispose();
+  }
 
   Future<void> _safeLoadData() async {
     if (!mounted) return;
@@ -906,7 +1257,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (!mounted) return;
 
-      // Recent transactions are now loaded by the RecentTransactionsSection component
+      await _loadRecentTransactions().catchError((e) {
+        _logger.e('Error loading transactions: $e');
+        return null;
+      });
 
       if (!mounted) return;
 
@@ -1299,11 +1653,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       curve: Curves.easeInOut,
     ));
 
-    // Initialize the _blinkCardExpandController to fix the LateInitializationError
-    _blinkCardExpandController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
+    // Initialize other controllers as needed
   }
 
   void _updateBlurEffect() {
@@ -1919,15 +2269,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                                       : 'Approved';
                                             }
 
-                                            // Trigger the repayment card flip if needed
-                                            if (result['show_repay_card'] ==
+                                            // Check if we should trigger the repay card flip
+                                            if (result['should_flip_repay'] ==
                                                 true) {
-                                              // Use a small delay to ensure UI is updated first
+                                              // Add a small delay to ensure the UI is updated
                                               Future.delayed(
                                                   Duration(milliseconds: 300),
                                                   () {
                                                 if (mounted) {
-                                                  _flipRepaymentCard();
+                                                  setState(() {
+                                                    _shouldFlipRepayCard = true;
+                                                  });
                                                 }
                                               });
                                             }
@@ -2711,9 +3063,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Expanded(
                     flex: 1,
                     child: BlinkRepayCard(
+                      key: _blinkRepayCardKey,
                       isDarkMode: _isDarkMode,
                       onHapticFeedback: (type) => _performHapticFeedback(type),
                       activeAdvanceData: _activeAdvanceData,
+                      onFlipRequested: _shouldFlipRepayCard
+                          ? () {
+                              setState(() {
+                                _shouldFlipRepayCard = false;
+                              });
+                            }
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -2850,36 +3210,481 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildRecentTransactions() {
-    // Use the modularized component instead of building it directly
-    return RecentTransactionsSection(
-      isDarkMode: _isDarkMode,
-      onHapticFeedback: _performHapticFeedback,
-      onViewTransactionDetails: _viewDetails,
-    );
-  }
-
-  Widget _buildNewsAndUpdates() {
-    if (_isNewsLoading) {
-      return SizedBox(
-        height: 220,
+    final localizations = AppLocalizations.of(context)!;
+    if (_isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
         child: Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation<Color>(
-              _isDarkMode ? Colors.white : Colors.blue[800]!,
+              _isDarkMode ? Colors.white70 : Colors.blue[700]!,
             ),
           ),
         ),
       );
     }
 
-    // Use the modularized component with news items from the service
-    return StoriesSection(
-      isDarkMode: _isDarkMode,
-      onHapticFeedback: _performHapticFeedback,
-      newsItems: _newsItems,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Enhanced Header Section
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ShaderMask(
+                    shaderCallback: (bounds) => LinearGradient(
+                      colors: [
+                        Colors.blue.shade400,
+                        Colors.purple.shade400,
+                      ],
+                    ).createShader(bounds),
+                    child: Text(
+                      localizations.recent_transactions,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize:
+                            Localizations.localeOf(context).languageCode == 'es'
+                                ? 20
+                                : 24,
+                        fontFamily: 'Onest',
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    localizations.latest_financial_activities,
+                    style: TextStyle(
+                      color: _isDarkMode ? Colors.white60 : Colors.black54,
+                      fontSize: 14,
+                      fontFamily: 'Onest',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Enhanced View All Button
+            Container(
+              margin: const EdgeInsets.only(left: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.blue.shade400.withOpacity(0.2),
+                    Colors.purple.shade400.withOpacity(0.2),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    _performHapticFeedback(haptics.HapticsType.light);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AllTransactionsScreen(),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          localizations.view_all,
+                          style: TextStyle(
+                            color: _isDarkMode
+                                ? Colors.white
+                                : Colors.blue.shade700,
+                            fontSize: 14,
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 12,
+                          color:
+                              _isDarkMode ? Colors.white : Colors.blue.shade700,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // Enhanced Transaction List
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: _recentTransactions.length,
+          itemBuilder: (context, index) {
+            final transaction = _recentTransactions[index];
+            return TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: Duration(milliseconds: 300 + (index * 50)),
+              curve: Curves.easeOutBack,
+              builder: (context, value, child) {
+                final safeOpacity = value.clamp(0.0, 1.0);
+                return Transform.translate(
+                  offset: Offset(0, 20 * (1 - value)),
+                  child: Opacity(
+                    opacity: safeOpacity,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: _buildEnhancedTransactionItem(transaction, index),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
     );
   }
 
+  Widget _buildEnhancedTransactionItem(
+      auth.Transaction transaction, int index) {
+    final formattedDate = DateFormat('MMM d, yyyy').format(transaction.date);
+    final wholeNumber = transaction.amount.floor();
+    final decimal = ((transaction.amount - wholeNumber) * 100)
+        .toInt()
+        .toString()
+        .padLeft(2, '0');
+    final formattedWholeNumber = NumberFormat('#,###').format(wholeNumber);
+    final domainTransaction = _convertAuthTransaction(transaction);
+
+    return GestureDetector(
+      onTapDown: (_) => _performHapticFeedback(haptics.HapticsType.light),
+      onTap: () => _viewDetails(domainTransaction),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _isDarkMode ? Colors.white.withOpacity(0.08) : Colors.white,
+              _isDarkMode
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.white.withOpacity(0.95),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isDarkMode
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Category Icon with Gradient Border - Using CategoryService
+              CategoryService.buildEnhancedCategoryIcon(
+                  domainTransaction.category, _isDarkMode),
+              const SizedBox(width: 16),
+
+              // Transaction Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      transaction.merchantName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: _isDarkMode ? Colors.white : Colors.black87,
+                        fontFamily: 'Onest',
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: CategoryService.getCategoryColor(
+                                    domainTransaction.category, _isDarkMode)
+                                .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            CategoryService.formatDisplayCategory(
+                                domainTransaction.category),
+                            style: TextStyle(
+                              color: CategoryService.getCategoryColor(
+                                  domainTransaction.category, _isDarkMode),
+                              fontSize: 12,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Text(
+                            '•',
+                            style: TextStyle(
+                              color:
+                                  _isDarkMode ? Colors.white38 : Colors.black38,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          formattedDate,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                _isDarkMode ? Colors.white60 : Colors.black54,
+                            fontFamily: 'Onest',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Amount with Gradient Effect
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: transaction.isOutflow
+                        ? [Colors.red[400]!, Colors.red[300]!]
+                        : [
+                            _isDarkMode
+                                ? Colors.green[400]!
+                                : Colors.green[700]!,
+                            _isDarkMode
+                                ? Colors.green[300]!
+                                : Colors.green[600]!,
+                          ],
+                  ).createShader(bounds),
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '\$',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        TextSpan(
+                          text: formattedWholeNumber,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '.$decimal',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontFamily: 'Onest',
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsAndUpdates() {
+    final localizations = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) => LinearGradient(
+                        colors: [
+                          Colors.purple.shade400,
+                          Colors.orange.shade400,
+                          Colors.pink.shade400,
+                        ],
+                      ).createShader(bounds),
+                      child: Text(
+                        localizations.stories,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontFamily: 'Onest',
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      localizations.stories_subtitle,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white60 : Colors.black54,
+                        fontSize: 14,
+                        fontFamily: 'Onest',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                margin: const EdgeInsets.only(left: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.purple.shade400.withOpacity(0.2),
+                      Colors.orange.shade400.withOpacity(0.2),
+                      Colors.pink.shade400.withOpacity(0.2),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _performHapticFeedback(haptics.HapticsType.light);
+                      Navigator.of(context).push(
+                        PageRouteBuilder(
+                          pageBuilder:
+                              (context, animation, secondaryAnimation) =>
+                                  FadeTransition(
+                            opacity: animation,
+                            child: NewsStoryDetailScreen(
+                              story: _newsItems[0],
+                              index: 0,
+                              allStories: _newsItems,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            localizations.view_all,
+                            style: TextStyle(
+                              color: _isDarkMode
+                                  ? Colors.white
+                                  : Colors.purple.shade700,
+                              fontSize: 14,
+                              fontFamily: 'Onest',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 12,
+                            color: _isDarkMode
+                                ? Colors.white
+                                : Colors.purple.shade700,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 220,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _newsItems.length,
+            itemBuilder: (context, index) {
+              return TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: Duration(milliseconds: 200 + (index * 100)),
+                curve: Curves.easeOutBack,
+                builder: (context, value, child) {
+                  return Transform.translate(
+                    offset: Offset(20 * (1 - value), 0),
+                    child: Opacity(
+                      opacity: value.clamp(0.0, 1.0),
+                      child: _buildEnhancedStoryCard(
+                        _newsItems[index],
+                        index,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Remove the duplicate build method and keep only one
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -2922,13 +3727,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: _buildQuickActions(),
                     ),
-
-                    // News section - conditionally rendered based on feature flag
-                    if (_showNewsSection) ...[
-                      const SizedBox(height: 32),
-                      _buildNewsAndUpdates(),
-                    ],
-
+                    const SizedBox(height: 32),
+                    _buildNewsAndUpdates(),
                     const SizedBox(height: 32),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -4286,7 +5086,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             top: Radius.circular(20),
                           ),
                           image: DecorationImage(
-                            image: NetworkImage(newsItem['imageUrl']!),
+                            image: AssetImage(newsItem['imageUrl']!),
                             fit: BoxFit.cover,
                           ),
                         ),

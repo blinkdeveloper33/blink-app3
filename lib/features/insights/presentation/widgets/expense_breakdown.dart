@@ -207,10 +207,10 @@ class ExpenseBreakdown extends StatelessWidget {
                     color: const Color(0xFF0078D4).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
-                    Icons.analytics_rounded,
-                    color: Color(0xFF0078D4),
-                    size: 20,
+                  child: AnimatedEmoji(
+                    AnimatedEmojis.moneyWithWings,
+                    size: 22,
+                    repeat: true,
                   ),
                 ),
                 SizedBox(width: isSmallScreen ? 8 : 12),

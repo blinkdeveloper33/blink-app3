@@ -231,10 +231,36 @@ Success in financial management requires knowledge, discipline, and patience. By
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.asset(
-                                story['imageUrl']!,
+                              CachedNetworkImage(
+                                imageUrl: story['imageUrl']!,
                                 fit: BoxFit.cover,
-                                cacheWidth: 1080,
+                                placeholder: (context, url) => Container(
+                                  color: _isDarkMode
+                                      ? Colors.black12
+                                      : Colors.grey[200],
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        _isDarkMode
+                                            ? Colors.white70
+                                            : Colors.blue[700]!,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: _isDarkMode
+                                      ? Colors.black12
+                                      : Colors.grey[200],
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.error_outline,
+                                      color: _isDarkMode
+                                          ? Colors.white70
+                                          : Colors.grey[700],
+                                    ),
+                                  ),
+                                ),
                               ),
                               Container(
                                 decoration: BoxDecoration(

@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:blink_app/config/api_config.dart';
 import 'dart:math' show min;
+import 'package:flutter/foundation.dart';
 
 class User {
   final String id;
@@ -1827,6 +1828,59 @@ class AuthService {
     } catch (e) {
       _logger.e('Error parsing JWT token: $e');
       return null;
+    }
+  }
+
+  // Request profile update verification (OTP)
+  Future<Map<String, dynamic>> requestProfileUpdateVerification() async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Authentication failed'};
+      }
+
+      final response = await http.post(
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/user-profile/request-update-verification'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseData = jsonDecode(response.body);
+      return responseData;
+    } catch (e) {
+      debugPrint('Error requesting profile update verification: $e');
+      return {
+        'success': false,
+        'message': 'Failed to request verification code'
+      };
+    }
+  }
+
+  // Update user profile securely with OTP
+  Future<Map<String, dynamic>> updateUserProfileSecurely(
+      Map<String, dynamic> userData) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Authentication failed'};
+      }
+
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/user-profile/secure-update'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(userData),
+      );
+
+      final responseData = jsonDecode(response.body);
+      return responseData;
+    } catch (e) {
+      debugPrint('Error updating user profile securely: $e');
+      return {'success': false, 'message': 'Failed to update profile securely'};
     }
   }
 }

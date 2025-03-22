@@ -27,7 +27,7 @@ import 'package:blink_app/services/biometric_service.dart';
 import 'package:blink_app/features/auth/presentation/auth_screen.dart';
 import 'package:blink_app/providers/locale_provider.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:blink_app/utils/app_icon_manager.dart';
+import 'package:blink_app/providers/color_palette_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,9 +88,12 @@ void main() async {
         ChangeNotifierProvider(create: (_) => LocaleProvider(prefs)),
         ChangeNotifierProvider(
             create: (_) => FinancialDataProvider(authService)),
-        ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(
+            create: (_) => ProfileProvider(
+                authService: authService, storageService: storageService)),
         ChangeNotifierProvider(
             create: (_) => RecurringExpensesProvider(authService)),
+        ChangeNotifierProvider(create: (_) => ColorPaletteProvider()),
       ],
       child: const MyApp(),
     ),
@@ -187,7 +190,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: AppIconManager.navigatorKey,
       title: 'Blink',
       debugShowCheckedModeBanner: false,
       theme: Provider.of<ThemeProvider>(context).currentTheme.copyWith(

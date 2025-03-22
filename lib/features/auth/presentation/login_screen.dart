@@ -18,6 +18,7 @@ import 'package:blink_app/features/auth/presentation/link_plaid_bank_screen.dart
 import 'package:blink_app/features/home/presentation/home_screen.dart';
 import 'package:blink_app/features/auth/presentation/new_user_data_screen.dart';
 import 'package:blink_app/utils/temp_localizations.dart';
+import 'package:blink_app/providers/profile_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool showAppBar;
@@ -404,6 +405,20 @@ class _LoginScreenState extends State<LoginScreen>
           await storageService.setEmail(user['email']);
           _logger.i('User data stored successfully');
 
+          // Load user's profile picture
+          if (mounted) {
+            _logger.i('Loading user profile picture...');
+            try {
+              final profileProvider =
+                  Provider.of<ProfileProvider>(context, listen: false);
+              await profileProvider.loadProfilePicture(user['id']);
+              _logger.i('Profile picture loaded successfully');
+            } catch (e) {
+              _logger.e('Error loading profile picture: $e');
+              // Continue with login even if profile picture loading fails
+            }
+          }
+
           // Check for linked bank accounts
           _logger.i('Checking for linked bank accounts...');
           final bankAccountResponse =
@@ -600,6 +615,21 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         );
       } else {
+        // Load user's profile picture for existing users
+        _logger.i('Loading Google user profile picture...');
+        try {
+          final profileProvider =
+              Provider.of<ProfileProvider>(context, listen: false);
+          final userId = response['userId'];
+          if (userId != null) {
+            await profileProvider.loadProfilePicture(userId);
+            _logger.i('Google user profile picture loaded successfully');
+          }
+        } catch (e) {
+          _logger.e('Error loading Google user profile picture: $e');
+          // Continue with login even if profile picture loading fails
+        }
+
         // Existing user - navigate to the Link Plaid screen
         _logger.i('Existing Google user, redirecting to Link Plaid screen');
         Navigator.of(context).pushReplacement(

@@ -209,6 +209,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
   bool _hasActiveAdvance = false;
   bool _isLoading = true;
   bool _isApproved = false;
+  bool _isRtpSupported = false;
   String _approvalStatusMessage = '';
   String? _userFirstName;
   final currencyFormatter =
@@ -372,6 +373,8 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
           } catch (e) {
             print("🔴 ERROR in _checkActiveAdvance: $e");
             // Still continue to advance screen if there's an error checking for advances
+            // Check RTP capabilities before proceeding to advance screen
+            await _checkRtpCapabilities();
             _proceedToAdvanceScreen();
           }
         } else {
@@ -455,6 +458,125 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
         'has_active_advance': false, // No advance in error case
         'message': _approvalStatusMessage
       });
+    }
+  }
+
+  Future<void> _checkRtpCapabilities() async {
+    print("🔍 STARTING RTP capabilities check");
+    try {
+      // Default to false (not supported)
+      setState(() {
+        _isRtpSupported = false;
+      });
+
+      // Get auth token for API request
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final token = await authService.getToken();
+
+      // Ensure token is not null
+      if (token == null || token.isEmpty) {
+        print(
+            "❌ Cannot check RTP capabilities: No authentication token available");
+        return;
+      }
+
+      // Make API request with the bank account ID (plaidItemId)
+      final plaidItemId = widget.bankAccountId;
+      if (plaidItemId.isEmpty) {
+        print(
+            "⚠️ No plaidItemId provided in constructor, attempting to fetch from API");
+
+        // Fetch plaidItemId from the items endpoint
+        final itemsResponse = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}/api/plaid/items'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${token}',
+          },
+        );
+
+        print("Plaid items response status: ${itemsResponse.statusCode}");
+        print("Plaid items response body: ${itemsResponse.body}");
+
+        if (itemsResponse.statusCode == 200) {
+          final itemsData = jsonDecode(itemsResponse.body);
+
+          if (itemsData['items'] is List && itemsData['items'].isNotEmpty) {
+            final primaryItem = itemsData['items'][0];
+            final accountId = primaryItem['id']?.toString() ?? '';
+
+            if (accountId.isNotEmpty) {
+              print("✅ Successfully retrieved plaidItemId: $accountId");
+              // Continue with this plaidItemId
+              await _checkRtpCapabilitiesWithId(accountId, token);
+              return;
+            }
+          }
+
+          print("❌ No usable Plaid items found in the response");
+          return;
+        } else {
+          print(
+              "❌ Failed to fetch Plaid items: HTTP ${itemsResponse.statusCode}");
+          return;
+        }
+      }
+
+      // If we have a plaidItemId from the constructor, use it
+      await _checkRtpCapabilitiesWithId(plaidItemId, token);
+    } catch (e) {
+      print("🔴 Error checking RTP capabilities: $e");
+      // Keep default value (false) on error
+    }
+  }
+
+  Future<void> _checkRtpCapabilitiesWithId(
+      String plaidItemId, String? token) async {
+    try {
+      // Ensure token is not null
+      if (token == null || token.isEmpty) {
+        print(
+            "❌ Cannot check RTP capabilities: No authentication token available");
+        return;
+      }
+
+      print("🔍 Checking RTP capabilities for plaidItemId: $plaidItemId");
+
+      final response = await http.get(
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/cash-advance/rtp-capabilities/$plaidItemId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${token}',
+        },
+      );
+
+      print("🔍 RTP capabilities API response status: ${response.statusCode}");
+      print("🔍 RTP capabilities API response body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Update state based on API response
+        setState(() {
+          _isRtpSupported = data['rtpSupported'] == true;
+        });
+
+        if (_isRtpSupported) {
+          print(
+              "✅ RTP support confirmed! User will be offered instant transfer option.");
+        } else {
+          print(
+              "⚠️ RTP support NOT available. User will only be offered standard transfer.");
+        }
+      } else {
+        print(
+            "⚠️ Failed to check RTP capabilities: HTTP ${response.statusCode}");
+        // Keep default value (false) on error
+      }
+    } catch (e) {
+      print("🔴 Error checking RTP capabilities: $e");
+      // Keep default value (false) on error
     }
   }
 
@@ -578,13 +700,16 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
             'quick_action_status':
                 'requested', // This will make the quick action show "Requested" status
             'has_active_advance':
-                true // Clear flag to indicate there's an active advance
+                true, // Clear flag to indicate there's an active advance
+            'show_repay_card': true, // Trigger to flip to repay card view
           };
           print(
               "🔴 Returning to home screen with active advance data: $resultData");
           Navigator.of(context).pop(resultData);
         } else {
-          print("🔍 No active advance found, proceeding to advance screen");
+          print("🔍 No active advance found, checking RTP capabilities...");
+          // No active advance - check RTP capabilities and proceed to advance screen
+          await _checkRtpCapabilities();
           setState(() {
             _isLoading = false;
           });
@@ -593,6 +718,8 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
       } else {
         print(
             "⚠️ Active advance check failed with status ${response.statusCode}");
+        // Check RTP capabilities even if active advance check fails
+        await _checkRtpCapabilities();
         setState(() {
           _isLoading = false;
         });
@@ -601,6 +728,8 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
     } catch (e) {
       print("🔴 Error checking active cash advance: $e");
       if (!mounted) return;
+      // Check RTP capabilities even if there's an error with active advance check
+      await _checkRtpCapabilities();
       setState(() {
         _isLoading = false;
       });
@@ -680,7 +809,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
             return BlinkAdvanceScreen(
               bankAccountId: widget.bankAccountId,
               userName: _userFirstName,
-              // Note: We could extend this to pass more data if needed in the future
+              isRtpSupported: _isRtpSupported,
             );
           },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -810,6 +939,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (_hasActiveAdvance) ...[
                     const Icon(
@@ -823,6 +953,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
                     const SizedBox(height: 24),
                     Text(
                       'Active Advance Detected',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 24,
@@ -837,6 +968,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
                     if (_activeAdvance != null) ...[
                       Text(
                         'Amount: ${currencyFormatter.format(double.tryParse(_activeAdvance!['amount']?.toString() ?? '0') ?? 0.0)}',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 18,
@@ -846,6 +978,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
                       const SizedBox(height: 8),
                       Text(
                         'Due: ${DateFormat('MMM d, yyyy').format(DateTime.tryParse(_activeAdvance!['repayment_date']?.toString() ?? '') ?? DateTime.now())}',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 18,
@@ -855,6 +988,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
                       const SizedBox(height: 12),
                       Text(
                         'Total to Repay: ${currencyFormatter.format(double.tryParse(_activeAdvance!['total_repayment_amount']?.toString() ?? '0') ?? 0.0)}',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 18,
@@ -943,6 +1077,7 @@ class _BlinkAdvanceSplashScreenState extends State<BlinkAdvanceSplashScreen>
                                   context)),
                       Text(
                         'Returning to home screen...',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.7),
                           fontSize: ResponsiveUtils.getResponsiveFontSize(

@@ -1012,11 +1012,13 @@ class _CustomChatBubbleState extends State<CustomChatBubble>
 class BlinkAdvanceScreen extends StatefulWidget {
   final String bankAccountId;
   final String? userName;
+  final bool isRtpSupported;
 
   const BlinkAdvanceScreen({
     super.key,
     required this.bankAccountId,
     this.userName,
+    this.isRtpSupported = false,
   });
 
   @override
@@ -1350,9 +1352,13 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
           // Add subtle haptic feedback
           HapticFeedback.selectionClick();
 
+          // Conditionally mention transfer speed based on RTP support
+          final transferMessage = widget.isRtpSupported
+              ? 'Tell us, $currentUserName! How quickly would you like to receive your cash?'
+              : 'Tell us, $currentUserName! Would you like to proceed with your cash advance?';
+
           _addMessage(ChatMessage(
-            text:
-                'Tell us, $currentUserName! How quickly would you like to receive your cash?',
+            text: transferMessage,
             isUser: false,
             timestamp: DateTime.now(),
             emoji: AnimatedEmoji(AnimatedEmojis.rocket, size: 24),
@@ -1564,23 +1570,26 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
       case ConversationState.speedSelection:
         return Row(
           children: [
-            Expanded(
-              child: _buildCompactActionButton(
-                onTap: () => _handleSpeedSelection(TransferSpeed.instant),
-                title: 'Instant',
-                subtitle: 'Minutes',
-                amount: '\$25.00',
-                emoji: AnimatedEmoji(AnimatedEmojis.electricity,
-                    size:
-                        22 * ResponsiveUtils.getElementSizeMultiplier(context)),
-                gradientColors: [
-                  Color(0xFF9C27B0),
-                  Color(0xFF7B1FA2),
-                ],
-                isHighlighted: true,
+            // Only show instant option if RTP is supported
+            if (widget.isRtpSupported)
+              Expanded(
+                child: _buildCompactActionButton(
+                  onTap: () => _handleSpeedSelection(TransferSpeed.instant),
+                  title: 'Instant',
+                  subtitle: 'Minutes',
+                  amount: '\$25.00',
+                  emoji: AnimatedEmoji(AnimatedEmojis.electricity,
+                      size: 22 *
+                          ResponsiveUtils.getElementSizeMultiplier(context)),
+                  gradientColors: [
+                    Color(0xFF9C27B0),
+                    Color(0xFF7B1FA2),
+                  ],
+                  isHighlighted: true,
+                ),
               ),
-            ),
-            SizedBox(width: 12),
+            // Only show separator if both options are visible
+            if (widget.isRtpSupported) SizedBox(width: 12),
             Expanded(
               child: _buildCompactActionButton(
                 onTap: () => _handleSpeedSelection(TransferSpeed.standard),
@@ -1594,6 +1603,8 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
                   Color(0xFF1E88E5),
                   Color(0xFF1976D2),
                 ],
+                isHighlighted: !widget
+                    .isRtpSupported, // Highlight standard if instant is not available
               ),
             ),
           ],
@@ -1887,6 +1898,13 @@ class _BlinkAdvanceScreenState extends State<BlinkAdvanceScreen>
     // Enhanced haptic feedback for selection
     HapticFeedback.selectionClick();
     HapticFeedback.lightImpact();
+
+    // Enforce standard speed if instant is selected but RTP is not supported
+    if (speed == TransferSpeed.instant && !widget.isRtpSupported) {
+      print(
+          "⚠️ RTP not supported but instant transfer requested. Defaulting to standard.");
+      speed = TransferSpeed.standard;
+    }
 
     setState(() {
       _selectedSpeed = speed;
