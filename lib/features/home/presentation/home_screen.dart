@@ -4176,17 +4176,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     const SizedBox(width: 8),
                     _buildIconButton(
-                      icon: Icons.favorite_outline_rounded,
-                      onPressed: () {
-                        _performHapticFeedback(haptics.HapticsType.light);
-                        showDialog(
-                          context: context,
-                          builder: (context) => const FavoritesScreen(),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    _buildIconButton(
                       icon: Icons.notifications_outlined,
                       onPressed: () {
                         _performHapticFeedback(haptics.HapticsType.light);

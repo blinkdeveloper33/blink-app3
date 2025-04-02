@@ -1,5 +1,5 @@
 name: blink_app
-description: A financial management and Cash advance app.
+description: Blink Cash - A financial management and Cash advance app.
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.

@@ -760,18 +760,58 @@ class AuthService {
 
   // Profile Management
   Future<Map<String, dynamic>> updateUserProfile(
-      Map<String, dynamic> data) async {
+      Map<String, dynamic> userData) async {
     try {
-      final response = await _makeRequest(
-        endpoint: '/api/users/profile',
-        method: 'PUT',
-        body: data,
-        requireAuth: true,
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Authentication failed'};
+      }
+
+      // Create a copy of userData to avoid modifying the original
+      final updatedData = Map<String, dynamic>.from(userData);
+
+      // Map two-letter state codes to full state names if needed
+      if (updatedData.containsKey('state') && updatedData['state'] != null) {
+        final stateCode = updatedData['state'].toString().toUpperCase();
+        final stateMap = {
+          'FL': 'Florida',
+          'NV': 'Nevada',
+          'MO': 'Missouri',
+          'WI': 'Wisconsin',
+          'KS': 'Kansas',
+          'SC': 'South Carolina',
+        };
+
+        if (stateMap.containsKey(stateCode)) {
+          updatedData['state'] = stateMap[stateCode];
+        }
+      }
+
+      // Use the correct API endpoint
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/user-profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(updatedData),
       );
-      return response;
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final responseData = jsonDecode(response.body);
+        return responseData;
+      } else {
+        debugPrint(
+            'Error status: ${response.statusCode}, body: ${response.body}');
+        return {
+          'success': false,
+          'message':
+              'Failed to update profile: ${response.statusCode} ${response.body}'
+        };
+      }
     } catch (e) {
-      _logger.e('Error updating user profile:', error: e);
-      rethrow;
+      debugPrint('Error updating user profile: $e');
+      return {'success': false, 'message': 'Failed to update profile: $e'};
     }
   }
 
@@ -1867,20 +1907,53 @@ class AuthService {
         return {'success': false, 'message': 'Authentication failed'};
       }
 
+      // Create a copy of userData to avoid modifying the original
+      final updatedData = Map<String, dynamic>.from(userData);
+
+      // Map two-letter state codes to full state names if needed
+      if (updatedData.containsKey('state') && updatedData['state'] != null) {
+        final stateCode = updatedData['state'].toString().toUpperCase();
+        final stateMap = {
+          'FL': 'Florida',
+          'NV': 'Nevada',
+          'MO': 'Missouri',
+          'WI': 'Wisconsin',
+          'KS': 'Kansas',
+          'SC': 'South Carolina',
+        };
+
+        if (stateMap.containsKey(stateCode)) {
+          updatedData['state'] = stateMap[stateCode];
+        }
+      }
+
       final response = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/api/user-profile/secure-update'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(userData),
+        body: jsonEncode(updatedData),
       );
 
-      final responseData = jsonDecode(response.body);
-      return responseData;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final responseData = jsonDecode(response.body);
+        return responseData;
+      } else {
+        debugPrint(
+            'Error status: ${response.statusCode}, body: ${response.body}');
+        return {
+          'success': false,
+          'message':
+              'Failed to update profile securely: ${response.statusCode} ${response.body}'
+        };
+      }
     } catch (e) {
       debugPrint('Error updating user profile securely: $e');
-      return {'success': false, 'message': 'Failed to update profile securely'};
+      return {
+        'success': false,
+        'message': 'Failed to update profile securely: $e'
+      };
     }
   }
 }
