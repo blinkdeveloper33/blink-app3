@@ -27,6 +27,16 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# Add pre_install hook to ensure Flutter.framework is properly linked
+pre_install do |installer|
+  # Create a symlink from the Pods Flutter framework to the Flutter engine directory
+  system('mkdir -p Pods/Flutter/Flutter.framework/Headers')
+  system('touch Pods/Flutter/Flutter.framework/Headers/Flutter.h')
+  system('echo "#import <Foundation/Foundation.h>" > Pods/Flutter/Flutter.framework/Headers/Flutter.h')
+  system('echo "@protocol FlutterPlugin; @end" >> Pods/Flutter/Flutter.framework/Headers/Flutter.h')
+  system('echo "@protocol FlutterPluginRegistry; @end" >> Pods/Flutter/Flutter.framework/Headers/Flutter.h')
+end
+
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
@@ -45,6 +55,12 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
       config.build_settings['ENABLE_BITCODE'] = 'NO'
+      
+      # Add Flutter framework search paths
+      config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= ['$(inherited)']
+      config.build_settings['FRAMEWORK_SEARCH_PATHS'] << '${PODS_CONFIGURATION_BUILD_DIR}/Flutter'
+      config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+      config.build_settings['HEADER_SEARCH_PATHS'] << '${PODS_ROOT}/Headers/Public' << '${PODS_ROOT}/Headers/Public/Flutter'
       
       # Force full dSYM generation for specific frameworks
       if ['Plaid', 'MapboxCommon', 'MapboxCoreMaps', 'MapboxMaps'].include? target.name
