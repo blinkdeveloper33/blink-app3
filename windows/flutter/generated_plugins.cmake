@@ -3,14 +3,9 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  app_links
-  file_selector_windows
   flutter_localization
-  flutter_secure_storage_windows
-  local_auth_windows
   rive_common
   sentry_flutter
-  share_plus
   url_launcher_windows
 )
 
