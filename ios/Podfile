@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '14.0'
+platform :ios, '12.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -27,16 +27,6 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-# Add pre_install hook to ensure Flutter.framework is properly linked
-pre_install do |installer|
-  # Create a symlink from the Pods Flutter framework to the Flutter engine directory
-  system('mkdir -p Pods/Flutter/Flutter.framework/Headers')
-  system('touch Pods/Flutter/Flutter.framework/Headers/Flutter.h')
-  system('echo "#import <Foundation/Foundation.h>" > Pods/Flutter/Flutter.framework/Headers/Flutter.h')
-  system('echo "@protocol FlutterPlugin; @end" >> Pods/Flutter/Flutter.framework/Headers/Flutter.h')
-  system('echo "@protocol FlutterPluginRegistry; @end" >> Pods/Flutter/Flutter.framework/Headers/Flutter.h')
-end
-
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
@@ -50,80 +40,5 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
-    
-    # Enable dSYM generation for all pods
-    target.build_configurations.each do |config|
-      config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
-      config.build_settings['ENABLE_BITCODE'] = 'NO'
-      
-      # Add Flutter framework search paths
-      config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= ['$(inherited)']
-      config.build_settings['FRAMEWORK_SEARCH_PATHS'] << '${PODS_CONFIGURATION_BUILD_DIR}/Flutter'
-      config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
-      config.build_settings['HEADER_SEARCH_PATHS'] << '${PODS_ROOT}/Headers/Public' << '${PODS_ROOT}/Headers/Public/Flutter'
-      
-      # Force full dSYM generation for specific frameworks
-      if ['Plaid', 'MapboxCommon', 'MapboxCoreMaps', 'MapboxMaps'].include? target.name
-        config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
-        config.build_settings['STRIP_STYLE'] = 'non-global'
-        config.build_settings['COPY_PHASE_STRIP'] = 'NO'
-        config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
-        config.build_settings['PRESERVE_DEAD_CODE_INITS_AND_TERMS'] = 'YES'
-      end
-    end
-  end
-  
-  # Add a script phase to extract dSYMs from frameworks
-  installer.aggregate_targets.each do |aggregate_target|
-    aggregate_target.user_project.targets.each do |target|
-      target.build_phases.each do |phase|
-        next unless phase.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
-        phase.shell_script = %q(
-          set -e
-          set -u
-          set -o pipefail
-          
-          # Create dSYM directories if they don't exist
-          mkdir -p ${DWARF_DSYM_FOLDER_PATH}
-          
-          # Function to extract dSYMs from a framework
-          extract_dsyms() {
-            local framework_path="$1"
-            local framework_name=$(basename "$framework_path" .framework)
-            
-            if [ -d "$framework_path" ]; then
-              echo "Extracting dSYMs for $framework_name..."
-              local binary_path="$framework_path/$framework_name"
-              if [ -f "$binary_path" ]; then
-                local dsym_path="${DWARF_DSYM_FOLDER_PATH}/${framework_name}.framework.dSYM"
-                mkdir -p "$dsym_path/Contents/Resources/DWARF"
-                
-                # Extract DWARF debug info
-                xcrun dsymutil -o "$dsym_path" "$binary_path"
-                
-                echo "Created dSYM at $dsym_path"
-              else
-                echo "Warning: Binary not found in $framework_path"
-              fi
-            fi
-          }
-          
-          # Extract dSYMs for problematic frameworks
-          pod_frameworks="${PODS_ROOT}"
-          
-          # Process LinkKit from Plaid
-          extract_dsyms "${PODS_ROOT}/Plaid/LinkKit.framework"
-          
-          # Process Mapbox frameworks
-          extract_dsyms "${PODS_ROOT}/MapboxCommon/MapboxCommon.framework"
-          extract_dsyms "${PODS_ROOT}/MapboxCoreMaps/MapboxCoreMaps.framework"
-          extract_dsyms "${PODS_ROOT}/MapboxMaps/MapboxMaps.framework"
-          
-          exit 0
-        )
-        break # Only need to modify one script phase
-      end
-    end
-    aggregate_target.user_project.save
   end
 end
